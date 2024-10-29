@@ -48,6 +48,12 @@ module m_time_steppers
     @:CRAY_DECLARE_GLOBAL(type(vector_field), dimension(:), q_cons_ts)
     !! Cell-average conservative variables at each time-stage (TS)
 
+    @:CRAY_DECLARE_GLOBAL(type(scalar_field), dimension(:), q_cons_pt)
+    !! Cell-average conservative variables at each pseudo-time-stage (PTS)
+
+    @:CRAY_DECLARE_GLOBAL(type(scalar_field), dimension(:), k_vf)
+    !! 
+
     @:CRAY_DECLARE_GLOBAL(type(scalar_field), dimension(:), q_prim_vf)
     !! Cell-average primitive variables at the current time-stage
 
@@ -66,10 +72,16 @@ module m_time_steppers
     integer, private :: num_ts !<
     !! Number of time stages in the time-stepping scheme
 
-    !$acc declare link(q_cons_ts,q_prim_vf,rhs_vf,q_prim_ts, rhs_mv, rhs_pb, max_dt)
+    !$acc declare link(q_cons_ts,q_cons_pt,k_vf,q_prim_vf,rhs_vf,q_prim_ts, rhs_mv, rhs_pb, max_dt)
 #else
     type(vector_field), allocatable, dimension(:) :: q_cons_ts !<
     !! Cell-average conservative variables at each time-stage (TS)
+
+    type(scalar_field), allocatable, dimension(:) :: q_cons_pt !<
+    !! Cell-average conservative variables at each pseudo-time-stage (PTS)
+
+    type(scalar_field), allocatable, dimension(:) :: k_vf !<
+    !!  at each pseudo-time-stage (PTS)
 
     type(scalar_field), allocatable, dimension(:) :: q_prim_vf !<
     !! Cell-average primitive variables at the current time-stage
@@ -89,7 +101,7 @@ module m_time_steppers
     integer, private :: num_ts !<
     !! Number of time stages in the time-stepping scheme
 
-    !$acc declare create(q_cons_ts,q_prim_vf,rhs_vf,q_prim_ts, rhs_mv, rhs_pb, max_dt)
+    !$acc declare create(q_cons_ts,q_cons_pt,k_vf,q_prim_vf,rhs_vf,q_prim_ts, rhs_mv, rhs_pb, max_dt)
 #endif
 
 contains
@@ -105,10 +117,12 @@ contains
         integer :: i, j !< Generic loop iterators
 
         ! Setting number of time-stages for selected time-stepping scheme
-        if (time_stepper == 1) then
+        if (any(time_stepper == (/1, 4/))) then
             num_ts = 1
-        elseif (any(time_stepper == (/2, 3/))) then
+        elseif (any(time_stepper == (/2, 3, 5, 6/))) then
             num_ts = 2
+        elseif (any(time_stepper == (/7/))) then
+            num_ts = 3
         end if
 
         ! Setting the indical bounds in the x-, y- and z-directions
@@ -227,6 +241,71 @@ contains
                 iy_t%beg:iy_t%end, &
                 iz_t%beg:iz_t%end))
             @:ACC_SETUP_SFs(q_prim_vf(tempxb))
+        end if
+
+        ! Allocating the cell-average primitive variables
+        @:ALLOCATE_GLOBAL(q_cons_pt(1:sys_size))
+
+        do i = 1, adv_idx%end
+            @:ALLOCATE(q_cons_pt(i)%sf(ix_t%beg:ix_t%end, &
+                iy_t%beg:iy_t%end, &
+                iz_t%beg:iz_t%end))
+            @:ACC_SETUP_SFs(q_cons_pt(i))
+        end do
+
+        if (bubbles) then
+            do i = bub_idx%beg, bub_idx%end
+                @:ALLOCATE(q_cons_pt(i)%sf(ix_t%beg:ix_t%end, &
+                    iy_t%beg:iy_t%end, &
+                    iz_t%beg:iz_t%end))
+                @:ACC_SETUP_SFs(q_cons_pt(i))
+            end do
+            if (adv_n) then
+                @:ALLOCATE(q_cons_pt(n_idx)%sf(ix_t%beg:ix_t%end, &
+                    iy_t%beg:iy_t%end, &
+                    iz_t%beg:iz_t%end))
+                @:ACC_SETUP_SFs(q_cons_pt(n_idx))
+            end if
+        end if
+
+        if (hypoelasticity) then
+
+            do i = stress_idx%beg, stress_idx%end
+                @:ALLOCATE(q_cons_pt(i)%sf(ix_t%beg:ix_t%end, &
+                    iy_t%beg:iy_t%end, &
+                    iz_t%beg:iz_t%end))
+                @:ACC_SETUP_SFs(q_cons_pt(i))
+            end do
+        end if
+
+        if (model_eqns == 3) then
+            do i = internalEnergies_idx%beg, internalEnergies_idx%end
+                @:ALLOCATE(q_cons_pt(i)%sf(ix_t%beg:ix_t%end, &
+                    iy_t%beg:iy_t%end, &
+                    iz_t%beg:iz_t%end))
+                @:ACC_SETUP_SFs(q_cons_pt(i))
+            end do
+        end if
+
+        if (.not. f_is_default(sigma)) then
+            @:ALLOCATE(q_cons_pt(c_idx)%sf(ix_t%beg:ix_t%end, &
+                iy_t%beg:iy_t%end, &
+                iz_t%beg:iz_t%end))
+            @:ACC_SETUP_SFs(q_cons_pt(c_idx))
+        end if
+
+        if (chemistry) then
+            do i = chemxb, chemxe
+                @:ALLOCATE(q_cons_pt(i)%sf(ix_t%beg:ix_t%end, &
+                    iy_t%beg:iy_t%end, &
+                    iz_t%beg:iz_t%end))
+                @:ACC_SETUP_SFs(q_cons_pt(i))
+            end do
+
+            @:ALLOCATE(q_cons_pt(tempxb)%sf(ix_t%beg:ix_t%end, &
+                iy_t%beg:iy_t%end, &
+                iz_t%beg:iz_t%end))
+            @:ACC_SETUP_SFs(q_cons_pt(tempxb))
         end if
 
         @:ALLOCATE_GLOBAL(pb_ts(1:2))
@@ -871,6 +950,397 @@ contains
         ! ==================================================================
 
     end subroutine s_3rd_order_tvd_rk
+
+    !> 1st order implicit Euler scheme with dual-time stepping algorithm
+    subroutine s_1st_order_implicit_euler(t_step, time_avg)
+        integer, intent(in) :: t_step
+        real(kind(0d0)), intent(inout) :: time_avg
+
+        integer :: i, j, k, l, q !< Generic loop iterator
+        real(kind(0d0)) :: start, finish
+        real(kind(0d0)) :: dtau, max_err
+
+        !$acc parallel loop collapse(4) gang vector default(present)
+        do i = 1, sys_size
+            do l = 0, p 
+                do k = 0, n
+                    do j = 0, m
+                        q_cons_pt(i)%sf(j, k, l) = q_cons_ts(1)%vf(i)%sf(j, k, l)
+                    end do
+                end do
+            end do
+        end do
+
+        dtau = 0.1*dt
+
+        ! Pseudo time iteration
+        do while (.true.)
+            ! flux contribution to RHS
+            call s_compute_rhs(q_cons_pt, q_prim_vf, rhs_vf, pb_ts(1)%sf, rhs_pb, mv_ts(1)%sf, rhs_mv, t_step, time_avg)
+
+            ! update pseudo time variable
+            !$acc parallel loop collapse(4) gang vector default(present)
+            do i = 1, sys_size
+                do l = 0, p
+                    do k = 0, n
+                        do j = 0, m
+                            q_cons_pt(i)%sf(j, k, l) = &
+                                q_cons_pt(i)%sf(j, k, l) &
+                                - dtau/dt * (q_cons_pt(i)%sf(j, k, l) - q_cons_ts(1)%vf(i)%sf(j, k, l)) &
+                                + dtau*rhs_vf(i)%sf(j, k, l)
+                        end do
+                    end do
+                end do
+            end do
+
+            ! Error estimation
+            max_err = f_max_err()
+
+            ! print *, q, max_err
+
+            if (max_err < 1d-8) then
+                print *, "max_err < 1d-8 at peudo-time iteration ", q
+                exit
+            end if
+
+            if (q == 1000) then 
+                print *, "pseudo time iteration reached 1000."
+                exit
+            end if
+        end do
+
+    end subroutine s_1st_order_implicit_euler
+
+
+    !> 
+    subroutine s_2nd_order_implicit_trapezoidal(t_step, time_avg)
+        integer, intent(in) :: t_step
+        real(kind(0d0)), intent(inout) :: time_avg
+
+        integer :: i, j, k, l, q !< Generic loop iterator
+        real(kind(0d0)) :: start, finish
+        real(kind(0d0)) :: dtau, max_err
+
+        ! Stage 1 of 2 =====================================================
+        ! flux contribution to RHS
+        call s_compute_rhs(q_cons_ts(1)%vf, q_prim_vf, rhs_vf, pb_ts(1)%sf, rhs_pb, mv_ts(1)%sf, rhs_mv, t_step, time_avg)
+
+        !$acc parallel loop collapse(4) gang vector default(present)
+        do i = 1, sys_size
+            do l = 0, p
+                do k = 0, n
+                    do j = 0, m
+                        q_cons_ts(2)%vf(i)%sf(j, k, l) = &
+                            q_cons_ts(1)%vf(i)%sf(j, k, l) &
+                            + 0.5d0*dt*rhs_vf(i)%sf(j, k, l)
+                    end do
+                end do
+            end do
+        end do
+
+        ! Stage 2 of 2 =====================================================
+        ! Pseudo-time iteration
+        !$acc parallel loop collapse(4) gang vector default(present)
+        do i = 1, sys_size
+            do l = 0, p 
+                do k = 0, n
+                    do j = 0, m
+                        q_cons_pt(i)%sf(j, k, l) = q_cons_ts(2)%vf(i)%sf(j, k, l)
+                    end do
+                end do
+            end do
+        end do
+
+        dtau = 0.1*dt
+
+        do while (.true.)
+            ! flux contribution to RHS
+            call s_compute_rhs(q_cons_pt, q_prim_vf, rhs_vf, pb_ts(1)%sf, rhs_pb, mv_ts(1)%sf, rhs_mv, t_step, time_avg)
+
+            ! update pseudo time variable
+            !$acc parallel loop collapse(4) gang vector default(present)
+            do i = 1, sys_size
+                do l = 0, p
+                    do k = 0, n
+                        do j = 0, m
+                            q_cons_pt(i)%sf(j, k, l) = &
+                                q_cons_pt(i)%sf(j, k, l) &
+                                - dtau/dt * (q_cons_pt(i)%sf(j, k, l) - q_cons_ts(2)%vf(i)%sf(j, k, l)) &
+                                + 0.5d0*dtau*rhs_vf(i)%sf(j, k, l)
+                        end do
+                    end do
+                end do
+            end do
+
+            ! Error estimation
+            max_err = f_max_err()
+            print *, q, max_err
+
+            if (max_err < 1d-8) then
+                print *, "max_err < 1d-8 at peudo-time iteration ", q
+                exit
+            end if
+
+            if (q == 1000) then
+                print *, "pseudo time iteration reached 1000."
+                exit
+            end if
+        end do
+
+    end subroutine s_2nd_order_implicit_trapezoidal
+
+
+    !> 
+    subroutine s_2nd_order_implicit_rk(t_step, time_avg)
+        integer, intent(in) :: t_step
+        real(kind(0d0)), intent(inout) :: time_avg
+
+        integer :: i, j, k, l, q !< Generic loop iterator
+        real(kind(0d0)) :: start, finish
+        real(kind(0d0)) :: dtau, max_err
+
+        ! ! Stage 1 of 2 =====================================================
+        ! ! flux contribution to RHS
+        ! call s_compute_rhs(q_cons_ts(1)%vf, q_prim_vf, rhs_vf, pb_ts(1)%sf, rhs_pb, mv_ts(1)%sf, rhs_mv, t_step, time_avg)
+
+        ! !$acc parallel loop collapse(4) gang vector default(present)
+        ! do i = 1, sys_size
+        !     do l = 0, p
+        !         do k = 0, n
+        !             do j = 0, m
+        !                 q_cons_ts(2)%vf(i)%sf(j, k, l) = &
+        !                     q_cons_ts(1)%vf(i)%sf(j, k, l) &
+        !                     + 0.5d0*dt*rhs_vf(i)%sf(j, k, l)
+        !             end do
+        !         end do
+        !     end do
+        ! end do
+
+        ! ! Stage 2 of 2 =====================================================
+        ! ! Pseudo-time iteration
+        ! !$acc parallel loop collapse(4) gang vector default(present)
+        ! do i = 1, sys_size
+        !     do l = 0, p 
+        !         do k = 0, n
+        !             do j = 0, m
+        !                 q_cons_pt(i)%sf(j, k, l) = q_cons_ts(2)%vf(i)%sf(j, k, l)
+        !             end do
+        !         end do
+        !     end do
+        ! end do
+
+        ! dtau = 0.1*dt
+
+        ! do q = 1, 1000    
+        !     ! flux contribution to RHS
+        !     call s_compute_rhs(q_cons_pt, q_prim_vf, rhs_vf, pb_ts(1)%sf, rhs_pb, mv_ts(1)%sf, rhs_mv, t_step, time_avg)
+
+        !     ! update pseudo time variable
+        !     !$acc parallel loop collapse(4) gang vector default(present)
+        !     do i = 1, sys_size
+        !         do l = 0, p
+        !             do k = 0, n
+        !                 do j = 0, m
+        !                     q_cons_pt(i)%sf(j, k, l) = &
+        !                         q_cons_pt(i)%sf(j, k, l) &
+        !                         - dtau/dt * (q_cons_pt(i)%sf(j, k, l) - q_cons_ts(2)%vf(i)%sf(j, k, l)) &
+        !                         + dtau*rhs_vf(i)%sf(j, k, l)
+        !                 end do
+        !             end do
+        !         end do
+        !     end do
+
+        !     ! Error estimation
+        !     max_err = f_max_err()
+            
+        !     if (max_err < 1d-8) then
+        !         ! print *, "max_err < 1d-8 at peudo-time iteration ", q
+        !         exit
+        !     end if
+
+        !     if (q == 1000) print *, "pseudo time iteration reached 1000."
+        ! end do
+
+
+    end subroutine s_2nd_order_implicit_rk
+
+
+    !>
+    subroutine s_3rd_order_nontvd_rk(t_step, time_avg)
+
+        integer, intent(IN) :: t_step
+        real(kind(0d0)), intent(INOUT) :: time_avg
+
+        integer :: i, j, k, l, q !< Generic loop iterator
+        real(kind(0d0)) :: ts_error, denom, error_fraction, time_step_factor !< Generic loop iterator
+        real(kind(0d0)) :: start, finish
+        real(kind(0d0)) :: nR3bar
+
+        ! Stage 1 of 3 =====================================================
+
+        if (.not. adap_dt) then
+            call cpu_time(start)
+            call nvtxStartRange("Time_Step")
+        end if
+
+        call s_compute_rhs(q_cons_ts(1)%vf, q_prim_vf, rhs_vf, pb_ts(1)%sf, rhs_pb, mv_ts(1)%sf, rhs_mv, t_step, time_avg)
+
+        if (run_time_info) then
+            call s_write_run_time_information(q_prim_vf, t_step)
+        end if
+
+        if (probe_wrt) then
+            call s_time_step_cycling(t_step)
+        end if
+
+        if (cfl_dt) then
+            if (mytime >= t_stop) return
+        else
+            if (t_step == t_step_stop) return
+        end if
+
+        !$acc parallel loop collapse(4) gang vector default(present)
+        do i = 1, sys_size
+            do l = 0, p
+                do k = 0, n
+                    do j = 0, m
+                        q_cons_ts(2)%vf(i)%sf(j, k, l) = &
+                            q_cons_ts(1)%vf(i)%sf(j, k, l) &
+                            + dt*rhs_vf(i)%sf(j, k, l)/3d0
+                    end do
+                end do
+            end do
+        end do
+
+        call nvtxStartRange("body_forces")
+        if (bodyForces) call s_apply_bodyforces(q_cons_ts(1)%vf, q_prim_vf, rhs_vf, dt)
+        call nvtxEndRange
+
+        if (grid_geometry == 3) call s_apply_fourier_filter(q_cons_ts(2)%vf)
+
+        if (model_eqns == 3 .and. (.not. relax)) then
+            call s_pressure_relaxation_procedure(q_cons_ts(2)%vf)
+        end if
+
+        if (adv_n) call s_comp_alpha_from_n(q_cons_ts(2)%vf)
+
+        if (ib) then
+            if (qbmm .and. .not. polytropic) then
+                call s_ibm_correct_state(q_cons_ts(2)%vf, q_prim_vf, pb_ts(2)%sf, mv_ts(2)%sf)
+            else
+                call s_ibm_correct_state(q_cons_ts(2)%vf, q_prim_vf)
+            end if
+        end if
+        ! ==================================================================
+
+        ! Stage 2 of 3 =====================================================
+
+        call s_compute_rhs(q_cons_ts(2)%vf, q_prim_vf, rhs_vf, pb_ts(2)%sf, rhs_pb, mv_ts(2)%sf, rhs_mv, t_step, time_avg)
+
+        !$acc parallel loop collapse(4) gang vector default(present)
+        do i = 1, sys_size
+            do l = 0, p
+                do k = 0, n
+                    do j = 0, m
+                        q_cons_ts(3)%vf(i)%sf(j, k, l) = &
+                             q_cons_ts(1)%vf(i)%sf(j, k, l) &
+                             + 2d0*dt*rhs_vf(i)%sf(j, k, l)/3d0
+                    end do
+                end do
+            end do
+        end do
+
+        call nvtxStartRange("body_forces")
+        if (bodyForces) call s_apply_bodyforces(q_cons_ts(3)%vf, q_prim_vf, rhs_vf, dt/4d0)
+        call nvtxEndRange
+
+        if (grid_geometry == 3) call s_apply_fourier_filter(q_cons_ts(3)%vf)
+
+        if (model_eqns == 3 .and. (.not. relax)) then
+            call s_pressure_relaxation_procedure(q_cons_ts(3)%vf)
+        end if
+
+        if (adv_n) call s_comp_alpha_from_n(q_cons_ts(3)%vf)
+
+        if (ib) then
+            if (qbmm .and. .not. polytropic) then
+                call s_ibm_correct_state(q_cons_ts(3)%vf, q_prim_vf, pb_ts(2)%sf, mv_ts(2)%sf)
+            else
+                call s_ibm_correct_state(q_cons_ts(3)%vf, q_prim_vf)
+            end if
+        end if
+        ! ==================================================================
+
+        ! Stage 3 of 3 =====================================================
+        call s_compute_rhs(q_cons_ts(3)%vf, q_prim_vf, rhs_vf, pb_ts(2)%sf, rhs_pb, mv_ts(2)%sf, rhs_mv, t_step, time_avg)
+
+        !$acc parallel loop collapse(4) gang vector default(present)
+        do i = 1, sys_size
+            do l = 0, p
+                do k = 0, n
+                    do j = 0, m
+                        q_cons_ts(1)%vf(i)%sf(j, k, l) = &
+                             (q_cons_ts(1)%vf(i)%sf(j, k, l) &
+                             + 3d0*q_cons_ts(2)%vf(i)%sf(j, k, l) &
+                             + 3d0*dt*rhs_vf(i)%sf(j, k, l))/4d0
+                    end do
+                end do
+            end do
+        end do
+
+        call nvtxStartRange("body_forces")
+        if (bodyForces) call s_apply_bodyforces(q_cons_ts(1)%vf, q_prim_vf, rhs_vf, 2d0*dt/3d0)
+        call nvtxEndRange
+
+        if (grid_geometry == 3) call s_apply_fourier_filter(q_cons_ts(1)%vf)
+
+        if (model_eqns == 3 .and. (.not. relax)) then
+            call s_pressure_relaxation_procedure(q_cons_ts(1)%vf)
+        end if
+
+        if (adv_n) call s_comp_alpha_from_n(q_cons_ts(1)%vf)
+
+        if (ib) then
+            if (qbmm .and. .not. polytropic) then
+                call s_ibm_correct_state(q_cons_ts(1)%vf, q_prim_vf, pb_ts(1)%sf, mv_ts(1)%sf)
+            else
+                call s_ibm_correct_state(q_cons_ts(1)%vf, q_prim_vf)
+            end if
+        end if
+
+        if (.not. adap_dt) then
+            call nvtxEndRange
+            call cpu_time(finish)
+
+            time = time + (finish - start)
+        end if
+        ! ==================================================================
+
+    end subroutine s_3rd_order_nontvd_rk
+    
+
+
+    !> 
+    function f_max_err()
+
+        real(kind(0d0)) :: local_err, f_max_err
+        integer :: i, j, k, l !< Generic loop iterator
+
+        f_max_err = 0d0
+
+        do i = 1, sys_size
+            do l = 0, p
+                do k = 0, n
+                    do j = 0, m
+                        local_err = abs(q_cons_pt(i)%sf(j, k, l) - q_cons_ts(1)%vf(i)%sf(j, k, l))
+                        if (local_err > f_max_err) f_max_err = local_err
+                    end do
+                end do
+            end do
+        end do
+
+    end function f_max_err
+
 
     !> Strang splitting scheme with 3rd order TVD RK time-stepping algorithm for
         !!      the flux term and adaptive time stepping algorithm for

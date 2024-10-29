@@ -1158,6 +1158,14 @@ contains
             call s_3rd_order_tvd_rk(t_step, time_avg)
         elseif (time_stepper == 3 .and. adap_dt) then
             call s_strang_splitting(t_step, time_avg)
+        elseif (time_stepper == 4) then
+            call s_1st_order_implicit_euler(t_step, time_avg)
+        elseif (time_stepper == 5) then
+            call s_2nd_order_implicit_trapezoidal(t_step, time_avg)
+        elseif (time_stepper == 6) then
+            call s_2nd_order_implicit_rk(t_step, time_avg)
+        elseif (time_stepper == 7) then
+            call s_3rd_order_nontvd_rk(t_step, time_avg)
         end if
 
         if (relax) call s_infinite_relaxation_k(q_cons_ts(1)%vf)
