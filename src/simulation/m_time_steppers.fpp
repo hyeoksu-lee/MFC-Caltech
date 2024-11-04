@@ -1206,7 +1206,7 @@ contains
                     do j = 0, m
                         q_cons_ts(2)%vf(i)%sf(j, k, l) = &
                             q_cons_ts(1)%vf(i)%sf(j, k, l) &
-                            + dt*rhs_vf(i)%sf(j, k, l)/3d0
+                            + (3d0/4d0)*dt*rhs_vf(i)%sf(j, k, l)
                     end do
                 end do
             end do
@@ -1243,8 +1243,9 @@ contains
                 do k = 0, n
                     do j = 0, m
                         q_cons_ts(3)%vf(i)%sf(j, k, l) = &
-                             q_cons_ts(1)%vf(i)%sf(j, k, l) &
-                             + 2d0*dt*rhs_vf(i)%sf(j, k, l)/3d0
+                             - (17d0/18d0)*q_cons_ts(1)%vf(i)%sf(j, k, l) &
+                             + (35d0/18d0)*q_cons_ts(2)%vf(i)%sf(j, k, l) &
+                             - (7d0/12d0)*dt*rhs_vf(i)%sf(j, k, l)
                     end do
                 end do
             end do
@@ -1280,9 +1281,10 @@ contains
                 do k = 0, n
                     do j = 0, m
                         q_cons_ts(1)%vf(i)%sf(j, k, l) = &
-                             (q_cons_ts(1)%vf(i)%sf(j, k, l) &
-                             + 3d0*q_cons_ts(2)%vf(i)%sf(j, k, l) &
-                             + 3d0*dt*rhs_vf(i)%sf(j, k, l))/4d0
+                            - (73d0/63d0)*q_cons_ts(1)%vf(i)%sf(j, k, l) &
+                            + (256d0/63d0)*q_cons_ts(2)%vf(i)%sf(j, k, l) &
+                            - (40d0/21d0)*q_cons_ts(3)%vf(i)%sf(j, k, l) &
+                            - (8d0/21d0)*dt*rhs_vf(i)%sf(j, k, l)
                     end do
                 end do
             end do
@@ -1318,8 +1320,6 @@ contains
 
     end subroutine s_3rd_order_nontvd_rk
     
-
-
     !> 
     function f_max_err()
 
