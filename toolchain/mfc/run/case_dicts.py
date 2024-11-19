@@ -78,6 +78,7 @@ PRE_PROCESS.update({
     'pi_fac': ParamType.REAL,
     'ib': ParamType.LOG,
     'num_ibs': ParamType.INT,
+    'coupling_vf0': ParamType.REAL,
 })
 
 for ib_id in range(1, 10+1):
@@ -176,6 +177,9 @@ SIMULATION.update({
     't_step_save': ParamType.INT,
     't_step_print': ParamType.INT,
     'cell_wrt': ParamType.LOG,
+    'cell_wrt_x': ParamType.REAL,
+    'cell_wrt_y': ParamType.REAL,
+    'cell_wrt_z': ParamType.REAL,
     'time_stepper': ParamType.INT,
     'weno_eps': ParamType.REAL,
     'teno_CT': ParamType.REAL,

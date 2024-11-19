@@ -121,6 +121,9 @@ contains
                     if (alphab > 0.1) then
                         print *, proc_rank, j, k, l, alphab, nR3bar, q_cons_vf(n_idx)%sf(j, k, l)
                         print *, (q_cons_vf(i)%sf(j, k, l), i = 1, sys_size)
+                        print *, "x_cc = ", x_cc(j)
+                        if (n > 0) print *, "y_cc = ", y_cc(k)
+                        if (p > 0) print *, "z_cc = ", z_cc(l)
                         call s_mpi_abort("Subgrid bubble volume fraction is > 0.1")
                     end if
                 end do

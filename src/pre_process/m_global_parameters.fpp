@@ -111,6 +111,7 @@ module m_global_parameters
 
     real(kind(0d0)) :: pi_fac !< Factor for artificial pi_inf
     logical :: coupling !<
+    real(kind(0d0)) :: coupling_vf0
 
     ! Perturb density of surrounding air so as to break symmetry of grid
     logical :: perturb_flow
@@ -397,7 +398,8 @@ contains
 
         ! Coupling
         coupling = .true.
-        
+        coupling_vf0 = dflt_real
+
         ! Immersed Boundaries
         ib = .false.
         num_ibs = dflt_int

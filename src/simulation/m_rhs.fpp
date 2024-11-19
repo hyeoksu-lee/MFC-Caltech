@@ -1007,7 +1007,7 @@ contains
         call nvtxEndRange
         ! END: Additional pphysics and source terms ============================
 
-        if (run_time_info .or. probe_wrt .or. ib) then
+        ! if (run_time_info .or. probe_wrt .or. ib) then
 
             ix%beg = -buff_size; iy%beg = 0; iz%beg = 0
             if (n > 0) iy%beg = -buff_size; 
@@ -1025,7 +1025,7 @@ contains
                     end do
                 end do
             end do
-        end if
+        ! end if
         call cpu_time(t_finish)
         if (t_step >= 4) then
             time_avg = (abs(t_finish - t_start) + (t_step - 4)*time_avg)/(t_step - 3)
@@ -1095,6 +1095,16 @@ contains
                     end do
                 end do
             end do
+
+            write(41,*) (flux_n(1)%vf(i)%sf(181,0,0), i=1,sys_size)
+            write(42,*) (flux_n(1)%vf(i)%sf(182,0,0), i=1,sys_size)
+            write(43,*) (flux_n(1)%vf(i)%sf(183,0,0), i=1,sys_size)
+            write(44,*) (flux_n(1)%vf(i)%sf(184,0,0), i=1,sys_size)
+            write(45,*) (flux_n(1)%vf(i)%sf(185,0,0), i=1,sys_size)
+            write(46,*) (flux_n(1)%vf(i)%sf(186,0,0), i=1,sys_size)
+            write(47,*) (flux_n(1)%vf(i)%sf(187,0,0), i=1,sys_size)
+            write(48,*) (flux_n(1)%vf(i)%sf(188,0,0), i=1,sys_size)
+            write(49,*) (flux_n(1)%vf(i)%sf(189,0,0), i=1,sys_size)
 
             if (model_eqns == 3) then
                 !$acc parallel loop collapse(4) gang vector default(present)

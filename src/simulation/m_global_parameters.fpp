@@ -188,6 +188,9 @@ module m_global_parameters
     integer :: precision !< Precision of output files
 
     logical :: cell_wrt
+    real(kind(0d0)) :: cell_wrt_x
+    real(kind(0d0)) :: cell_wrt_y
+    real(kind(0d0)) :: cell_wrt_z
 
     integer, allocatable, dimension(:) :: proc_coords !<
     !! Processor coordinates in MPI_CART_COMM
@@ -481,8 +484,13 @@ contains
         case_dir = '.'
         run_time_info = .false.
         t_step_old = dflt_int
-        cell_wrt = .true.
 
+        ! Cell data probe
+        cell_wrt = .false.
+        cell_wrt_x = dflt_real
+        cell_wrt_y = dflt_real
+        cell_wrt_z = dflt_real
+        
         ! Computational domain parameters
         m = dflt_int; n = 0; p = 0
 

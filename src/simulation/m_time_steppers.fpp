@@ -593,6 +593,36 @@ contains
 
         call s_compute_rhs(q_cons_ts(1)%vf, q_prim_vf, rhs_vf, pb_ts(1)%sf, rhs_pb, mv_ts(1)%sf, rhs_mv, t_step, time_avg)
 
+        write(11,*) "1", (q_cons_ts(1)%vf(i)%sf(181,0,0), i=1,sys_size)
+        write(12,*) "1", (q_cons_ts(1)%vf(i)%sf(182,0,0), i=1,sys_size)
+        write(13,*) "1", (q_cons_ts(1)%vf(i)%sf(183,0,0), i=1,sys_size)
+        write(14,*) "1", (q_cons_ts(1)%vf(i)%sf(184,0,0), i=1,sys_size)
+        write(15,*) "1", (q_cons_ts(1)%vf(i)%sf(185,0,0), i=1,sys_size)
+        write(16,*) "1", (q_cons_ts(1)%vf(i)%sf(186,0,0), i=1,sys_size)
+        write(17,*) "1", (q_cons_ts(1)%vf(i)%sf(187,0,0), i=1,sys_size)
+        write(18,*) "1", (q_cons_ts(1)%vf(i)%sf(188,0,0), i=1,sys_size)
+        write(19,*) "1", (q_cons_ts(1)%vf(i)%sf(189,0,0), i=1,sys_size)
+
+        write(21,*) "1", (q_prim_vf(i)%sf(181,0,0), i=1,sys_size)
+        write(22,*) "1", (q_prim_vf(i)%sf(182,0,0), i=1,sys_size)
+        write(23,*) "1", (q_prim_vf(i)%sf(183,0,0), i=1,sys_size)
+        write(24,*) "1", (q_prim_vf(i)%sf(184,0,0), i=1,sys_size)
+        write(25,*) "1", (q_prim_vf(i)%sf(185,0,0), i=1,sys_size)
+        write(26,*) "1", (q_prim_vf(i)%sf(186,0,0), i=1,sys_size)
+        write(27,*) "1", (q_prim_vf(i)%sf(187,0,0), i=1,sys_size)
+        write(28,*) "1", (q_prim_vf(i)%sf(188,0,0), i=1,sys_size)
+        write(29,*) "1", (q_prim_vf(i)%sf(189,0,0), i=1,sys_size)
+
+        write(31,*) "1", (dt*rhs_vf(i)%sf(181,0,0), i=1,sys_size)
+        write(32,*) "1", (dt*rhs_vf(i)%sf(182,0,0), i=1,sys_size)
+        write(33,*) "1", (dt*rhs_vf(i)%sf(183,0,0), i=1,sys_size)
+        write(34,*) "1", (dt*rhs_vf(i)%sf(184,0,0), i=1,sys_size)
+        write(35,*) "1", (dt*rhs_vf(i)%sf(185,0,0), i=1,sys_size)
+        write(36,*) "1", (dt*rhs_vf(i)%sf(186,0,0), i=1,sys_size)
+        write(37,*) "1", (dt*rhs_vf(i)%sf(187,0,0), i=1,sys_size)
+        write(38,*) "1", (dt*rhs_vf(i)%sf(188,0,0), i=1,sys_size)
+        write(39,*) "1", (dt*rhs_vf(i)%sf(189,0,0), i=1,sys_size)
+
         if (run_time_info) then
             call s_write_run_time_information(q_prim_vf, t_step)
         end if
@@ -674,8 +704,27 @@ contains
         ! ==================================================================
 
         ! Stage 2 of 3 =====================================================
+        write(11,*) "2", (q_cons_ts(2)%vf(i)%sf(181,0,0), i=1,sys_size)
+        write(12,*) "2", (q_cons_ts(2)%vf(i)%sf(182,0,0), i=1,sys_size)
+        write(13,*) "2", (q_cons_ts(2)%vf(i)%sf(183,0,0), i=1,sys_size)
+        write(14,*) "2", (q_cons_ts(2)%vf(i)%sf(184,0,0), i=1,sys_size)
+        write(15,*) "2", (q_cons_ts(2)%vf(i)%sf(185,0,0), i=1,sys_size)
+        write(16,*) "2", (q_cons_ts(2)%vf(i)%sf(186,0,0), i=1,sys_size)
+        write(17,*) "2", (q_cons_ts(2)%vf(i)%sf(187,0,0), i=1,sys_size)
+        write(18,*) "2", (q_cons_ts(2)%vf(i)%sf(188,0,0), i=1,sys_size)
+        write(19,*) "2", (q_cons_ts(2)%vf(i)%sf(189,0,0), i=1,sys_size)        
 
         call s_compute_rhs(q_cons_ts(2)%vf, q_prim_vf, rhs_vf, pb_ts(2)%sf, rhs_pb, mv_ts(2)%sf, rhs_mv, t_step, time_avg)
+
+        write(21,*) "2", (q_prim_vf(i)%sf(181,0,0), i=1,sys_size)
+        write(22,*) "2", (q_prim_vf(i)%sf(182,0,0), i=1,sys_size)
+        write(23,*) "2", (q_prim_vf(i)%sf(183,0,0), i=1,sys_size)
+        write(24,*) "2", (q_prim_vf(i)%sf(184,0,0), i=1,sys_size)
+        write(25,*) "2", (q_prim_vf(i)%sf(185,0,0), i=1,sys_size)
+        write(26,*) "2", (q_prim_vf(i)%sf(186,0,0), i=1,sys_size)
+        write(27,*) "2", (q_prim_vf(i)%sf(187,0,0), i=1,sys_size)
+        write(28,*) "2", (q_prim_vf(i)%sf(188,0,0), i=1,sys_size)
+        write(29,*) "2", (q_prim_vf(i)%sf(189,0,0), i=1,sys_size)
 
         !$acc parallel loop collapse(4) gang vector default(present)
         do i = 1, sys_size
@@ -747,8 +796,7 @@ contains
             end if
         end if
 
-        ! ==================================================================
-
+        ! ==================================================================       
         ! Stage 3 of 3 =====================================================
         call s_compute_rhs(q_cons_ts(2)%vf, q_prim_vf, rhs_vf, pb_ts(2)%sf, rhs_pb, mv_ts(2)%sf, rhs_mv, t_step, time_avg)
 

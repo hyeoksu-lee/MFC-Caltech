@@ -1130,10 +1130,10 @@ contains
                     if (1d0 - eta < 1d-16) patch_id_fp(i, j, 0) = patch_id
 
                     ! Assign Parameters =========================================================
-                    q_prim_vf(mom_idx%beg)%sf(i, j, 0) = U0*sin(x_cc(i)/L0)*cos(y_cc(j)/L0)
-                    q_prim_vf(mom_idx%end)%sf(i, j, 0) = -U0*cos(x_cc(i)/L0)*sin(y_cc(j)/L0)
-                    q_prim_vf(E_idx)%sf(i, j, 0) = patch_icpp(patch_id)%pres + (cos(2*x_cc(i))/L0 + &
-                                                                                cos(2*y_cc(j))/L0)* &
+                    q_prim_vf(mom_idx%beg)%sf(i, j, 0) = U0*cos(x_cc(i)/L0)*sin(y_cc(j)/L0)
+                    q_prim_vf(mom_idx%end)%sf(i, j, 0) = -U0*sin(x_cc(i)/L0)*cos(y_cc(j)/L0)
+                    q_prim_vf(E_idx)%sf(i, j, 0) = patch_icpp(patch_id)%pres + (cos(2d0*x_cc(i)/L0) + &
+                                                                                cos(2d0*y_cc(j)/L0))* &
                                                    (q_prim_vf(1)%sf(i, j, 0)*U0*U0)/16
                     ! ================================================================================
 

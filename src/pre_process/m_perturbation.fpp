@@ -118,6 +118,7 @@ contains
         type(scalar_field), dimension(sys_size), intent(inout) :: q_prim_vf
         real(kind(0d0)), dimension(mixlayer_nvar, 0:m, 0:n, 0:p) :: wave, wave1, wave2, wave_tmp
         real(kind(0d0)) :: uratio, Ldomain
+        real(kind(0d0)) :: nR3bar
         integer :: i, j, k, q
 
         uratio = 1d0/patch_icpp(1)%vel(1)
@@ -166,9 +167,14 @@ contains
                     q_prim_vf(E_idx)%sf(i, j, k) = q_prim_vf(E_idx)%sf(i, j, k) + wave(mixlayer_var(5), i, j, k)/uratio**2 ! p
 
                     if (bubbles .and. (.not. qbmm)) then
+                        nR3bar = 0d0
                         do q = 1, nb
-                            call s_compute_equilibrium_state(q_prim_vf(E_idx)%sf(i, j, k), R0(q), q_prim_vf(bub_idx%rs(q))%sf(i, j, k))
+                             call s_compute_equilibrium_state(q_prim_vf(E_idx)%sf(i, j, k), R0(q), q_prim_vf(bub_idx%rs(q))%sf(i, j, k))
+                             nR3bar = nR3bar + weight(q)*(q_prim_vf(n_idx)%sf(i, j, k)*q_prim_vf(bub_idx%rs(q))%sf(i, j, k))**3d0
                         end do
+                        if (coupling) then
+                            q_prim_vf(alf_idx)%sf(i, j, k) = (4d0*pi*nR3bar)/(3d0*q_prim_vf(n_idx)%sf(i, j, k)**2d0)
+                        end if
                     end if
                 end do
             end do
@@ -180,7 +186,7 @@ contains
     subroutine s_compute_equilibrium_state(fP, fR0, fR)
         real(kind(0d0)), intent(in) :: fP, fR0
         real(kind(0d0)), intent(inout) :: fR
-        real(kind(0d0)) :: f0, f1
+        real(kind(0d0)) :: f0, f1, f2
         real(kind(0d0)) :: gam_b
         integer :: ii, jj
 
@@ -192,22 +198,25 @@ contains
 
             f0 = (Ca + 2d0/(Web*fR0))*(fR0/fR)**(3d0*gam_b) - 2d0/(Web*fR) + 1d0 - Ca - fP
             f1 = -3d0*gam_b*(Ca + 2d0/(Web*fR0))*(1d0/fR0)*(fR0/fR)**(3d0*gam_b + 1d0) + 2d0/(Web*fR**2d0)
+            ! f2 = 3d0*gam_b*(3d0*gam_b + 1d0)*(Ca + 2d0/(Web*fR0))*(1d0/fR0**2d0)*(fR0/fR)**(3d0*gam_b + 2d0) - 4d0/(Web*fR**3d0)
 
-            if (abs(f0) <= 1e-10) then
+            if (abs(f0) <= 1d-10) then
                 ! Converged
                 exit
             else
                 ! Update radius
                 fR = fR - f0/f1
+                ! fR = fR - 2d0*f0*f1/(2d0*f1**2d0 - f0*f2)
             end if
 
             ! Failed case
             if (ieee_is_nan(f0) .or. &
                 ieee_is_nan(f1) .or. &
+                ! ieee_is_nan(f2) .or. &
                 ii > 1000 .or. &
                 fR < 0d0) then
 
-                print *, "Failed to compute equilibrium radius"
+                print *, "Failed to compute equilibrium radius", f0, f1, ii, fR, fR0, fP
                 fR = fR0
                 exit
             end if

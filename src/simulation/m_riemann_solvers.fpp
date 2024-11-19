@@ -881,7 +881,7 @@ contains
         real(kind(0d0)) :: pres_SL, pres_SR, Ms_L, Ms_R
         real(kind(0d0)) :: start, finish
         real(kind(0d0)) :: zcoef, pcorr !< low Mach number correction
-        integer :: i, j, k, l, q !< Generic loop iterators
+        integer :: i, j, k, l, q, ii !< Generic loop iterators
         integer :: idx1, idxi
 
         ! Populating the buffers of the left and right Riemann problem
@@ -1676,6 +1676,18 @@ contains
                                                 if (polytropic) then
                                                     pbw_L(i) = f_cpbw_KM(R0(i), R0_L(i), V0_L(i), 0d0)
                                                     pbw_R(i) = f_cpbw_KM(R0(i), R0_R(i), V0_R(i), 0d0)
+                                                    if (pbw_L(i) /= pbw_L(i)) then
+                                                        print *, "pbw_L(i) is NaN", i
+                                                        print *, R0(i), R0_L(i), V0_L(i)
+                                                        call s_mpi_abort()
+                                                    else if (pbw_R(i) /= pbw_R(i)) then
+                                                        print *, "pbw_R(i) is NaN", i
+                                                        print *, proc_rank, j, k, l
+                                                        print *, R0(i), R0_R(i), V0_R(i)
+                                                        print *, (R0(ii), ii = 1, nb)
+                                                        print *, (R0_R(ii), ii = 1, nb)
+                                                        call s_mpi_abort()
+                                                    end if
                                                 else
                                                     pbw_L(i) = f_cpbw_KM(R0(i), R0_L(i), V0_L(i), P0_L(i))
                                                     pbw_R(i) = f_cpbw_KM(R0(i), R0_R(i), V0_R(i), P0_R(i))
@@ -1731,6 +1743,8 @@ contains
                                         end if
 
                                         if ((ptilde_L /= ptilde_L) .or. (ptilde_R /= ptilde_R)) then
+                                            print *, "ptilde_L/R is NaN", ptilde_L, ptilde_R
+                                            call s_mpi_abort()
                                         end if
                                     else
                                         ptilde_L = 0d0

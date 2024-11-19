@@ -133,7 +133,8 @@ contains
 
         ! Namelist of the global parameters which may be specified by user
         namelist /user_inputs/ case_dir, run_time_info, m, n, p, dt, &
-            t_step_start, t_step_stop, t_step_save, t_step_print, cell_wrt, &
+            t_step_start, t_step_stop, t_step_save, t_step_print, &
+            cell_wrt, cell_wrt_x, cell_wrt_y, cell_wrt_z, &
             model_eqns, mpp_lim, time_stepper, weno_eps, weno_flat, &
             riemann_flat, rdma_mpi, cu_tensor, &
             teno_CT, mp_weno, weno_avg, &
@@ -1134,9 +1135,13 @@ contains
 
         call s_convert_conservative_to_primitive_variables(qc_vf, q_prim_vf)
 
-        xloc = 0.9d0 * (x_domain%end - x_domain%beg) + x_domain%beg
-        yloc = 0d0
-        zloc = 0.75d0 * (z_domain%end - z_domain%beg) + z_domain%beg
+        xloc = cell_wrt_x
+        if (n > 0) then
+            yloc = cell_wrt_y
+            if (p > 0) then
+                zloc = cell_wrt_z
+            end if
+        end if
 
         !$acc parallel loop collapse(3) gang vector default(present)
         do l = 0, p
