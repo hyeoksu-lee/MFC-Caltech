@@ -593,7 +593,7 @@ contains
 
         call s_compute_rhs(q_cons_ts(1)%vf, q_prim_vf, rhs_vf, pb_ts(1)%sf, rhs_pb, mv_ts(1)%sf, rhs_mv, t_step, time_avg)
 
-        write(10,*) "1", (i, q_cons_ts(1)%vf(n_idx)%sf(i,0,0), i=183,189)
+        ! write(10,*) "1", (i, q_cons_ts(1)%vf(n_idx)%sf(i,0,0), i=183,189)
         ! write(11,*) "1", (q_cons_ts(1)%vf(i)%sf(181,0,0), i=1,sys_size)
         ! write(12,*) "1", (q_cons_ts(1)%vf(i)%sf(182,0,0), i=1,sys_size)
         ! write(13,*) "1", (q_cons_ts(1)%vf(i)%sf(183,0,0), i=1,sys_size)
@@ -604,7 +604,7 @@ contains
         ! write(18,*) "1", (q_cons_ts(1)%vf(i)%sf(188,0,0), i=1,sys_size)
         ! write(19,*) "1", (q_cons_ts(1)%vf(i)%sf(189,0,0), i=1,sys_size)
 
-        write(20,*) "1", (i, q_prim_vf(n_idx)%sf(i,0,0), i=183,189)
+        ! write(20,*) "1", (i, q_prim_vf(n_idx)%sf(i,0,0), i=183,189)
         ! write(21,*) "1", (q_prim_vf(i)%sf(181,0,0), i=1,sys_size)
         ! write(22,*) "1", (q_prim_vf(i)%sf(182,0,0), i=1,sys_size)
         ! write(23,*) "1", (q_prim_vf(i)%sf(183,0,0), i=1,sys_size)
@@ -615,7 +615,7 @@ contains
         ! write(28,*) "1", (q_prim_vf(i)%sf(188,0,0), i=1,sys_size)
         ! write(29,*) "1", (q_prim_vf(i)%sf(189,0,0), i=1,sys_size)
 
-        write(30,*) "1", (i,dt*rhs_vf(n_idx)%sf(i,0,0), i=183,189)
+        ! write(30,*) "1", (i,dt*rhs_vf(n_idx)%sf(i,0,0), i=183,189)
         ! write(31,*) "1", (dt*rhs_vf(i)%sf(181,0,0), i=1,sys_size)
         ! write(32,*) "1", (dt*rhs_vf(i)%sf(182,0,0), i=1,sys_size)
         ! write(33,*) "1", (dt*rhs_vf(i)%sf(183,0,0), i=1,sys_size)
@@ -707,7 +707,7 @@ contains
         ! ==================================================================
 
         ! Stage 2 of 3 =====================================================
-        write(10,*) "2", (i, q_cons_ts(2)%vf(n_idx)%sf(i,0,0), i=183,189)
+        ! write(10,*) "2", (i, q_cons_ts(2)%vf(n_idx)%sf(i,0,0), i=183,189)
         ! write(11,*) "2", (q_cons_ts(2)%vf(i)%sf(181,0,0), i=1,sys_size)
         ! write(12,*) "2", (q_cons_ts(2)%vf(i)%sf(182,0,0), i=1,sys_size)
         ! write(13,*) "2", (q_cons_ts(2)%vf(i)%sf(183,0,0), i=1,sys_size)

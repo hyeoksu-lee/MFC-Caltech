@@ -1096,7 +1096,7 @@ contains
                 end do
             end do
 
-            write(40,*) (i, flux_n(1)%vf(n_idx)%sf(i,0,0), i=183,189)
+            ! write(40,*) (i, flux_n(1)%vf(n_idx)%sf(i,0,0), i=183,189)
             ! write(41,*) (flux_n(1)%vf(i)%sf(181,0,0), i=1,sys_size)
             ! write(42,*) (flux_n(1)%vf(i)%sf(182,0,0), i=1,sys_size)
             ! write(43,*) (flux_n(1)%vf(i)%sf(183,0,0), i=1,sys_size)

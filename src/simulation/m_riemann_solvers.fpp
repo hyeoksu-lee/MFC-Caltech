@@ -1945,10 +1945,10 @@ contains
                                         *(vel_R(dir_idx(1)) + s_P*(xi_R - 1d0))
                                 end if
 
-                                if (j >= 183 .and. j <= 189) then
-                                    ! write(50,*) j, "L", xi_M, nbub_L, vel_L(dir_idx(1)), s_M, xi_L, xi_M*nbub_L*(vel_L(dir_idx(1)) + s_M*(xi_L - 1d0))
-                                    write(50,*) j, "R", xi_P, nbub_R, vel_R(dir_idx(1)), s_P, xi_R, xi_P*nbub_R*(vel_R(dir_idx(1)) + s_P*(xi_R - 1d0))
-                                end if
+                                ! if (j >= 183 .and. j <= 189) then
+                                !     ! write(50,*) j, "L", xi_M, nbub_L, vel_L(dir_idx(1)), s_M, xi_L, xi_M*nbub_L*(vel_L(dir_idx(1)) + s_M*(xi_L - 1d0))
+                                !     write(50,*) j, "R", xi_P, nbub_R, vel_R(dir_idx(1)), s_P, xi_R, xi_P*nbub_R*(vel_R(dir_idx(1)) + s_P*(xi_R - 1d0))
+                                ! end if
 
                                 if (nbub_R < 0d0 .or. nbub_L < 0d0) then
                                     print *, "nbub_L/R < 0", nbub_L, nbub_R, j
