@@ -118,7 +118,7 @@ contains
         integer :: i, j, k, q
 
         uratio = 1._wp/patch_icpp(1)%vel(1)
-        Ldomain = mixlayer_domain*patch_icpp(1)%length_y
+        Ldomain = mixlayer_domain*patch_icpp(1)%length_z !< should be fixed to 59.. 
 
         wave = 0._wp
         wave1 = 0._wp
