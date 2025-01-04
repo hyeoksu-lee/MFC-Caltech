@@ -118,7 +118,7 @@ contains
         integer :: i, j, k, q
 
         uratio = 1._wp/patch_icpp(1)%vel(1)
-        Ldomain = mixlayer_domain*patch_icpp(1)%length_z !< should be fixed to 59.. 
+        Ldomain = mixlayer_domain*patch_icpp(1)%length_y
 
         wave = 0._wp
         wave1 = 0._wp
@@ -133,19 +133,35 @@ contains
         wave1 = wave1 + wave_tmp
         wave = wave1*0.05_wp
 
+        ! ! Set 1
+        ! shift(1) = 2*pi*11d0/31d0; shift(2) = 2*pi*13d0/31d0; shift(3) = 2*pi*17d0/31d0;
+        ! shift(4) = 2*pi*19d0/31d0; shift(5) = 2*pi*23d0/31d0; shift(6) = 2*pi*29d0/31d0;
+        ! ! Set 2
+        ! shift(1) = 2*pi*7d0/61d0;  shift(2) = 2*pi*11d0/61d0; shift(3) = 2*pi*19d0/61d0;
+        ! shift(4) = 2*pi*41d0/61d0; shift(5) = 2*pi*53d0/61d0; shift(6) = 2*pi*59d0/61d0;
+        ! ! Set 3
+        ! shift(1) = 2*pi*17d0/53d0; shift(2) = 2*pi*19d0/53d0; shift(3) = 2*pi*31d0/53d0;
+        ! shift(4) = 2*pi*47d0/53d0; shift(5) = 2*pi*29d0/53d0; shift(6) = 2*pi*3d0/53d0;
+        ! ! Set 4
+        ! shift(1) = 2*pi*13d0/43d0; shift(2) = 2*pi*11d0/43d0; shift(3) = 2*pi*39d0/43d0;
+        ! shift(4) = 2*pi*29d0/43d0; shift(5) = 2*pi*23d0/43d0; shift(6) = 2*pi*19d0/43d0;
+        ! ! Set 5
+        ! shift(1) = 2*pi*19d0/37d0; shift(2) = 2*pi*31d0/37d0; shift(3) = 2*pi*29d0/37d0;
+        ! shift(4) = 2*pi*3d0/37d0;  shift(5) = 2*pi*23d0/37d0; shift(6) = 2*pi*11d0/37d0;
+
         if (p > 0) then
             ! Compute 3D waves with phase shifts.
-            call s_instability_wave(2*pi*4.0_wp/Ldomain, 2*pi*4.0_wp/Ldomain, wave_tmp, 2*pi*11._wp/31._wp)
+            call s_instability_wave(2*pi*4.0_wp/Ldomain, 2*pi*4.0_wp/Ldomain, wave_tmp, 2*pi*7._wp/61._wp)
             wave2 = wave2 + wave_tmp
-            call s_instability_wave(2*pi*2.0_wp/Ldomain, 2*pi*2.0_wp/Ldomain, wave_tmp, 2*pi*13._wp/31._wp)
+            call s_instability_wave(2*pi*2.0_wp/Ldomain, 2*pi*2.0_wp/Ldomain, wave_tmp, 2*pi*11._wp/61._wp)
             wave2 = wave2 + wave_tmp
-            call s_instability_wave(2*pi*1.0_wp/Ldomain, 2*pi*1.0_wp/Ldomain, wave_tmp, 2*pi*17._wp/31._wp)
+            call s_instability_wave(2*pi*1.0_wp/Ldomain, 2*pi*1.0_wp/Ldomain, wave_tmp, 2*pi*19._wp/61._wp)
             wave2 = wave2 + wave_tmp
-            call s_instability_wave(2*pi*4.0_wp/Ldomain, -2*pi*4.0_wp/Ldomain, wave_tmp, 2*pi*19._wp/31._wp)
+            call s_instability_wave(2*pi*4.0_wp/Ldomain, -2*pi*4.0_wp/Ldomain, wave_tmp, 2*pi*41._wp/61._wp)
             wave2 = wave2 + wave_tmp
-            call s_instability_wave(2*pi*2.0_wp/Ldomain, -2*pi*2.0_wp/Ldomain, wave_tmp, 2*pi*23._wp/31._wp)
+            call s_instability_wave(2*pi*2.0_wp/Ldomain, -2*pi*2.0_wp/Ldomain, wave_tmp, 2*pi*53._wp/61._wp)
             wave2 = wave2 + wave_tmp
-            call s_instability_wave(2*pi*1.0_wp/Ldomain, -2*pi*1.0_wp/Ldomain, wave_tmp, 2*pi*29._wp/31._wp)
+            call s_instability_wave(2*pi*1.0_wp/Ldomain, -2*pi*1.0_wp/Ldomain, wave_tmp, 2*pi*59._wp/61._wp)
             wave2 = wave2 + wave_tmp
             wave = wave + 0.15_wp*wave2
         end if
