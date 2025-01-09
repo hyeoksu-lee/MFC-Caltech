@@ -24,8 +24,8 @@ if [ -v $u_c ]; then
     log   "$Y""Gatech$W:  Phoenix    (p)"
     log   "$R""Caltech$W: Richardson (r)"
     log   "$BR""Brown$W: Oscar (o)"
-    log   "$B""DoD$W:     Carpenter  (c) | Nautilus (n)"
-    log_n "($G""a$W/$G""f$W/$G""s$W/$G""w$W/$C""b$W/$C""e$CR/$C""d/$C""dai$CR/$Y""p$CR/$R""r$CR/$B""c$CR/$B""n$CR/$BR""o"$CR"): "
+    log   "$B""DoD$W:     Carpenter  (c) | Nautilus (n) | Narwhal (l)"
+    log_n "($G""a$W/$G""f$W/$G""s$W/$G""w$W/$C""b$W/$C""e$CR/$C""d/$C""dai$CR/$Y""p$CR/$R""r$CR/$B""c$CR/$B""n$CR/$B""l$CR/$BR""o"$CR"): "
     read u_c
     log
 fi
@@ -67,8 +67,8 @@ fi
 
 log "Loading modules (& env variables) for $M$COMPUTER$CR on $M$CG$CR"'s:'
 
-# Reset modules to default system configuration (unless Carpenter)
-if [ "$u_c" != 'c' ]; then
+# Reset modules to default system configuration (unless Carpenter and Narwhal)
+if [ "$u_c" != 'c' ] && [ "$u_c" != 'l' ]; then
     module reset > /dev/null 2>&1
     code="$?"
 
