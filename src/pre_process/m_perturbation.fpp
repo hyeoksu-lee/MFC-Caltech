@@ -34,7 +34,7 @@ contains
 
         if (mixlayer_perturb) then
             mixlayer_bc_fd = 2
-            n0 = 399
+            n0 = 199
             nbpm0 = n0 + 1
             nbp0 = n0 + 2
             nbpm = n + 1
@@ -125,6 +125,7 @@ contains
         type(scalar_field), dimension(sys_size), intent(inout) :: q_prim_vf
         real(wp), dimension(mixlayer_nvar, 0:m, 0:n, 0:p) :: wave, wave1, wave2, wave_tmp
         real(wp) :: uratio, Ldomain
+        real(wp), dimension(6) :: shift
         integer :: i, j, k, q
 
         uratio = 1._wp/patch_icpp(1)%vel(1)
@@ -132,8 +133,6 @@ contains
         
         ! Generate base grid
         call s_generate_base_grid()
-
-        print *, "0"
 
         ! Generate waves
         wave = 0._wp
@@ -153,39 +152,54 @@ contains
         wave = wave1*0.05_wp
 
         ! ! Set 1
-        ! shift(1) = 2*pi*11d0/31d0; shift(2) = 2*pi*13d0/31d0; shift(3) = 2*pi*17d0/31d0;
-        ! shift(4) = 2*pi*19d0/31d0; shift(5) = 2*pi*23d0/31d0; shift(6) = 2*pi*29d0/31d0;
+        shift(1) = 2*pi*11._wp/31._wp; shift(2) = 2*pi*13._wp/31._wp; shift(3) = 2*pi*17._wp/31._wp;
+        shift(4) = 2*pi*19._wp/31._wp; shift(5) = 2*pi*23._wp/31._wp; shift(6) = 2*pi*29._wp/31._wp;
         ! ! Set 2
-        ! shift(1) = 2*pi*7d0/61d0;  shift(2) = 2*pi*11d0/61d0; shift(3) = 2*pi*19d0/61d0;
-        ! shift(4) = 2*pi*41d0/61d0; shift(5) = 2*pi*53d0/61d0; shift(6) = 2*pi*59d0/61d0;
+        ! shift(1) = 2*pi*7._wp/61._wp;  shift(2) = 2*pi*11._wp/61._wp; shift(3) = 2*pi*19._wp/61._wp;
+        ! shift(4) = 2*pi*41._wp/61._wp; shift(5) = 2*pi*53._wp/61._wp; shift(6) = 2*pi*59._wp/61._wp;
         ! ! Set 3
-        ! shift(1) = 2*pi*17d0/53d0; shift(2) = 2*pi*19d0/53d0; shift(3) = 2*pi*31d0/53d0;
-        ! shift(4) = 2*pi*47d0/53d0; shift(5) = 2*pi*29d0/53d0; shift(6) = 2*pi*3d0/53d0;
+        ! shift(1) = 2*pi*17._wp/53._wp; shift(2) = 2*pi*19._wp/53._wp; shift(3) = 2*pi*31._wp/53._wp;
+        ! shift(4) = 2*pi*47._wp/53._wp; shift(5) = 2*pi*29._wp/53._wp; shift(6) = 2*pi*3._wp/53._wp;
         ! ! Set 4
-        ! shift(1) = 2*pi*13d0/43d0; shift(2) = 2*pi*11d0/43d0; shift(3) = 2*pi*39d0/43d0;
-        ! shift(4) = 2*pi*29d0/43d0; shift(5) = 2*pi*23d0/43d0; shift(6) = 2*pi*19d0/43d0;
+        ! shift(1) = 2*pi*13._wp/43._wp; shift(2) = 2*pi*11._wp/43._wp; shift(3) = 2*pi*39._wp/43._wp;
+        ! shift(4) = 2*pi*29._wp/43._wp; shift(5) = 2*pi*23._wp/43._wp; shift(6) = 2*pi*19._wp/43._wp;
         ! ! Set 5
-        ! shift(1) = 2*pi*19d0/37d0; shift(2) = 2*pi*31d0/37d0; shift(3) = 2*pi*29d0/37d0;
-        ! shift(4) = 2*pi*3d0/37d0;  shift(5) = 2*pi*23d0/37d0; shift(6) = 2*pi*11d0/37d0;
+        ! shift(1) = 2*pi*19._wp/37._wp; shift(2) = 2*pi*31._wp/37._wp; shift(3) = 2*pi*29._wp/37._wp;
+        ! shift(4) = 2*pi*3._wp/37._wp;  shift(5) = 2*pi*23._wp/37._wp; shift(6) = 2*pi*11._wp/37._wp;
+        ! ! Set 6
+        ! shift(1) = 2*pi*2._wp/67._wp;  shift(2) = 2*pi*53._wp/67._wp; shift(3) = 2*pi*29._wp/67._wp;
+        ! shift(4) = 2*pi*31._wp/67._wp; shift(5) = 2*pi*13._wp/67._wp; shift(6) = 2*pi*17._wp/67._wp;
+        ! ! Set 7
+        ! shift(1) = 2*pi*0.1377641919_wp; shift(2) = 2*pi*0.6152866056_wp; shift(3) = 2*pi*0.0511069403_wp;
+        ! shift(4) = 2*pi*0.3927737151_wp; shift(5) = 2*pi*0.0006762054_wp; shift(6) = 2*pi*0.1675698069_wp;
+        ! ! Set 8
+        ! shift(1) = 2*pi*0.8556119067_wp; shift(2) = 2*pi*0.9513815031_wp; shift(3) = 2*pi*0.4328811743_wp;
+        ! shift(4) = 2*pi*0.4420256142_wp; shift(5) = 2*pi*0.7374684184_wp; shift(6) = 2*pi*0.2477236891_wp;
+        ! ! Set 9
+        ! shift(1) = 2*pi*0.5576752220_wp; shift(2) = 2*pi*0.8501618422_wp; shift(3) = 2*pi*0.3463564289_wp;
+        ! shift(4) = 2*pi*0.4973941163_wp; shift(5) = 2*pi*0.9409184387_wp; shift(6) = 2*pi*0.9994186173_wp;
+        ! ! Set 10
+        ! shift(1) = 2*pi*0.4899695672_wp; shift(2) = 2*pi*0.8505344420_wp; shift(3) = 2*pi*0.3721308791_wp;
+        ! shift(4) = 2*pi*0.7329680488_wp; shift(5) = 2*pi*0.2234294319_wp; shift(6) = 2*pi*0.9827279516_wp;
 
         if (p > 0) then
             ! Compute 3D waves with phase shifts.
-            call s_instability_wave(2*pi*4.0_wp/Ldomain, 2*pi*4.0_wp/Ldomain, wave_tmp, 2*pi*11._wp/31._wp)
+            call s_instability_wave(2*pi*4.0_wp/Ldomain, 2*pi*4.0_wp/Ldomain, wave_tmp, shift(1))
             print *, "4"
             wave2 = wave2 + wave_tmp
-            call s_instability_wave(2*pi*2.0_wp/Ldomain, 2*pi*2.0_wp/Ldomain, wave_tmp, 2*pi*13._wp/31._wp)
+            call s_instability_wave(2*pi*2.0_wp/Ldomain, 2*pi*2.0_wp/Ldomain, wave_tmp, shift(2))
             print *, "5"
             wave2 = wave2 + wave_tmp
-            call s_instability_wave(2*pi*1.0_wp/Ldomain, 2*pi*1.0_wp/Ldomain, wave_tmp, 2*pi*17._wp/31._wp)
+            call s_instability_wave(2*pi*1.0_wp/Ldomain, 2*pi*1.0_wp/Ldomain, wave_tmp, shift(3))
             print *, "6"
             wave2 = wave2 + wave_tmp
-            call s_instability_wave(2*pi*4.0_wp/Ldomain, -2*pi*4.0_wp/Ldomain, wave_tmp, 2*pi*19._wp/31._wp)
+            call s_instability_wave(2*pi*4.0_wp/Ldomain, -2*pi*4.0_wp/Ldomain, wave_tmp, shift(4))
             print *, "7"
             wave2 = wave2 + wave_tmp
-            call s_instability_wave(2*pi*2.0_wp/Ldomain, -2*pi*2.0_wp/Ldomain, wave_tmp, 2*pi*23._wp/31._wp)
+            call s_instability_wave(2*pi*2.0_wp/Ldomain, -2*pi*2.0_wp/Ldomain, wave_tmp, shift(5))
             print *, "8"
             wave2 = wave2 + wave_tmp
-            call s_instability_wave(2*pi*1.0_wp/Ldomain, -2*pi*1.0_wp/Ldomain, wave_tmp, 2*pi*29._wp/31._wp)
+            call s_instability_wave(2*pi*1.0_wp/Ldomain, -2*pi*1.0_wp/Ldomain, wave_tmp, shift(6))
             print *, "9"
             wave2 = wave2 + wave_tmp
             wave = wave + 0.15_wp*wave2
@@ -380,14 +394,11 @@ contains
             call s_instability_nonreflecting_subsonic_buffer_bc(ar, ai, hr, hi, rho_mean, mach)
         end if
 
-        print *, "  1"
         ! Compute eigenvalues and eigenvectors
         call cg(mixlayer_nvar*n0 - n_bc_skip, mixlayer_nvar*n0 - n_bc_skip, hr, hi, wr, wi, zr, zi, fv1, fv2, fv3, ierr)
-        print *, "  2"
 
         ! Generate instability wave
         call s_generate_wave(wr, wi, zr, zi, rho_mean, mach, alpha, beta, wave, shift)
-        print *, "  3"
 
     end subroutine s_solve_linear_system
 
@@ -688,14 +699,14 @@ contains
         y_cb0 = y_cb0/length
         y_a0 = -5._wp/length
         y_b0 =  5._wp/length
-        a_y0 = 5
+        a_y0 = 5._wp
 
         do j = 1, 3
             do i = 0, nbpm0
                 y_cb0(i) = y_cb0(i)/a_y0* &
                             (a_y0 + log(cosh(a_y0*(y_cb0(i) - y_a0))) &
                             + log(cosh(a_y0*(y_cb0(i) - y_b0))) &
-                            - 2._wp*log(cosh(a_y*(y_b0 - y_a0)/2._wp)))
+                            - 2._wp*log(cosh(a_y0*(y_b0 - y_a0)/2._wp)))
             end do
         end do
 

@@ -3,7 +3,7 @@
 <%namespace name="helpers" file="helpers.mako"/>
 
 % if engine == 'batch':
-#PBS -l select=${nodes}:ncpus=192:mpiprocs=${tasks_per_node}
+#PBS -l select=${nodes}:ncpus=128:mpiprocs=${tasks_per_node}
 #PBS -N "${name}"
 #PBS -l walltime=${walltime}
 % if partition:
@@ -25,7 +25,7 @@ ${helpers.template_prologue()}
 
 ok ":) Loading modules:\n"
 cd "${MFC_ROOT_DIR}"
-. ./mfc.sh load -c w -m ${'g' if gpu else 'c'}
+. ./mfc.sh load -c l -m ${'g' if gpu else 'c'}
 cd - > /dev/null
 echo
 
