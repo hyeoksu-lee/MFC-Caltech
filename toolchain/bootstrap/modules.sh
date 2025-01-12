@@ -96,8 +96,8 @@ if [ $(echo "$VARIABLES" | grep = | wc -c) -gt 0 ]; then
     export $(eval "echo $VARIABLES") > /dev/null
 fi
 
-# Don't check for Cray paths on Carpenter, otherwise do check if they exist
-if [ ! -z ${CRAY_LD_LIBRARY_PATH+x} ] && [ "$u_c" != 'c' ]; then
+# Don't check for Cray paths on Carpenter and Narwhal, otherwise do check if they exist
+if [ ! -z ${CRAY_LD_LIBRARY_PATH+x} ] && [ "$u_c" != 'c' ] && [ "$u_c" != 'l' ]; then
     ok "Found $M\$CRAY_LD_LIBRARY_PATH$CR. Prepending to $M\$LD_LIBRARY_PATH$CR."
     export LD_LIBRARY_PATH="$CRAY_LD_LIBRARY_PATH:$LD_LIBRARY_PATH"
 fi
