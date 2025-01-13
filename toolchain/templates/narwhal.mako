@@ -3,12 +3,14 @@
 <%namespace name="helpers" file="helpers.mako"/>
 
 % if engine == 'batch':
+% if partition == 'bigmem':
+#PBS -l select=${nodes}:ncpus=128:mpiprocs=${tasks_per_node}:bigmem=1
+% else:
 #PBS -l select=${nodes}:ncpus=128:mpiprocs=${tasks_per_node}
+% endif
+#PBS -q ${partition}
 #PBS -N "${name}"
 #PBS -l walltime=${walltime}
-% if partition:
-#PBS -q ${partition}
-% endif
 % if account:
 #PBS -A ${account}
 % endif

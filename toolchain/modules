@@ -83,4 +83,4 @@ n-gpu CC=nvc CXX=nvc++ FC=nvfortran
 
 l     DoD Narwhal
 l-all cray-python/3.10.10
-l-cpu PrgEnv-gnu/8.3.3
+l-cpu PrgEnv-cray/8.3.3 cray-fftw/3.3.10.2
