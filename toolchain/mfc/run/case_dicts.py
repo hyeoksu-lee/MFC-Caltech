@@ -69,6 +69,7 @@ PRE_PROCESS.update({
     'mixlayer_vel_coef': ParamType.REAL,
     'mixlayer_domain': ParamType.REAL,
     'mixlayer_perturb': ParamType.LOG,
+    'mixlayer_shift': ParamType.INT,
     'perturb_flow': ParamType.LOG,
     'perturb_flow_fluid': ParamType.INT,
     'perturb_flow_mag': ParamType.REAL,

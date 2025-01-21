@@ -151,36 +151,47 @@ contains
         wave1 = wave1 + wave_tmp
         wave = wave1*0.05_wp
 
-        ! ! Set 1
-        shift(1) = 2*pi*11._wp/31._wp; shift(2) = 2*pi*13._wp/31._wp; shift(3) = 2*pi*17._wp/31._wp;
-        shift(4) = 2*pi*19._wp/31._wp; shift(5) = 2*pi*23._wp/31._wp; shift(6) = 2*pi*29._wp/31._wp;
-        ! ! Set 2
-        ! shift(1) = 2*pi*7._wp/61._wp;  shift(2) = 2*pi*11._wp/61._wp; shift(3) = 2*pi*19._wp/61._wp;
-        ! shift(4) = 2*pi*41._wp/61._wp; shift(5) = 2*pi*53._wp/61._wp; shift(6) = 2*pi*59._wp/61._wp;
-        ! ! Set 3
-        ! shift(1) = 2*pi*17._wp/53._wp; shift(2) = 2*pi*19._wp/53._wp; shift(3) = 2*pi*31._wp/53._wp;
-        ! shift(4) = 2*pi*47._wp/53._wp; shift(5) = 2*pi*29._wp/53._wp; shift(6) = 2*pi*3._wp/53._wp;
-        ! ! Set 4
-        ! shift(1) = 2*pi*13._wp/43._wp; shift(2) = 2*pi*11._wp/43._wp; shift(3) = 2*pi*39._wp/43._wp;
-        ! shift(4) = 2*pi*29._wp/43._wp; shift(5) = 2*pi*23._wp/43._wp; shift(6) = 2*pi*19._wp/43._wp;
-        ! ! Set 5
-        ! shift(1) = 2*pi*19._wp/37._wp; shift(2) = 2*pi*31._wp/37._wp; shift(3) = 2*pi*29._wp/37._wp;
-        ! shift(4) = 2*pi*3._wp/37._wp;  shift(5) = 2*pi*23._wp/37._wp; shift(6) = 2*pi*11._wp/37._wp;
-        ! ! Set 6
-        ! shift(1) = 2*pi*2._wp/67._wp;  shift(2) = 2*pi*53._wp/67._wp; shift(3) = 2*pi*29._wp/67._wp;
-        ! shift(4) = 2*pi*31._wp/67._wp; shift(5) = 2*pi*13._wp/67._wp; shift(6) = 2*pi*17._wp/67._wp;
-        ! ! Set 7
-        ! shift(1) = 2*pi*0.1377641919_wp; shift(2) = 2*pi*0.6152866056_wp; shift(3) = 2*pi*0.0511069403_wp;
-        ! shift(4) = 2*pi*0.3927737151_wp; shift(5) = 2*pi*0.0006762054_wp; shift(6) = 2*pi*0.1675698069_wp;
-        ! ! Set 8
-        ! shift(1) = 2*pi*0.8556119067_wp; shift(2) = 2*pi*0.9513815031_wp; shift(3) = 2*pi*0.4328811743_wp;
-        ! shift(4) = 2*pi*0.4420256142_wp; shift(5) = 2*pi*0.7374684184_wp; shift(6) = 2*pi*0.2477236891_wp;
-        ! ! Set 9
-        ! shift(1) = 2*pi*0.5576752220_wp; shift(2) = 2*pi*0.8501618422_wp; shift(3) = 2*pi*0.3463564289_wp;
-        ! shift(4) = 2*pi*0.4973941163_wp; shift(5) = 2*pi*0.9409184387_wp; shift(6) = 2*pi*0.9994186173_wp;
-        ! ! Set 10
-        ! shift(1) = 2*pi*0.4899695672_wp; shift(2) = 2*pi*0.8505344420_wp; shift(3) = 2*pi*0.3721308791_wp;
-        ! shift(4) = 2*pi*0.7329680488_wp; shift(5) = 2*pi*0.2234294319_wp; shift(6) = 2*pi*0.9827279516_wp;
+        if (mixlayer_shift == 1) then
+            shift(1) = 2*pi*11._wp/31._wp; shift(2) = 2*pi*13._wp/31._wp; shift(3) = 2*pi*17._wp/31._wp;
+            shift(4) = 2*pi*19._wp/31._wp; shift(5) = 2*pi*23._wp/31._wp; shift(6) = 2*pi*29._wp/31._wp;
+            print *, "shift 1", (shift(i), i=1,6)
+        else if (mixlayer_shift == 2) then
+            shift(1) = 2*pi*7._wp/61._wp;  shift(2) = 2*pi*11._wp/61._wp; shift(3) = 2*pi*19._wp/61._wp;
+            shift(4) = 2*pi*41._wp/61._wp; shift(5) = 2*pi*53._wp/61._wp; shift(6) = 2*pi*59._wp/61._wp;
+            print *, "shift 2", (shift(i), i=1,6)
+        else if (mixlayer_shift == 3) then
+            shift(1) = 2*pi*17._wp/53._wp; shift(2) = 2*pi*19._wp/53._wp; shift(3) = 2*pi*31._wp/53._wp;
+            shift(4) = 2*pi*47._wp/53._wp; shift(5) = 2*pi*29._wp/53._wp; shift(6) = 2*pi*3._wp/53._wp;
+            print *, "shift 3", (shift(i), i=1,6)
+        else if (mixlayer_shift == 4) then
+            shift(1) = 2*pi*13._wp/43._wp; shift(2) = 2*pi*11._wp/43._wp; shift(3) = 2*pi*39._wp/43._wp;
+            shift(4) = 2*pi*29._wp/43._wp; shift(5) = 2*pi*23._wp/43._wp; shift(6) = 2*pi*19._wp/43._wp;
+            print *, "shift 4", (shift(i), i=1,6)
+        else if (mixlayer_shift == 5) then
+            shift(1) = 2*pi*19._wp/37._wp; shift(2) = 2*pi*31._wp/37._wp; shift(3) = 2*pi*29._wp/37._wp;
+            shift(4) = 2*pi*3._wp/37._wp;  shift(5) = 2*pi*23._wp/37._wp; shift(6) = 2*pi*11._wp/37._wp;
+            print *, "shift 5", (shift(i), i=1,6)
+        else if (mixlayer_shift == 6) then
+            shift(1) = 2*pi*2._wp/67._wp;  shift(2) = 2*pi*53._wp/67._wp; shift(3) = 2*pi*29._wp/67._wp;
+            shift(4) = 2*pi*31._wp/67._wp; shift(5) = 2*pi*13._wp/67._wp; shift(6) = 2*pi*17._wp/67._wp;
+            print *, "shift 6", (shift(i), i=1,6)
+        else if (mixlayer_shift == 7) then
+            shift(1) = 2*pi*0.1377641919_wp; shift(2) = 2*pi*0.6152866056_wp; shift(3) = 2*pi*0.0511069403_wp;
+            shift(4) = 2*pi*0.3927737151_wp; shift(5) = 2*pi*0.0006762054_wp; shift(6) = 2*pi*0.1675698069_wp;
+            print *, "shift 7", (shift(i), i=1,6)
+        else if (mixlayer_shift == 8) then            
+            shift(1) = 2*pi*0.8556119067_wp; shift(2) = 2*pi*0.9513815031_wp; shift(3) = 2*pi*0.4328811743_wp;
+            shift(4) = 2*pi*0.4420256142_wp; shift(5) = 2*pi*0.7374684184_wp; shift(6) = 2*pi*0.2477236891_wp;
+            print *, "shift 8", (shift(i), i=1,6)
+        else if (mixlayer_shift == 9) then
+            shift(1) = 2*pi*0.5576752220_wp; shift(2) = 2*pi*0.8501618422_wp; shift(3) = 2*pi*0.3463564289_wp;
+            shift(4) = 2*pi*0.4973941163_wp; shift(5) = 2*pi*0.9409184387_wp; shift(6) = 2*pi*0.9994186173_wp;
+            print *, "shift 9", (shift(i), i=1,6)
+        else if (mixlayer_shift == 10) then
+            shift(1) = 2*pi*0.4899695672_wp; shift(2) = 2*pi*0.8505344420_wp; shift(3) = 2*pi*0.3721308791_wp;
+            shift(4) = 2*pi*0.7329680488_wp; shift(5) = 2*pi*0.2234294319_wp; shift(6) = 2*pi*0.9827279516_wp;
+            print *, "shift 10", (shift(i), i=1,6)
+        end if
 
         if (p > 0) then
             ! Compute 3D waves with phase shifts.

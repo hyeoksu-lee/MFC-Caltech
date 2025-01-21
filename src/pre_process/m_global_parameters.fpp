@@ -127,6 +127,7 @@ module m_global_parameters
     real(wp) :: mixlayer_vel_coef !< Coefficient for the hyperbolic tangent streamwise velocity profile
     real(wp) :: mixlayer_domain !< Domain for the hyperbolic tangent streamwise velocity profile
     logical :: mixlayer_perturb !< Superimpose instability waves to surrounding fluid flow
+    integer :: mixlayer_shift
 
     real(wp) :: pi_fac !< Factor for artificial pi_inf
 
@@ -332,6 +333,7 @@ contains
         mixlayer_vel_coef = 1._wp
         mixlayer_domain = 1._wp
         mixlayer_perturb = .false.
+        mixlayer_shift = 1
         perturb_flow = .false.
         perturb_flow_fluid = dflt_int
         perturb_flow_mag = dflt_real
