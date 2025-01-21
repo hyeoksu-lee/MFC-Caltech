@@ -19,6 +19,7 @@
 #SBATCH --mem=208G
 #SBATCH --gpu-bind=closest
 % endif
+#SBATCH --mem=240G
 #SBATCH --output="${name}.out"
 #SBATCH --error="${name}.err"
 #SBATCH --export=ALL
