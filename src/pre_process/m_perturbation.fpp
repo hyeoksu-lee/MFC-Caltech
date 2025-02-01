@@ -34,7 +34,7 @@ contains
 
         if (mixlayer_perturb) then
             mixlayer_bc_fd = 2
-            n0 = 199
+            n0 = 191
             nbpm0 = n0 + 1
             nbp0 = n0 + 2
             nbpm = n + 1
@@ -115,6 +115,36 @@ contains
 
     end subroutine s_perturb_surrounding_flow
 
+    subroutine s_perturb_random_noise(q_prim_vf)
+        type(scalar_field), dimension(sys_size), intent(inout) :: q_prim_vf
+        integer :: i, j, k, l !<  generic loop iterators
+
+        real(wp) :: rand_real
+        call random_seed()
+
+        do k = 0, p
+            do j = 0, n
+                do i = 0, m
+                    call random_number(rand_real)
+                    if (i == 0 .and. j == 0 .and. k == 0) print *, i, j, k, rand_real
+                    q_prim_vf(momxb)%sf(i, j, k) = q_prim_vf(momxb)%sf(i, j, k) + (2_wp * rand_real - 1_wp) * 0.01_wp! u
+                    call random_number(rand_real)
+                    if (i == 0 .and. j == 0 .and. k == 0) print *, i, j, k, rand_real
+                    q_prim_vf(momxb + 1)%sf(i, j, k) = q_prim_vf(momxb + 1)%sf(i, j, k) + (2_wp * rand_real - 1_wp) * 0.01_wp ! v
+                    if (p > 0) then
+                        call random_number(rand_real)
+                        if (i == 0 .and. j == 0 .and. k == 0) print *, i, j, k, rand_real
+                        q_prim_vf(momxb + 2)%sf(i, j, k) = q_prim_vf(momxb + 2)%sf(i, j, k) + (2_wp * rand_real - 1_wp) * 0.01_wp ! w
+                    end if
+                    call random_number(rand_real)
+                    if (i == 0 .and. j == 0 .and. k == 0) print *, i, j, k, rand_real
+                    q_prim_vf(E_idx)%sf(i, j, k) = q_prim_vf(E_idx)%sf(i, j, k) + (2_wp * rand_real - 1_wp) * 0.01_wp  ! p
+                end do
+            end do
+        end do
+
+    end subroutine s_perturb_random_noise
+
     !>  This subroutine computes velocity perturbations for a temporal mixing
         !!              layer with hypertangent mean streamwise velocity profile
         !!              obtained from linear stability analysis. For a 2D case,
@@ -129,7 +159,7 @@ contains
         integer :: i, j, k, q
 
         uratio = 1._wp/patch_icpp(1)%vel(1)
-        Ldomain = mixlayer_domain*patch_icpp(1)%length_x
+        Ldomain = mixlayer_domain*59.0_wp
         
         ! Generate base grid
         call s_generate_base_grid()
@@ -191,6 +221,46 @@ contains
             shift(1) = 2*pi*0.4899695672_wp; shift(2) = 2*pi*0.8505344420_wp; shift(3) = 2*pi*0.3721308791_wp;
             shift(4) = 2*pi*0.7329680488_wp; shift(5) = 2*pi*0.2234294319_wp; shift(6) = 2*pi*0.9827279516_wp;
             print *, "shift 10", (shift(i), i=1,6)
+        else if (mixlayer_shift == 11) then
+            shift(1) = 2*pi*0.73936086_wp; shift(2) = 2*pi*0.53321271_wp; shift(3) = 2*pi*0.07294918_wp;
+            shift(4) = 2*pi*0.54818918_wp; shift(5) = 2*pi*0.86098990_wp; shift(6) = 2*pi*0.54304788_wp;
+            print *, "shift 11", (shift(i), i=1,6)
+        else if (mixlayer_shift == 12) then
+            shift(1) = 2*pi*0.63102723_wp; shift(2) = 2*pi*0.55273117_wp; shift(3) = 2*pi*0.67750635_wp;
+            shift(4) = 2*pi*0.88108276_wp; shift(5) = 2*pi*0.06290314_wp; shift(6) = 2*pi*0.60971874_wp;
+            print *, "shift 12", (shift(i), i=1,6)
+        else if (mixlayer_shift == 13) then
+            shift(1) = 2*pi*0.28108231_wp; shift(2) = 2*pi*0.57440735_wp; shift(3) = 2*pi*0.11556867_wp;
+            shift(4) = 2*pi*0.20123427_wp; shift(5) = 2*pi*0.54014151_wp; shift(6) = 2*pi*0.68002622_wp;
+            print *, "shift 13", (shift(i), i=1,6)
+        else if (mixlayer_shift == 14) then
+            shift(1) = 2*pi*0.97913344_wp; shift(2) = 2*pi*0.73720290_wp; shift(3) = 2*pi*0.96491401_wp;
+            shift(4) = 2*pi*0.19457755_wp; shift(5) = 2*pi*0.38104128_wp; shift(6) = 2*pi*0.42362568_wp;
+            print *, "shift 14", (shift(i), i=1,6)
+        else if (mixlayer_shift == 15) then
+            shift(1) = 2*pi*0.82113501_wp; shift(2) = 2*pi*0.70251862_wp; shift(3) = 2*pi*0.34801304_wp;
+            shift(4) = 2*pi*0.47004825_wp; shift(5) = 2*pi*0.94827641_wp; shift(6) = 2*pi*0.03544434_wp;
+            print *, "shift 15", (shift(i), i=1,6)
+        else if (mixlayer_shift == 16) then
+            shift(1) = 2*pi*0.04775845_wp; shift(2) = 2*pi*0.21268208_wp; shift(3) = 2*pi*0.78296638_wp;
+            shift(4) = 2*pi*0.42997254_wp; shift(5) = 2*pi*0.47059390_wp; shift(6) = 2*pi*0.80020549_wp;
+            print *, "shift 16", (shift(i), i=1,6)
+        else if (mixlayer_shift == 17) then
+            shift(1) = 2*pi*0.21239576_wp; shift(2) = 2*pi*0.85857176_wp; shift(3) = 2*pi*0.46040151_wp;
+            shift(4) = 2*pi*0.64376148_wp; shift(5) = 2*pi*0.95176286_wp; shift(6) = 2*pi*0.36655479_wp;
+            print *, "shift 17", (shift(i), i=1,6)
+        else if (mixlayer_shift == 18) then
+            shift(1) = 2*pi*0.85103539_wp; shift(2) = 2*pi*0.64516243_wp; shift(3) = 2*pi*0.52306323_wp;
+            shift(4) = 2*pi*0.98260012_wp; shift(5) = 2*pi*0.03886104_wp; shift(6) = 2*pi*0.11332287_wp;
+            print *, "shift 18", (shift(i), i=1,6)
+        else if (mixlayer_shift == 19) then
+            shift(1) = 2*pi*0.79283785_wp; shift(2) = 2*pi*0.47085308_wp; shift(3) = 2*pi*0.19101602_wp;
+            shift(4) = 2*pi*0.96079179_wp; shift(5) = 2*pi*0.56967998_wp; shift(6) = 2*pi*0.73977715_wp;
+            print *, "shift 19", (shift(i), i=1,6)
+        else if (mixlayer_shift == 20) then
+            shift(1) = 2*pi*0.62122631_wp; shift(2) = 2*pi*0.50381444_wp; shift(3) = 2*pi*0.34548855_wp;
+            shift(4) = 2*pi*0.24801029_wp; shift(5) = 2*pi*0.08947161_wp; shift(6) = 2*pi*0.27224491_wp;
+            print *, "shift 20", (shift(i), i=1,6)
         end if
 
         if (p > 0) then
@@ -236,6 +306,8 @@ contains
                 end do
             end do
         end do
+
+        call s_perturb_random_noise(q_prim_vf)
 
     end subroutine s_superposition_instability_wave
 
