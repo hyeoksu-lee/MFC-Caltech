@@ -895,7 +895,7 @@ contains
 
         ! END: Additional pphysics and source terms
 
-        if (run_time_info .or. probe_wrt .or. ib .or. bubbles_lagrange) then
+        if (run_time_info .or. cell_wrt .or. probe_wrt .or. ib .or. bubbles_lagrange) then
             !$acc parallel loop collapse(4) gang vector default(present)
             do i = 1, sys_size
                 do l = idwbuff(3)%beg, idwbuff(3)%end
@@ -1977,47 +1977,238 @@ contains
 
         integer :: weno_dir !< Coordinate direction of the WENO reconstruction
 
+        integer :: i, j, ii
+
         ! Reconstruction in s1-direction
 
-        if (norm_dir == 1) then
-            is1 = idwbuff(1); is2 = idwbuff(2); is3 = idwbuff(3)
-            weno_dir = 1; is1%beg = is1%beg + weno_polyn
-            is1%end = is1%end - weno_polyn
-
-        elseif (norm_dir == 2) then
-            is1 = idwbuff(2); is2 = idwbuff(1); is3 = idwbuff(3)
-            weno_dir = 2; is1%beg = is1%beg + weno_polyn
-            is1%end = is1%end - weno_polyn
-
-        else
-            is1 = idwbuff(3); is2 = idwbuff(2); is3 = idwbuff(1)
-            weno_dir = 3; is1%beg = is1%beg + weno_polyn
-            is1%end = is1%end - weno_polyn
-
-        end if
-
-        if (n > 0) then
-            if (p > 0) then
-
-                call s_weno(v_vf(iv%beg:iv%end), &
-                            vL_x(:, :, :, iv%beg:iv%end), vL_y(:, :, :, iv%beg:iv%end), vL_z(:, :, :, iv%beg:iv%end), vR_x(:, :, :, iv%beg:iv%end), vR_y(:, :, :, iv%beg:iv%end), vR_z(:, :, :, iv%beg:iv%end), &
-                            norm_dir, weno_dir, &
-                            is1, is2, is3)
+        if (cd_reconstruct) then
+            if (norm_dir == 1) then
+                is1 = idwbuff(1); is2 = idwbuff(2); is3 = idwbuff(3)
+                weno_dir = 1; is1%beg = is1%beg + cd_polyn
+                is1%end = is1%end - cd_polyn
+    
+            elseif (norm_dir == 2) then
+                is1 = idwbuff(2); is2 = idwbuff(1); is3 = idwbuff(3)
+                weno_dir = 2; is1%beg = is1%beg + cd_polyn
+                is1%end = is1%end - cd_polyn
+    
             else
-                call s_weno(v_vf(iv%beg:iv%end), &
-                            vL_x(:, :, :, iv%beg:iv%end), vL_y(:, :, :, iv%beg:iv%end), vL_z(:, :, :, :), vR_x(:, :, :, iv%beg:iv%end), vR_y(:, :, :, iv%beg:iv%end), vR_z(:, :, :, :), &
+                is1 = idwbuff(3); is2 = idwbuff(2); is3 = idwbuff(1)
+                weno_dir = 3; is1%beg = is1%beg + cd_polyn
+                is1%end = is1%end - cd_polyn
+    
+            end if
+
+            if (n > 0) then
+                if (p > 0) then
+    
+                    call s_cd_reconstruct(v_vf(iv%beg:iv%end), &
+                                vL_x(:, :, :, iv%beg:iv%end), &
+                                vL_y(:, :, :, iv%beg:iv%end), &
+                                vL_z(:, :, :, iv%beg:iv%end), &
+                                vR_x(:, :, :, iv%beg:iv%end), &
+                                vR_y(:, :, :, iv%beg:iv%end), &
+                                vR_z(:, :, :, iv%beg:iv%end), &
+                                norm_dir, weno_dir, &
+                                is1, is2, is3)
+    
+                else
+                    call s_cd_reconstruct(v_vf(iv%beg:iv%end), &
+                                vL_x(:, :, :, iv%beg:iv%end), &
+                                vL_y(:, :, :, iv%beg:iv%end), &
+                                vL_z(:, :, :, :), &
+                                vR_x(:, :, :, iv%beg:iv%end), &
+                                vR_y(:, :, :, iv%beg:iv%end), &
+                                vR_z(:, :, :, :), &
+                                norm_dir, weno_dir, &
+                                is1, is2, is3)
+                end if
+            else
+    
+                call s_cd_reconstruct(v_vf(iv%beg:iv%end), &
+                            vL_x(:, :, :, iv%beg:iv%end), &
+                            vL_y(:, :, :, :), &
+                            vL_z(:, :, :, :), &
+                            vR_x(:, :, :, iv%beg:iv%end), &
+                            vR_y(:, :, :, :), &
+                            vR_z(:, :, :, :), &
                             norm_dir, weno_dir, &
                             is1, is2, is3)
             end if
-        else
 
-            call s_weno(v_vf(iv%beg:iv%end), &
-                        vL_x(:, :, :, iv%beg:iv%end), vL_y(:, :, :, :), vL_z(:, :, :, :), vR_x(:, :, :, iv%beg:iv%end), vR_y(:, :, :, :), vR_z(:, :, :, :), &
-                        norm_dir, weno_dir, &
-                        is1, is2, is3)
+        else
+            if (norm_dir == 1) then
+                is1 = idwbuff(1); is2 = idwbuff(2); is3 = idwbuff(3)
+                weno_dir = 1; is1%beg = is1%beg + weno_polyn
+                is1%end = is1%end - weno_polyn
+    
+            elseif (norm_dir == 2) then
+                is1 = idwbuff(2); is2 = idwbuff(1); is3 = idwbuff(3)
+                weno_dir = 2; is1%beg = is1%beg + weno_polyn
+                is1%end = is1%end - weno_polyn
+    
+            else
+                is1 = idwbuff(3); is2 = idwbuff(2); is3 = idwbuff(1)
+                weno_dir = 3; is1%beg = is1%beg + weno_polyn
+                is1%end = is1%end - weno_polyn
+    
+            end if
+
+            if (n > 0) then
+                if (p > 0) then
+
+                    call s_weno(v_vf(iv%beg:iv%end), &
+                                vL_x(:, :, :, iv%beg:iv%end), &
+                                vL_y(:, :, :, iv%beg:iv%end), &
+                                vL_z(:, :, :, iv%beg:iv%end), &
+                                vR_x(:, :, :, iv%beg:iv%end), &
+                                vR_y(:, :, :, iv%beg:iv%end), &
+                                vR_z(:, :, :, iv%beg:iv%end), &
+                                norm_dir, weno_dir, &
+                                is1, is2, is3)
+
+                else
+                    call s_weno(v_vf(iv%beg:iv%end), &
+                                vL_x(:, :, :, iv%beg:iv%end), &
+                                vL_y(:, :, :, iv%beg:iv%end), &
+                                vL_z(:, :, :, :), &
+                                vR_x(:, :, :, iv%beg:iv%end), &
+                                vR_y(:, :, :, iv%beg:iv%end), &
+                                vR_z(:, :, :, :), &
+                                norm_dir, weno_dir, &
+                                is1, is2, is3)
+                end if
+            else
+                call s_weno(v_vf(iv%beg:iv%end), &
+                            vL_x(:, :, :, iv%beg:iv%end), &
+                            vL_y(:, :, :, :), &
+                            vL_z(:, :, :, :), &
+                            vR_x(:, :, :, iv%beg:iv%end), &
+                            vR_y(:, :, :, :), &
+                            vR_z(:, :, :, :), &
+                            norm_dir, weno_dir, &
+                            is1, is2, is3)
+                end if
         end if
 
     end subroutine s_reconstruct_cell_boundary_values
+
+    ! Reconstruct cell boundary values using central difference scheme
+    subroutine s_cd_reconstruct(v_vf, vL_rs_vf_x, vL_rs_vf_y, vL_rs_vf_z, vR_rs_vf_x, vR_rs_vf_y, vR_rs_vf_z, &
+                                norm_dir, cd_dir, &
+                                is1_cd, is2_cd, is3_cd)
+
+        type(scalar_field), dimension(1:), intent(in) :: v_vf
+        real(wp), dimension(startx:, starty:, startz:, 1:), intent(inout) :: vL_rs_vf_x, vL_rs_vf_y, vL_rs_vf_z
+        real(wp), dimension(startx:, starty:, startz:, 1:), intent(inout) :: vR_rs_vf_x, vR_rs_vf_y, vR_rs_vf_z
+        integer, intent(in) :: norm_dir
+        integer, intent(in) :: cd_dir
+        type(int_bounds_info), intent(in) :: is1_cd, is2_cd, is3_cd
+        real(wp), dimension(8) :: coef_cd
+
+        integer :: i, j, k, l, ii
+
+        coef_cd(1) =   -3._wp/840._wp
+        coef_cd(2) =   29._wp/840._wp
+        coef_cd(3) = -139._wp/840._wp
+        coef_cd(4) =  533._wp/840._wp
+        coef_cd(5) = coef_cd(4)
+        coef_cd(6) = coef_cd(3)
+        coef_cd(7) = coef_cd(2)
+        coef_cd(8) = coef_cd(1)
+
+        if (cd_order == 8) then
+            if (cd_dir == 1) then
+                !$acc parallel loop collapse(4) default(present)
+                do i = 1, ubound(v_vf, 1)
+                    do l = is3_cd%beg, is3_cd%end
+                        do k = is2_cd%beg, is2_cd%end
+                            do j = is1_cd%beg, is1_cd%end
+                                vL_rs_vf_x(j, k, l, i) = &
+                                          coef_cd(1)*v_vf(i)%sf(j - 4, k, l) &
+                                        + coef_cd(2)*v_vf(i)%sf(j - 3, k, l) &
+                                        + coef_cd(3)*v_vf(i)%sf(j - 2, k, l) &
+                                        + coef_cd(4)*v_vf(i)%sf(j - 1, k, l) &
+                                        + coef_cd(5)*v_vf(i)%sf(j    , k, l) &
+                                        + coef_cd(6)*v_vf(i)%sf(j + 1, k, l) &
+                                        + coef_cd(7)*v_vf(i)%sf(j + 2, k, l) &
+                                        + coef_cd(8)*v_vf(i)%sf(j + 3, k, l)
+                                vR_rs_vf_x(j, k, l, i) = &
+                                          coef_cd(1)*v_vf(i)%sf(j - 3, k, l) &
+                                        + coef_cd(2)*v_vf(i)%sf(j - 2, k, l) &
+                                        + coef_cd(3)*v_vf(i)%sf(j - 1, k, l) &
+                                        + coef_cd(4)*v_vf(i)%sf(j    , k, l) &
+                                        + coef_cd(5)*v_vf(i)%sf(j + 1, k, l) &
+                                        + coef_cd(6)*v_vf(i)%sf(j + 2, k, l) &
+                                        + coef_cd(7)*v_vf(i)%sf(j + 3, k, l) &
+                                        + coef_cd(8)*v_vf(i)%sf(j + 4, k, l)
+                            end do
+                        end do
+                    end do
+                end do
+                !$acc end parallel loop
+            else if (cd_dir == 2) then
+                !$acc parallel loop collapse(4) default(present)
+                do i = 1, ubound(v_vf, 1)
+                    do l = is3_cd%beg, is3_cd%end
+                        do k = is2_cd%beg, is2_cd%end
+                            do j = is1_cd%beg, is1_cd%end
+                                vL_rs_vf_y(j, k, l, i) = &
+                                          coef_cd(1)*v_vf(i)%sf(k, j - 4, l) &
+                                        + coef_cd(2)*v_vf(i)%sf(k, j - 3, l) &
+                                        + coef_cd(3)*v_vf(i)%sf(k, j - 2, l) &
+                                        + coef_cd(4)*v_vf(i)%sf(k, j - 1, l) &
+                                        + coef_cd(5)*v_vf(i)%sf(k, j    , l) &
+                                        + coef_cd(6)*v_vf(i)%sf(k, j + 1, l) &
+                                        + coef_cd(7)*v_vf(i)%sf(k, j + 2, l) &
+                                        + coef_cd(8)*v_vf(i)%sf(k, j + 3, l)
+                                vR_rs_vf_y(j, k, l, i) = &
+                                          coef_cd(1)*v_vf(i)%sf(k, j - 3, l) &
+                                        + coef_cd(2)*v_vf(i)%sf(k, j - 2, l) &
+                                        + coef_cd(3)*v_vf(i)%sf(k, j - 1, l) &
+                                        + coef_cd(4)*v_vf(i)%sf(k, j    , l) &
+                                        + coef_cd(5)*v_vf(i)%sf(k, j + 1, l) &
+                                        + coef_cd(6)*v_vf(i)%sf(k, j + 2, l) &
+                                        + coef_cd(7)*v_vf(i)%sf(k, j + 3, l) &
+                                        + coef_cd(8)*v_vf(i)%sf(k, j + 4, l)
+                            end do
+                        end do
+                    end do
+                end do
+                !$acc end parallel loop
+            else if (cd_dir == 3) then
+                !$acc parallel loop collapse(4) default(present)
+                do i = 1, ubound(v_vf, 1)
+                    do l = is3_cd%beg, is3_cd%end
+                        do k = is2_cd%beg, is2_cd%end
+                            do j = is1_cd%beg, is1_cd%end
+                                vL_rs_vf_z(j, k, l, i) = &
+                                          coef_cd(1)*v_vf(i)%sf(l, k, j - 4) &
+                                        + coef_cd(2)*v_vf(i)%sf(l, k, j - 3) &
+                                        + coef_cd(3)*v_vf(i)%sf(l, k, j - 2) &
+                                        + coef_cd(4)*v_vf(i)%sf(l, k, j - 1) &
+                                        + coef_cd(5)*v_vf(i)%sf(l, k, j    ) &
+                                        + coef_cd(6)*v_vf(i)%sf(l, k, j + 1) &
+                                        + coef_cd(7)*v_vf(i)%sf(l, k, j + 2) &
+                                        + coef_cd(8)*v_vf(i)%sf(l, k, j + 3)
+                                vR_rs_vf_z(j, k, l, i) = &
+                                          coef_cd(1)*v_vf(i)%sf(l, k, j - 3) &
+                                        + coef_cd(2)*v_vf(i)%sf(l, k, j - 2) &
+                                        + coef_cd(3)*v_vf(i)%sf(l, k, j - 1) &
+                                        + coef_cd(4)*v_vf(i)%sf(l, k, j    ) &
+                                        + coef_cd(5)*v_vf(i)%sf(l, k, j + 1) &
+                                        + coef_cd(6)*v_vf(i)%sf(l, k, j + 2) &
+                                        + coef_cd(7)*v_vf(i)%sf(l, k, j + 3) &
+                                        + coef_cd(8)*v_vf(i)%sf(l, k, j + 4)
+                            end do
+                        end do
+                    end do
+                end do 
+                !$acc end parallel loop
+            end if
+        end if
+    end subroutine
+
 
     subroutine s_reconstruct_cell_boundary_values_first_order(v_vf, vL_x, vL_y, vL_z, vR_x, vR_y, vR_z, &
                                                               norm_dir)

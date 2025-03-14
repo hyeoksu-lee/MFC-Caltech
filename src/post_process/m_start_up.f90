@@ -84,7 +84,7 @@ contains
             relax_model, cf_wrt, sigma, adv_n, ib, num_ibs, &
             cfl_adap_dt, cfl_const_dt, t_save, t_stop, n_start, &
             cfl_target, surface_tension, bubbles_lagrange, rkck_adap_dt, &
-            sim_data, hyperelasticity
+            sim_data, hyperelasticity, decouple
 
         ! Inquiring the status of the post_process.inp file
         file_loc = 'post_process.inp'
@@ -194,9 +194,9 @@ contains
         integer, intent(inout) :: t_step
         character(LEN=name_len), intent(inout) :: varname
         real(wp), intent(inout) :: pres, c, H
+        real(wp) :: nR3bar
 
         integer :: i, j, k, l
-
         integer :: x_beg, x_end, y_beg, y_end, z_beg, z_end
 
         if (output_partial_domain) then
@@ -608,6 +608,24 @@ contains
                 call s_write_variable_to_formatted_database_file(varname, t_step)
                 varname(:) = ' '
             end if
+
+            if (decouple) then
+                do l = -offset_z%beg, p + offset_z%end
+                    do k = -offset_y%beg, n + offset_y%end
+                        do j = -offset_x%beg, m + offset_x%end
+                            nR3bar = 0._wp
+                            do i = 1, nb
+                                nR3bar = nR3bar + weight(i)*q_cons_vf(bub_idx%rs(i))%sf(j, k, l)**3._wp
+                            end do
+                            q_sf(j, k, l) = (4._wp*pi*nR3bar)/(3._wp*q_cons_vf(n_idx)%sf(j, k, l)**2._wp)
+                        end do
+                    end do
+                end do
+                write (varname, '(A)') 'alpha_b'
+                call s_write_variable_to_formatted_database_file(varname, t_step)
+                varname(:) = ' '
+            end if
+
         end if
 
         ! Adding the lagrangian subgrid variables  to the formatted database file

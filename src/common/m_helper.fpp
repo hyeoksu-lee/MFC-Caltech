@@ -256,6 +256,7 @@ contains
         integer :: ir
         real(wp) :: R0mn, R0mx, dphi, tmp, sd
         real(wp), dimension(nb) :: phi
+        real(wp) :: R0bar
 
         sd = poly_sigma
         R0mn = 0.8_wp*exp(-2.8_wp*sd)
@@ -283,6 +284,18 @@ contains
         weight(1) = tmp*dphi/3._wp
         tmp = exp(-0.5_wp*(phi(nb)/sd)**2)/sqrt(2._wp*pi)/sd
         weight(nb) = tmp*dphi/3._wp
+
+        R0bar = 0._wp
+        do ir = 1, nb
+            R0bar = R0bar + R0(ir)*weight(ir)
+        end do
+
+        if (proc_rank == 0) then
+            print *, "R0:", (R0(ir), ir = 1, nb)
+            print *, "weight:", (weight(ir), ir = 1, nb)
+            print *, "R0bar = ", R0bar
+        end if
+
     end subroutine s_simpson
 
     !> This procedure computes the cross product of two vectors.

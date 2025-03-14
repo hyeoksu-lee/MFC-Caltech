@@ -110,14 +110,114 @@ contains
             dimension(sys_size), &
             intent(inout) :: q_cons_vf
 
+        real(wp) :: dyn_p
+        real(wp) :: R3bar
+        integer :: i, j, k, l
 
         if (.not. parallel_io) then
             call s_read_serial_data_files(q_cons_vf)
         else
             call s_read_parallel_data_files(q_cons_vf)
+
+            if (seeding .and. bubbles_euler .and. adv_n) then
+
+                !$acc parallel loop collapse(3) gang vector default(present)
+                do j = 0, m
+                    do k = 0, n
+                        do l = 0, p
+                            
+                            dyn_p = 0._wp
+                            do i = momxb, momxe
+                                dyn_p = dyn_p + 0.5_wp*q_cons_vf(i)%sf(j, k, l)**2._wp / q_cons_vf(1)%sf(j, k, l)
+                            end do
+
+                            q_prim_vf(E_idx)%sf(j, k, l) = (q_cons_vf(E_idx)%sf(j, k, l) - dyn_p - fluid_pp(1)%pi_inf)/fluid_pp(1)%gamma
+
+                            !$acc loop seq
+                            do i = 1, nb
+                                q_prim_vf(bub_idx%rs(i))%sf(j, k, l) = R0(i)
+                                q_prim_vf(bub_idx%vs(i))%sf(j, k, l) = 0._wp                
+                            end do
+                            
+                            ! Initialize number density
+                            R3bar = 0._wp
+                            !$acc loop seq
+                            do i = 1, nb
+                                call s_compute_equilibrium_state(q_prim_vf(E_idx)%sf(j, k, l), R0(i), q_prim_vf(bub_idx%rs(i))%sf(j, k, l))
+                                R3bar = R3bar + weight(i)*(q_prim_vf(bub_idx%rs(i))%sf(j, k, l))**3._wp
+                            end do
+                            q_prim_vf(n_idx)%sf(j, k, l) = 3._wp*q_prim_vf(alf_idx)%sf(j, k, l)/(4._wp*pi*R3bar)
+            
+                            if (decouple) then
+                                q_prim_vf(n_idx)%sf(j, k, l) = 3._wp*decouple_vf0/(4._wp*pi*R3bar)
+                            else
+                                q_prim_vf(n_idx)%sf(j, k, l) = 3._wp*q_prim_vf(alf_idx)%sf(j, k, l)/(4._wp*pi*R3bar)
+                            end if
+
+                            !$acc loop seq
+                            do i = 1, nb
+                                q_cons_vf(bub_idx%rs(i))%sf(j, k, l) = q_prim_vf(bub_idx%rs(i))%sf(j, k, l)*q_prim_vf(n_idx)%sf(j, k, l)
+                                q_cons_vf(bub_idx%vs(i))%sf(j, k, l) = q_prim_vf(bub_idx%vs(i))%sf(j, k, l)*q_prim_vf(n_idx)%sf(j, k, l)
+                                q_cons_vf(n_idx)%sf(j, k, l) = q_prim_vf(n_idx)%sf(j, k, l)
+                            end do
+                            
+                        end do
+                    end do
+                end do
+            end if
         end if
 
     end subroutine s_read_data_files
+
+    !>  This subroutine computes equilibrium bubble radius of the perturbed pressure field
+    subroutine s_compute_equilibrium_state(fP, fR0, fR)
+        real(wp), intent(in) :: fP, fR0
+        real(wp), intent(inout) :: fR
+        real(wp) :: fP_tmp
+        real(wp) :: f0, f1
+        real(wp) :: gam_b
+        integer :: ii, jj
+
+        gam_b = 1._wp + 1._wp/fluid_pp(num_fluids + 1)%gamma
+
+        if (fP > fluid_pp(1)%pv) then
+            fP_tmp = fP
+        else
+            fP_tmp = fluid_pp(1)%pv
+        end if
+
+        ! Loop
+        ii = 1
+        do while (.true.)
+
+            f0 = (Ca + 2._wp/(Web*fR0))*(fR0/fR)**(3._wp*gam_b) - 2._wp/(Web*fR) + 1._wp - Ca - fP_tmp
+            f1 = -3._wp*gam_b*(Ca + 2._wp/(Web*fR0))*(fR0/fR)**(3._wp*gam_b + 1._wp) / fR0 + 2._wp/(Web*fR**2._wp)
+
+            if (abs(f0) <= 1e-10_wp) then
+                ! Converged
+                exit
+            else
+                ! Update radius
+                fR = fR - f0/f1
+            end if
+
+            ! Failed case
+            if (ieee_is_nan(f0) .or. &
+                ieee_is_nan(f1) .or. &
+                ii > 1000 .or. &
+                fR < 0._wp) then
+
+                print *, "Failed to compute equilibrium radius"
+                print *, ii, f0, f1, fR0, fR, gam_b, Ca, Web, fP
+                call s_mpi_abort()
+                fR = fR0
+                exit
+            end if
+
+            ii = ii + 1
+        end do
+
+    end subroutine s_compute_equilibrium_state
 
     !>  The purpose of this procedure is to first verify that an
         !!      input file has been made available by the user. Provided
@@ -171,7 +271,9 @@ contains
             viscous, surface_tension, &
             bubbles_lagrange, lag_params, &
             rkck_adap_dt, rkck_tolerance, &
-            hyperelasticity, R0ref
+            hyperelasticity, R0ref, decouple, decouple_vf0, &
+            cell_wrt, cell_wrt_x, cell_wrt_y, cell_wrt_z, seeding, &
+            cd_reconstruct, cd_order, wcns_ld
 
         ! Checking that an input file has been provided by the user. If it
         ! has, then the input file is read in, otherwise, simulation exits.
@@ -620,7 +722,7 @@ contains
                 NVARS_MOK = int(sys_size, MPI_OFFSET_KIND)
 
                 ! Read the data for each variable
-                if (bubbles_euler .or. elasticity) then
+                if ((bubbles_euler .and. .not. seeding) .or. elasticity) then
 
                     do i = 1, sys_size!adv_idx%end
                         var_MOK = int(i, MPI_OFFSET_KIND)
@@ -637,6 +739,13 @@ contains
                                                mpi_p, status, ierr)
                         end do
                     end if
+                else if (bubbles_euler .and. seeding) then
+                    do i = 1, adv_idx%end
+                        var_MOK = int(i, MPI_OFFSET_KIND)
+
+                        call MPI_FILE_READ(ifile, MPI_IO_DATA%var(i)%sf, data_size, &
+                                           mpi_p, status, ierr)
+                    end do
                 else
                     do i = 1, adv_idx%end
                         var_MOK = int(i, MPI_OFFSET_KIND)
@@ -756,7 +865,7 @@ contains
                 NVARS_MOK = int(sys_size, MPI_OFFSET_KIND)
 
                 ! Read the data for each variable
-                if (bubbles_euler .or. elasticity) then
+                if ((bubbles_euler .and. .not. seeding) .or. elasticity) then
                     do i = 1, sys_size !adv_idx%end
                         var_MOK = int(i, MPI_OFFSET_KIND)
                         ! Initial displacement to skip at beginning of file
@@ -780,6 +889,19 @@ contains
                                                mpi_p, status, ierr)
                         end do
                     end if
+                else if (bubbles_euler .and. seeding) then
+                    do i = 1, adv_idx%end
+                        var_MOK = int(i, MPI_OFFSET_KIND)
+
+                        ! Initial displacement to skip at beginning of file
+                        disp = m_MOK*max(MOK, n_MOK)*max(MOK, p_MOK)*WP_MOK*(var_MOK - 1)
+
+                        call MPI_FILE_SET_VIEW(ifile, disp, mpi_p, MPI_IO_DATA%view(i), &
+                                               'native', mpi_info_int, ierr)
+                        call MPI_FILE_READ(ifile, MPI_IO_DATA%var(i)%sf, data_size, &
+                                           mpi_p, status, ierr)
+
+                    end do
                 else
                     do i = 1, sys_size
                         var_MOK = int(i, MPI_OFFSET_KIND)
@@ -1287,12 +1409,63 @@ contains
         end if
 
         if (relax) call s_infinite_relaxation_k(q_cons_ts(1)%vf)
+        if (cell_wrt) call s_write_cell_data(t_step, q_cons_ts(1)%vf)
 
         ! Time-stepping loop controls
 
         t_step = t_step + 1
         
     end subroutine s_perform_time_step
+
+    subroutine s_write_cell_data(t_step, qc_vf)
+        integer, intent(in) :: t_step
+        type(scalar_field), dimension(1:sys_size), intent(in) :: qc_vf
+        real(wp) :: xloc, yloc, zloc
+        real(wp) :: xt, yt, zt
+        real(wp) :: xcc, ycc, zcc
+        integer :: i, j, k, l
+
+        call s_convert_conservative_to_primitive_variables(qc_vf, q_T_sf, q_prim_vf, idwint)
+
+        xloc = cell_wrt_x
+        if (n > 0) then
+            yloc = cell_wrt_y
+            if (p > 0) then
+                zloc = cell_wrt_z
+            end if
+        end if
+
+        !$acc parallel loop collapse(3) gang vector default(present)
+        do l = 0, p
+            do k = 0, n
+                do j = 0, m
+                    xt = (x_cb(j - 1) - xloc)*(x_cb(j) - xloc)
+                    yt = 0._wp
+                    zt = 0._wp
+                    if (n > 0) then
+                        yt = (y_cb(k - 1) - yloc)*(y_cb(k) - yloc)
+                        if (p > 0) then
+                            zt = (z_cb(l - 1) - zloc)*(z_cb(l) - zloc)
+                        end if
+                    end if
+
+                    if ((xt .le. 0._wp) .and. (yt .le. 0._wp) .and. (zt .le. 0._wp)) then
+                        xcc = x_cc(j)
+                        ycc = 0._wp
+                        zcc = 0._wp
+                        if (n > 0) then
+                            ycc = y_cc(k)
+                            if (p > 0) then
+                                zcc = z_cc(l)
+                            end if
+                        end if
+
+                        write(99,*) t_step, xcc, ycc, zcc, (q_prim_vf(i)%sf(j, k, l), i = 1, sys_size)
+                    end if
+                end do
+            end do
+        end do
+    end subroutine
 
     subroutine s_save_performance_metrics(t_step, time_avg, time_final, io_time_avg, io_time_final, proc_time, io_proc_time, file_exists, start, finish, nt)
 
@@ -1597,9 +1770,10 @@ contains
         if (chemistry) then
             !$acc update device(q_T_sf%sf)
         end if
-        !$acc update device(nb, R0ref, Ca, Web, Re_inv, weight, R0, V0, bubbles_euler, polytropic, polydisperse, qbmm, R0_type, ptil, bubble_model, thermal, poly_sigma, adv_n, adap_dt, n_idx, pi_fac, low_Mach)
+        !$acc update device(nb, R0ref, Ca, Web, Re_inv, weight, R0, V0, bubbles_euler, polytropic, polydisperse, qbmm, R0_type, ptil, bubble_model, thermal, poly_sigma, adv_n, adap_dt, n_idx, pi_fac, low_Mach, decouple, decouple_vf0)
         !$acc update device(R_n, R_v, phi_vn, phi_nv, Pe_c, Tw, pv, M_n, M_v, k_n, k_v, pb0, mass_n0, mass_v0, Pe_T, Re_trans_T, Re_trans_c, Im_trans_T, Im_trans_c, omegaN , mul0, ss, gamma_v, mu_v, gamma_m, gamma_n, mu_n, gam)
-
+        !$acc update device(cd_reconstruct, cd_order, wcns_ld)
+        
         !$acc update device(acoustic_source, num_source)
         !$acc update device(sigma, surface_tension)
 

@@ -71,7 +71,7 @@ contains
         !! @param q_cons_vf is the conservative variable
     subroutine s_comp_alpha_from_n(q_cons_vf)
         type(scalar_field), dimension(sys_size), intent(inout) :: q_cons_vf
-        real(wp) :: nR3bar
+        real(wp) :: nR3bar, alphab
         integer(wp) :: i, j, k, l
 
         !$acc parallel loop collapse(3) gang vector default(present)
@@ -83,7 +83,17 @@ contains
                     do i = 1, nb
                         nR3bar = nR3bar + weight(i)*(q_cons_vf(rs(i))%sf(j, k, l))**3._wp
                     end do
-                    q_cons_vf(alf_idx)%sf(j, k, l) = (4._wp*pi*nR3bar)/(3._wp*q_cons_vf(n_idx)%sf(j, k, l)**2._wp)
+                    alphab = (4._wp*pi*nR3bar)/(3._wp*q_cons_vf(n_idx)%sf(j, k, l)**2._wp)
+
+                    if (.not. decouple) q_cons_vf(alf_idx)%sf(j, k, l) = alphab
+                    if (alphab > 0.1) then
+                        print *, proc_rank, j, k, l, alphab, nR3bar, q_cons_vf(n_idx)%sf(j, k, l)
+                        print *, (q_cons_vf(i)%sf(j, k, l), i = 1, sys_size)
+                        print *, "x_cc = ", x_cc(j)
+                        if (n > 0) print *, "y_cc = ", y_cc(k)
+                        if (p > 0) print *, "z_cc = ", z_cc(l)
+                        call s_mpi_abort("Subgrid bubble volume fraction is > 0.1")
+                    end if
                 end do
             end do
         end do
@@ -524,8 +534,10 @@ contains
         ! Estimate error
         err_R = (-5._wp*h/24._wp)*(myV_tmp(2) + myV_tmp(3) - 2._wp*myV_tmp(4)) &
                 /max(abs(myR_tmp(1)), abs(myR_tmp(4)))
+        if (max(abs(myR_tmp(1)), abs(myR_tmp(4))) < 1e-12_wp) err_R = 0._wp
         err_V = (-5._wp*h/24._wp)*(myA_tmp(2) + myA_tmp(3) - 2._wp*myA_tmp(4)) &
                 /max(abs(myV_tmp(1)), abs(myV_tmp(4)))
+                if (max(abs(myV_tmp(1)), abs(myV_tmp(4))) < 1e-12_wp) err_V = 0._wp
         err = sqrt((err_R**2._wp + err_V**2._wp)/2._wp)
 
     end subroutine s_advance_substep

@@ -68,6 +68,10 @@ program p_main
         finaltime = t_step_stop*dt
     end if
 
+    if (cell_wrt) then
+        open(99, FILE="./cell_prim.dat")
+    end if
+
     call nvtxEndRange ! INIT
 
     call nvtxStartRange("SIMULATION-TIME-MARCH")

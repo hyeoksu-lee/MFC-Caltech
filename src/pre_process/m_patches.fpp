@@ -1672,7 +1672,7 @@ contains
             y_centroid = patch_icpp(patch_id)%y_centroid
             z_centroid = patch_icpp(patch_id)%z_centroid
             length_x = patch_icpp(patch_id)%length_x
-            length_y = patch_icpp(patch_id)%length_y
+            length_y = y_cb(n) - y_cb(-1)
             length_z = patch_icpp(patch_id)%length_z
         end if
 

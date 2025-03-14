@@ -1017,7 +1017,7 @@ contains
         real(wp) :: flux_ene_e
         real(wp) :: zcoef, pcorr !< low Mach number correction
 
-        integer :: i, j, k, l, q !< Generic loop iterators
+        integer :: i, j, k, l, q, ii !< Generic loop iterators
         integer :: idx1, idxi
 
         ! Populating the buffers of the left and right Riemann problem
@@ -1876,67 +1876,89 @@ contains
                                         nbub_R = qR_prim_rs${XYZ}$_vf(j + 1, k, l, bubxb)
                                     end if
 
-                                    !$acc loop seq
-                                    do i = 1, nb
-                                        if (.not. qbmm) then
-                                            if (polytropic) then
-                                                pbw_L(i) = f_cpbw_KM(R0(i), R0_L(i), V0_L(i), 0._wp)
-                                                pbw_R(i) = f_cpbw_KM(R0(i), R0_R(i), V0_R(i), 0._wp)
-                                            else
-                                                pbw_L(i) = f_cpbw_KM(R0(i), R0_L(i), V0_L(i), P0_L(i))
-                                                pbw_R(i) = f_cpbw_KM(R0(i), R0_R(i), V0_R(i), P0_R(i))
-                                            end if
-                                        end if
-                                    end do
-
-                                    if (qbmm) then
-                                        PbwR3Lbar = mom_sp_rs${XYZ}$_vf(j, k, l, 4)
-                                        PbwR3Rbar = mom_sp_rs${XYZ}$_vf(j + 1, k, l, 4)
-
-                                        R3Lbar = mom_sp_rs${XYZ}$_vf(j, k, l, 1)
-                                        R3Rbar = mom_sp_rs${XYZ}$_vf(j + 1, k, l, 1)
-
-                                        R3V2Lbar = mom_sp_rs${XYZ}$_vf(j, k, l, 3)
-                                        R3V2Rbar = mom_sp_rs${XYZ}$_vf(j + 1, k, l, 3)
-                                    else
-
-                                        PbwR3Lbar = 0._wp
-                                        PbwR3Rbar = 0._wp
-
-                                        R3Lbar = 0._wp
-                                        R3Rbar = 0._wp
-
-                                        R3V2Lbar = 0._wp
-                                        R3V2Rbar = 0._wp
-
+                                    if (.not. decouple) then
                                         !$acc loop seq
                                         do i = 1, nb
-                                            PbwR3Lbar = PbwR3Lbar + pbw_L(i)*(R0_L(i)**3._wp)*weight(i)
-                                            PbwR3Rbar = PbwR3Rbar + pbw_R(i)*(R0_R(i)**3._wp)*weight(i)
-
-                                            R3Lbar = R3Lbar + (R0_L(i)**3._wp)*weight(i)
-                                            R3Rbar = R3Rbar + (R0_R(i)**3._wp)*weight(i)
-
-                                            R3V2Lbar = R3V2Lbar + (R0_L(i)**3._wp)*(V0_L(i)**2._wp)*weight(i)
-                                            R3V2Rbar = R3V2Rbar + (R0_R(i)**3._wp)*(V0_R(i)**2._wp)*weight(i)
+                                            if (.not. qbmm) then
+                                                if (polytropic) then
+                                                    pbw_L(i) = f_cpbw_KM(R0(i), R0_L(i), V0_L(i), 0._wp)
+                                                    pbw_R(i) = f_cpbw_KM(R0(i), R0_R(i), V0_R(i), 0._wp)
+                                                    if (pbw_L(i) /= pbw_L(i)) then
+                                                        print *, "pbw_L(i) is NaN", i
+                                                        print *, proc_rank, j, k, l
+                                                        print *, R0(i), R0_L(i), V0_L(i)
+                                                        print *, (R0(ii), ii = 1, nb)
+                                                        print *, (R0_L(ii), ii = 1, nb)
+                                                        call s_mpi_abort()
+                                                    else if (pbw_R(i) /= pbw_R(i)) then
+                                                        print *, "pbw_R(i) is NaN", i
+                                                        print *, proc_rank, j, k, l
+                                                        print *, R0(i), R0_R(i), V0_R(i)
+                                                        print *, (R0(ii), ii = 1, nb)
+                                                        print *, (R0_R(ii), ii = 1, nb)
+                                                        call s_mpi_abort()
+                                                    end if
+                                                else
+                                                    pbw_L(i) = f_cpbw_KM(R0(i), R0_L(i), V0_L(i), P0_L(i))
+                                                    pbw_R(i) = f_cpbw_KM(R0(i), R0_R(i), V0_R(i), P0_R(i))
+                                                end if
+                                            end if
                                         end do
-                                    end if
 
-                                    if (qL_prim_rs${XYZ}$_vf(j, k, l, E_idx + num_fluids) < small_alf .or. R3Lbar < small_alf) then
-                                        ptilde_L = qL_prim_rs${XYZ}$_vf(j, k, l, E_idx + num_fluids)*pres_L
-                                    else
-                                        ptilde_L = qL_prim_rs${XYZ}$_vf(j, k, l, E_idx + num_fluids)*(pres_L - PbwR3Lbar/R3Lbar - &
-                                                                                                      rho_L*R3V2Lbar/R3Lbar)
-                                    end if
+                                        if (qbmm) then
+                                            PbwR3Lbar = mom_sp_rs${XYZ}$_vf(j, k, l, 4)
+                                            PbwR3Rbar = mom_sp_rs${XYZ}$_vf(j + 1, k, l, 4)
 
-                                    if (qR_prim_rs${XYZ}$_vf(j + 1, k, l, E_idx + num_fluids) < small_alf .or. R3Rbar < small_alf) then
-                                        ptilde_R = qR_prim_rs${XYZ}$_vf(j + 1, k, l, E_idx + num_fluids)*pres_R
-                                    else
-                                        ptilde_R = qR_prim_rs${XYZ}$_vf(j + 1, k, l, E_idx + num_fluids)*(pres_R - PbwR3Rbar/R3Rbar - &
-                                                                                                          rho_R*R3V2Rbar/R3Rbar)
-                                    end if
+                                            R3Lbar = mom_sp_rs${XYZ}$_vf(j, k, l, 1)
+                                            R3Rbar = mom_sp_rs${XYZ}$_vf(j + 1, k, l, 1)
 
-                                    if ((ptilde_L /= ptilde_L) .or. (ptilde_R /= ptilde_R)) then
+                                            R3V2Lbar = mom_sp_rs${XYZ}$_vf(j, k, l, 3)
+                                            R3V2Rbar = mom_sp_rs${XYZ}$_vf(j + 1, k, l, 3)
+                                        else
+
+                                            PbwR3Lbar = 0._wp
+                                            PbwR3Rbar = 0._wp
+
+                                            R3Lbar = 0._wp
+                                            R3Rbar = 0._wp
+
+                                            R3V2Lbar = 0._wp
+                                            R3V2Rbar = 0._wp
+
+                                            !$acc loop seq
+                                            do i = 1, nb
+                                                PbwR3Lbar = PbwR3Lbar + pbw_L(i)*(R0_L(i)**3._wp)*weight(i)
+                                                PbwR3Rbar = PbwR3Rbar + pbw_R(i)*(R0_R(i)**3._wp)*weight(i)
+
+                                                R3Lbar = R3Lbar + (R0_L(i)**3._wp)*weight(i)
+                                                R3Rbar = R3Rbar + (R0_R(i)**3._wp)*weight(i)
+
+                                                R3V2Lbar = R3V2Lbar + (R0_L(i)**3._wp)*(V0_L(i)**2._wp)*weight(i)
+                                                R3V2Rbar = R3V2Rbar + (R0_R(i)**3._wp)*(V0_R(i)**2._wp)*weight(i)
+                                            end do
+                                        end if
+
+                                        if (qL_prim_rs${XYZ}$_vf(j, k, l, E_idx + num_fluids) < small_alf .or. R3Lbar < small_alf) then
+                                            ptilde_L = qL_prim_rs${XYZ}$_vf(j, k, l, E_idx + num_fluids)*pres_L
+                                        else
+                                            ptilde_L = qL_prim_rs${XYZ}$_vf(j, k, l, E_idx + num_fluids)*(pres_L - PbwR3Lbar/R3Lbar - &
+                                                                                                        rho_L*R3V2Lbar/R3Lbar)
+                                        end if
+
+                                        if (qR_prim_rs${XYZ}$_vf(j + 1, k, l, E_idx + num_fluids) < small_alf .or. R3Rbar < small_alf) then
+                                            ptilde_R = qR_prim_rs${XYZ}$_vf(j + 1, k, l, E_idx + num_fluids)*pres_R
+                                        else
+                                            ptilde_R = qR_prim_rs${XYZ}$_vf(j + 1, k, l, E_idx + num_fluids)*(pres_R - PbwR3Rbar/R3Rbar - &
+                                                                                                            rho_R*R3V2Rbar/R3Rbar)
+                                        end if
+
+                                        if ((ptilde_L /= ptilde_L) .or. (ptilde_R /= ptilde_R)) then
+                                            print *, "ptilde_L/R is NaN", ptilde_L, ptilde_R
+                                            call s_mpi_abort()
+                                        end if
+                                    else 
+                                        ptilde_L = 0._wp
+                                        ptilde_R = 0._wp
                                     end if
 
                                     rho_avg = 5e-1_wp*(rho_L + rho_R)
@@ -2075,31 +2097,34 @@ contains
                                                         (s_R - vel_R(dir_idx(1))))) - E_R)) &
                                     + (s_M/s_L)*(s_P/s_R)*pcorr*s_S
 
-                                ! Volume fraction flux
-                                !$acc loop seq
-                                do i = advxb, advxe
-                                    flux_rs${XYZ}$_vf(j, k, l, i) = &
-                                        xi_M*qL_prim_rs${XYZ}$_vf(j, k, l, i) &
-                                        *(vel_L(dir_idx(1)) + s_M*(xi_L - 1._wp)) &
-                                        + xi_P*qR_prim_rs${XYZ}$_vf(j + 1, k, l, i) &
-                                        *(vel_R(dir_idx(1)) + s_P*(xi_R - 1._wp))
-                                end do
+                                if (.not. decouple) then
+                                    ! Volume fraction flux
+                                    !$acc loop seq
+                                    do i = advxb, advxe
+                                        flux_rs${XYZ}$_vf(j, k, l, i) = &
+                                            xi_M*qL_prim_rs${XYZ}$_vf(j, k, l, i) &
+                                            *(vel_L(dir_idx(1)) + s_M*(xi_L - 1._wp)) &
+                                            + xi_P*qR_prim_rs${XYZ}$_vf(j + 1, k, l, i) &
+                                            *(vel_R(dir_idx(1)) + s_P*(xi_R - 1._wp))
+                                    end do
 
-                                ! Source for volume fraction advection equation
-                                !$acc loop seq
-                                do i = 1, num_dims
-                                    vel_src_rs${XYZ}$_vf(j, k, l, dir_idx(i)) = &
-                                        xi_M*(vel_L(dir_idx(i)) + &
-                                              dir_flg(dir_idx(i))* &
-                                              s_M*(xi_L - 1._wp)) &
-                                        + xi_P*(vel_R(dir_idx(i)) + &
+                                    ! Source for volume fraction advection equation
+                                    !$acc loop seq
+                                    do i = 1, num_dims
+                                        vel_src_rs${XYZ}$_vf(j, k, l, dir_idx(i)) = &
+                                            xi_M*(vel_L(dir_idx(i)) + &
                                                 dir_flg(dir_idx(i))* &
-                                                s_P*(xi_R - 1._wp))
+                                                s_M*(xi_L - 1._wp)) &
+                                            + xi_P*(vel_R(dir_idx(i)) + &
+                                                    dir_flg(dir_idx(i))* &
+                                                    s_P*(xi_R - 1._wp))
 
-                                    !IF ( (model_eqns == 4) .or. (num_fluids==1) ) vel_src_rs_vf(idxi)%sf(j,k,l) = 0._wp
-                                end do
+                                        !IF ( (model_eqns == 4) .or. (num_fluids==1) ) vel_src_rs_vf(idxi)%sf(j,k,l) = 0._wp
+                                    end do
 
-                                flux_src_rs${XYZ}$_vf(j, k, l, advxb) = vel_src_rs${XYZ}$_vf(j, k, l, dir_idx(1))
+                                    flux_src_rs${XYZ}$_vf(j, k, l, advxb) = vel_src_rs${XYZ}$_vf(j, k, l, dir_idx(1))
+
+                                end if
 
                                 ! Add advection flux for bubble variables
                                 !$acc loop seq
@@ -2125,6 +2150,11 @@ contains
                                         *(vel_L(dir_idx(1)) + s_M*(xi_L - 1._wp)) &
                                         + xi_P*nbub_R &
                                         *(vel_R(dir_idx(1)) + s_P*(xi_R - 1._wp))
+                                end if
+
+                                if (nbub_R < 0d0 .or. nbub_L < 0d0) then
+                                    print *, "nbub_L/R < 0", nbub_L, nbub_R, j
+                                    call s_mpi_abort()
                                 end if
 
                                 ! Geometrical source flux for cylindrical coordinates

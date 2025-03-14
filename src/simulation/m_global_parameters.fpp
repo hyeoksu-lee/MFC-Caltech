@@ -134,6 +134,10 @@ module m_global_parameters
     logical :: mp_weno        !< Monotonicity preserving (MP) WENO
     logical :: weno_avg       ! Average left/right cell-boundary states
     logical :: weno_Re_flux   !< WENO reconstruct velocity gradients for viscous stress tensor
+    logical :: cd_reconstruct !< Hybrid of central difference and WENO scheme
+    integer :: cd_order       !< Order of the central difference reconstructio
+    integer :: cd_polyn       !< Degree of the central difference polynomial
+    logical :: wcns_ld        !< 
     integer :: riemann_solver !< Riemann solver algorithm
     integer :: low_Mach       !< Low Mach number fix to HLLC Riemann solver
     integer :: wave_speeds    !< Wave speeds estimation method
@@ -170,7 +174,7 @@ module m_global_parameters
         !$acc declare create(num_dims, weno_polyn, weno_order, weno_num_stencils, num_fluids, wenojs, mapped_weno, wenoz, teno, wenoz_q)
     #:endif
 
-    !$acc declare create(mpp_lim, model_eqns, mixture_err, alt_soundspeed, avg_state, mp_weno, weno_eps, teno_CT, hypoelasticity, hyperelasticity, hyper_model, elasticity, low_Mach, viscous, shear_stress, bulk_stress)
+    !$acc declare create(mpp_lim, model_eqns, mixture_err, alt_soundspeed, avg_state, mp_weno, weno_eps, teno_CT, cd_reconstruct, cd_order, cd_polyn, wcns_ld, hypoelasticity, hyperelasticity, hyper_model, elasticity, low_Mach, viscous, shear_stress, bulk_stress)
 
     logical :: relax          !< activate phase change
     integer :: relax_model    !< Relaxation model
@@ -192,6 +196,11 @@ module m_global_parameters
     logical :: parallel_io !< Format of the data files
     logical :: file_per_process !< shared file or not when using parallel io
     integer :: precision !< Precision of output files
+
+    logical :: cell_wrt
+    real(wp) :: cell_wrt_x
+    real(wp) :: cell_wrt_y
+    real(wp) :: cell_wrt_z
 
     integer, allocatable, dimension(:) :: proc_coords !<
     !! Processor coordinates in MPI_CART_COMM
@@ -383,12 +392,15 @@ module m_global_parameters
     integer :: R0_type
 
     real(wp) :: pi_fac   !< Factor for artificial pi_inf
-
+    logical :: decouple
+    real(wp) :: decouple_vf0
+    logical :: seeding
+    
     #:if not MFC_CASE_OPTIMIZATION
         !$acc declare create(nb)
     #:endif
 
-    !$acc declare create(R0ref, Ca, Web, Re_inv, bubbles_euler, polytropic, polydisperse, qbmm, nmomsp, nmomtot, R0_type, bubble_model, thermal, poly_sigma, adv_n, adap_dt, pi_fac)
+    !$acc declare create(R0ref, Ca, Web, Re_inv, bubbles_euler, polytropic, polydisperse, qbmm, nmomsp, nmomtot, R0_type, bubble_model, thermal, poly_sigma, adv_n, adap_dt, pi_fac, decouple, decouple_vf0, seeding)
 
     type(scalar_field), allocatable, dimension(:) :: mom_sp
     type(scalar_field), allocatable, dimension(:, :, :) :: mom_3d
@@ -481,6 +493,12 @@ contains
         run_time_info = .false.
         t_step_old = dflt_int
 
+        ! Cell data probe
+        cell_wrt = .false.
+        cell_wrt_x = dflt_real
+        cell_wrt_y = dflt_real
+        cell_wrt_z = dflt_real
+
         ! Computational domain parameters
         m = dflt_int; n = 0; p = 0
 
@@ -511,6 +529,10 @@ contains
         mp_weno = .false.
         weno_avg = .false.
         weno_Re_flux = .false.
+        cd_reconstruct = .false.
+        cd_order = dflt_int
+        cd_polyn = dflt_int
+        wcns_ld = .false.
         riemann_solver = dflt_int
         low_Mach = 0
         wave_speeds = dflt_int
@@ -611,6 +633,9 @@ contains
         adap_dt = .false.
 
         pi_fac = 1._wp
+        decouple = .false.
+        decouple_vf0 = dflt_real
+        seeding = .false.
 
         ! User inputs for qbmm for simulation code
         qbmm = .false.
@@ -734,12 +759,18 @@ contains
 
         #:if not MFC_CASE_OPTIMIZATION
             ! Determining the degree of the WENO polynomials
+            if (cd_reconstruct) then
+                cd_polyn = 4
+            end if
             weno_polyn = (weno_order - 1)/2
             if (teno) then
                 weno_num_stencils = weno_order - 3
+            else if (wcns_ld) then
+                weno_num_stencils = weno_polyn + 1
             else
                 weno_num_stencils = weno_polyn
             end if
+            
             !$acc update device(weno_polyn)
             !$acc update device(weno_num_stencils)
             !$acc update device(nb)
@@ -1099,10 +1130,16 @@ contains
         ! sufficient boundary conditions data as to iterate the solution in
         ! the physical computational domain from one time-step iteration to
         ! the next one
-        if (viscous) then
-            buff_size = 2*weno_polyn + 2
+        if (cd_reconstruct) then
+            if (cd_order == 8) then
+                buff_size = 8
+            end if
         else
-            buff_size = weno_polyn + 2
+            if (viscous) then
+                buff_size = 2*weno_polyn + 2
+            else
+                buff_size = weno_polyn + 2
+            end if
         end if
 
         if (elasticity) then
@@ -1178,14 +1215,14 @@ contains
         chemxb = species_idx%beg
         chemxe = species_idx%end
 
-        !$acc update device(momxb, momxe, advxb, advxe, contxb, contxe, bubxb, bubxe, intxb, intxe, sys_size, buff_size, E_idx, alf_idx, n_idx, adv_n, adap_dt, pi_fac, strxb, strxe, chemxb, chemxe)
+        !$acc update device(momxb, momxe, advxb, advxe, contxb, contxe, bubxb, bubxe, intxb, intxe, sys_size, buff_size, E_idx, alf_idx, n_idx, adv_n, adap_dt, pi_fac, decouple, decouple_vf0, seeding, strxb, strxe, chemxb, chemxe)
         !$acc update device(b_size, xibeg, xiend, tensor_size)
 
         !$acc update device(species_idx)
         !$acc update device(cfl_target, m, n, p)
 
         !$acc update device(alt_soundspeed, acoustic_source, num_source)
-        !$acc update device(dt, sys_size, buff_size, pref, rhoref, gamma_idx, pi_inf_idx, E_idx, alf_idx, stress_idx, mpp_lim, bubbles_euler, hypoelasticity, alt_soundspeed, avg_state, num_fluids, model_eqns, num_dims, mixture_err, grid_geometry, cyl_coord, mp_weno, weno_eps, teno_CT, hyperelasticity, hyper_model, elasticity, xi_idx, low_Mach)
+        !$acc update device(dt, sys_size, buff_size, pref, rhoref, gamma_idx, pi_inf_idx, E_idx, alf_idx, stress_idx, mpp_lim, bubbles_euler, hypoelasticity, alt_soundspeed, avg_state, num_fluids, model_eqns, num_dims, mixture_err, grid_geometry, cyl_coord, mp_weno, weno_eps, teno_CT, cd_reconstruct, cd_order, cd_polyn, hyperelasticity, hyper_model, elasticity, xi_idx, low_Mach)
 
         #:if not MFC_CASE_OPTIMIZATION
             !$acc update device(wenojs, mapped_weno, wenoz, teno)

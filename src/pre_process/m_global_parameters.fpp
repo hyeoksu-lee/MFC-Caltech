@@ -127,9 +127,12 @@ module m_global_parameters
     real(wp) :: mixlayer_vel_coef !< Coefficient for the hyperbolic tangent streamwise velocity profile
     real(wp) :: mixlayer_domain !< Domain for the hyperbolic tangent streamwise velocity profile
     logical :: mixlayer_perturb !< Superimpose instability waves to surrounding fluid flow
+    logical :: mixlayer_noise
     integer :: mixlayer_shift
 
     real(wp) :: pi_fac !< Factor for artificial pi_inf
+    logical :: decouple
+    real(wp) :: decouple_vf0
 
     ! Perturb density of surrounding air so as to break symmetry of grid
     logical :: perturb_flow
@@ -333,6 +336,7 @@ contains
         mixlayer_vel_coef = 1._wp
         mixlayer_domain = 1._wp
         mixlayer_perturb = .false.
+        mixlayer_noise = .false.
         mixlayer_shift = 1
         perturb_flow = .false.
         perturb_flow_fluid = dflt_int
@@ -441,6 +445,9 @@ contains
         ! surface tension modeling
         sigma = dflt_real
         pi_fac = 1._wp
+
+        decouple = .false.
+        decouple_vf0 = dflt_real
 
         ! Immersed Boundaries
         ib = .false.

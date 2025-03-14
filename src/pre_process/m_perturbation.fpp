@@ -34,7 +34,7 @@ contains
 
         if (mixlayer_perturb) then
             mixlayer_bc_fd = 2
-            n0 = 191
+            n0 = 255
             nbpm0 = n0 + 1
             nbp0 = n0 + 2
             nbpm = n + 1
@@ -118,27 +118,26 @@ contains
     subroutine s_perturb_random_noise(q_prim_vf)
         type(scalar_field), dimension(sys_size), intent(inout) :: q_prim_vf
         integer :: i, j, k, l !<  generic loop iterators
-
+        real(wp) :: uratio
         real(wp) :: rand_real
+
+        uratio = 1._wp/patch_icpp(1)%vel(1)
+
         call random_seed()
 
         do k = 0, p
             do j = 0, n
                 do i = 0, m
                     call random_number(rand_real)
-                    if (i == 0 .and. j == 0 .and. k == 0) print *, i, j, k, rand_real
-                    q_prim_vf(momxb)%sf(i, j, k) = q_prim_vf(momxb)%sf(i, j, k) + (2_wp * rand_real - 1_wp) * 0.01_wp! u
+                    q_prim_vf(momxb)%sf(i, j, k) = q_prim_vf(momxb)%sf(i, j, k) + (2._wp * rand_real - 1._wp) * 0.01_wp / uratio! u
                     call random_number(rand_real)
-                    if (i == 0 .and. j == 0 .and. k == 0) print *, i, j, k, rand_real
-                    q_prim_vf(momxb + 1)%sf(i, j, k) = q_prim_vf(momxb + 1)%sf(i, j, k) + (2_wp * rand_real - 1_wp) * 0.01_wp ! v
+                    q_prim_vf(momxb + 1)%sf(i, j, k) = q_prim_vf(momxb + 1)%sf(i, j, k) + (2._wp * rand_real - 1._wp) * 0.01_wp / uratio ! v
                     if (p > 0) then
                         call random_number(rand_real)
-                        if (i == 0 .and. j == 0 .and. k == 0) print *, i, j, k, rand_real
-                        q_prim_vf(momxb + 2)%sf(i, j, k) = q_prim_vf(momxb + 2)%sf(i, j, k) + (2_wp * rand_real - 1_wp) * 0.01_wp ! w
+                        q_prim_vf(momxb + 2)%sf(i, j, k) = q_prim_vf(momxb + 2)%sf(i, j, k) + (2._wp * rand_real - 1._wp) * 0.01_wp / uratio ! w
                     end if
                     call random_number(rand_real)
-                    if (i == 0 .and. j == 0 .and. k == 0) print *, i, j, k, rand_real
-                    q_prim_vf(E_idx)%sf(i, j, k) = q_prim_vf(E_idx)%sf(i, j, k) + (2_wp * rand_real - 1_wp) * 0.01_wp  ! p
+                    q_prim_vf(E_idx)%sf(i, j, k) = q_prim_vf(E_idx)%sf(i, j, k) + (2._wp * rand_real - 1._wp) * 0.01_wp / uratio**2._wp  ! p
                 end do
             end do
         end do
@@ -155,11 +154,12 @@ contains
         type(scalar_field), dimension(sys_size), intent(inout) :: q_prim_vf
         real(wp), dimension(mixlayer_nvar, 0:m, 0:n, 0:p) :: wave, wave1, wave2, wave_tmp
         real(wp) :: uratio, Ldomain
+        real(wp) :: nR3bar
         real(wp), dimension(6) :: shift
         integer :: i, j, k, q
 
         uratio = 1._wp/patch_icpp(1)%vel(1)
-        Ldomain = mixlayer_domain*59.0_wp
+        Ldomain = mixlayer_domain
         
         ! Generate base grid
         call s_generate_base_grid()
@@ -209,7 +209,7 @@ contains
             shift(1) = 2*pi*0.1377641919_wp; shift(2) = 2*pi*0.6152866056_wp; shift(3) = 2*pi*0.0511069403_wp;
             shift(4) = 2*pi*0.3927737151_wp; shift(5) = 2*pi*0.0006762054_wp; shift(6) = 2*pi*0.1675698069_wp;
             print *, "shift 7", (shift(i), i=1,6)
-        else if (mixlayer_shift == 8) then            
+        else if (mixlayer_shift == 8) then
             shift(1) = 2*pi*0.8556119067_wp; shift(2) = 2*pi*0.9513815031_wp; shift(3) = 2*pi*0.4328811743_wp;
             shift(4) = 2*pi*0.4420256142_wp; shift(5) = 2*pi*0.7374684184_wp; shift(6) = 2*pi*0.2477236891_wp;
             print *, "shift 8", (shift(i), i=1,6)
@@ -296,18 +296,21 @@ contains
                     if (p > 0) then
                         q_prim_vf(momxb + 2)%sf(i, j, k) = q_prim_vf(momxb + 2)%sf(i, j, k) + wave(mixlayer_var(4), i, j, k)/uratio ! w
                     end if
-                    q_prim_vf(E_idx)%sf(i, j, k) = q_prim_vf(E_idx)%sf(i, j, k) + wave(mixlayer_var(5), i, j, k)/uratio**2 ! p
+                    q_prim_vf(E_idx)%sf(i, j, k) = q_prim_vf(E_idx)%sf(i, j, k) + wave(mixlayer_var(5), i, j, k)/uratio**2._wp ! p
 
                     if (bubbles_euler .and. (.not. qbmm)) then
+                        nR3bar = 0._wp
                         do q = 1, nb
                             call s_compute_equilibrium_state(q_prim_vf(E_idx)%sf(i, j, k), R0(q), q_prim_vf(bub_idx%rs(q))%sf(i, j, k))
+                            nR3bar = nR3bar + weight(q)*(q_prim_vf(n_idx)%sf(i, j, k)*q_prim_vf(bub_idx%rs(q))%sf(i, j, k))**3._wp
                         end do
+                        if (.not. decouple) then
+                            q_prim_vf(alf_idx)%sf(i, j, k) = (4._wp*pi*nR3bar)/(3._wp*q_prim_vf(n_idx)%sf(i, j, k)**2._wp)
+                        end if
                     end if
                 end do
             end do
         end do
-
-        call s_perturb_random_noise(q_prim_vf)
 
     end subroutine s_superposition_instability_wave
 
@@ -325,8 +328,8 @@ contains
         ii = 1
         do while (.true.)
 
-            f0 = (Ca + 2._wp/Web)*(fR0/fR)**(3._wp*gam_b) - 2._wp/(Web*fR) + 1._wp - Ca - fP
-            f1 = -3._wp*gam_b*(Ca + 2._wp/Web)*(fR0/fR)**(3._wp*gam_b + 1._wp) + 2._wp/(Web*fR**2._wp)
+            f0 = (Ca + 2._wp/(Web*fR0))*(fR0/fR)**(3._wp*gam_b) - 2._wp/(Web*fR) + 1._wp - Ca - fP
+            f1 = -3._wp*gam_b*(Ca + 2._wp/(Web*fR0))*(fR0/fR)**(3._wp*gam_b + 1._wp) / fR0 + 2._wp/(Web*fR**2._wp)
 
             if (abs(f0) <= 1e-10_wp) then
                 ! Converged
@@ -343,7 +346,8 @@ contains
                 fR < 0._wp) then
 
                 print *, "Failed to compute equilibrium radius"
-
+                print *, ii, f0, f1, fR0, fR, gam_b, Ca, Web, fP
+                call s_mpi_abort()
                 fR = fR0
                 exit
             end if
@@ -719,20 +723,28 @@ contains
         do k = 0, 4
             ubr(k*nbp + 0) = xbr(k*nbp0 + 0)
             ubi(k*nbp + 0) = xbi(k*nbp0 + 0)
-            ubr(k*nbp + nbp - 1) = xbr(k*nbp0 + nbp0 - 1)
-            ubi(k*nbp + nbp - 1) = xbi(k*nbp0 + nbp0 - 1)
+            ubr(k*nbp + nbpm) = xbr(k*nbp0 + nbpm0)
+            ubi(k*nbp + nbpm) = xbi(k*nbp0 + nbpm0)
         end do
 
         do i = 1, n
             do j = 1, nbp0 - 1
-                if (y_cb(i) .ge. y_cb0(j - 1) .and. y_cb(i) .lt. y_cb0(j) ) then
+                if (y_cb(i - 1) .ge. y_cb0(j - 1) .and. y_cb(i - 1) .lt. y_cb0(j) ) then
                     do k = 0, 4
-                        ubr(k*nbp + i) = xbr(k*nbp0 + j - 1) + (xbr(k*nbp0 + j) - xbr(k*nbp0 + j - 1))/(y_cb0(j) - y_cb0(j - 1))*(y_cb(i) - y_cb0(j - 1))
-                        ubi(k*nbp + i) = xbi(k*nbp0 + j - 1) + (xbi(k*nbp0 + j) - xbi(k*nbp0 + j - 1))/(y_cb0(j) - y_cb0(j - 1))*(y_cb(i) - y_cb0(j - 1))
+                        ubr(k*nbp + i) = xbr(k*nbp0 + j - 1) + (xbr(k*nbp0 + j) - xbr(k*nbp0 + j - 1))/(y_cb0(j) - y_cb0(j - 1))*(y_cb(i - 1) - y_cb0(j - 1))
+                        ubi(k*nbp + i) = xbi(k*nbp0 + j - 1) + (xbi(k*nbp0 + j) - xbi(k*nbp0 + j - 1))/(y_cb0(j) - y_cb0(j - 1))*(y_cb(i - 1) - y_cb0(j - 1))
                     end do
                     exit
                 end if
             end do
+        end do
+
+        do i = 0, nbpm
+            write(97,*) alpha, beta, i, y_cb(i - 1), ubr(i)
+        end do
+
+        do i = 0, nbpm0
+            write(98,*) alpha, beta, i, y_cb0(i), ubr(i)
         end do
 
         ! Compute average to get cell-centered values
@@ -766,19 +778,21 @@ contains
 
     end subroutine s_generate_wave
 
-    subroutine s_generate_base_grid
+    subroutine s_generate_base_grid()
 
         real(wp) :: length  !< domain lengths
         real(wp) :: dy_tmp, y_a0, y_b0, a_y0
         integer :: i, j     !< generic loop operators
 
-        dy_tmp = (y_domain%end - y_domain%beg)/real(nbpm0, wp)
+        length = abs(y_cb(n) - y_cb(-1))
+        dy_tmp = length/real(nbpm0, wp)
+
+        print *, y_cb(n), y_cb(-1), length
 
         do i = 0, nbpm0
-            y_cb0(i) = y_domain%beg + dy_tmp*real(i, wp)
+            y_cb0(i) = y_cb(-1) + dy_tmp*real(i, wp)
         end do
 
-        length = abs(y_cb0(nbpm0) - y_cb0(0))
         y_cb0 = y_cb0/length
         y_a0 = -5._wp/length
         y_b0 =  5._wp/length
@@ -795,6 +809,8 @@ contains
 
         y_cb0 = y_cb0/(y_cb0(nbpm0) - y_cb0(0))*length
         dy_cb0 = y_cb0(1:nbpm0) - y_cb0(0:nbpm0 - 1)
+
+        print *, y_cb0(nbpm0), y_cb0(0), y_cb0(nbpm0) - y_cb0(0)
 
     end subroutine s_generate_base_grid
 

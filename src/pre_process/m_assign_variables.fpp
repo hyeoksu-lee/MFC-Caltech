@@ -452,7 +452,13 @@ contains
                 do i = 1, nb
                     R3bar = R3bar + weight(i)*(q_prim_vf(bub_idx%rs(i))%sf(j, k, l))**3._wp
                 end do
-                q_prim_vf(n_idx)%sf(j, k, l) = 3*q_prim_vf(alf_idx)%sf(j, k, l)/(4*pi*R3bar)
+                q_prim_vf(n_idx)%sf(j, k, l) = 3._wp*q_prim_vf(alf_idx)%sf(j, k, l)/(4._wp*pi*R3bar)
+
+                if (decouple) then
+                    q_prim_vf(n_idx)%sf(j, k, l) = 3._wp*decouple_vf0/(4._wp*pi*R3bar)
+                else
+                    q_prim_vf(n_idx)%sf(j, k, l) = 3._wp*q_prim_vf(alf_idx)%sf(j, k, l)/(4._wp*pi*R3bar)
+                end if
             end if
         end if
 
@@ -644,7 +650,13 @@ contains
                 do i = 1, nb
                     R3bar = R3bar + weight(i)*(q_prim_vf(bub_idx%rs(i))%sf(j, k, l))**3._wp
                 end do
-                q_prim_vf(n_idx)%sf(j, k, l) = 3*q_prim_vf(alf_idx)%sf(j, k, l)/(4*pi*R3bar)
+                q_prim_vf(n_idx)%sf(j, k, l) = 3._wp*q_prim_vf(alf_idx)%sf(j, k, l)/(4._wp*pi*R3bar)
+
+                if (decouple) then
+                    q_prim_vf(n_idx)%sf(j, k, l) = 3._wp*decouple_vf0/(4._wp*pi*R3bar)
+                else
+                    q_prim_vf(n_idx)%sf(j, k, l) = 3._wp*q_prim_vf(alf_idx)%sf(j, k, l)/(4._wp*pi*R3bar)
+                end if
             end if
         end if
 

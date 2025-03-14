@@ -129,13 +129,13 @@ contains
             weno_order, bc_x, bc_y, bc_z, num_patches, &
             hypoelasticity, patch_icpp, fluid_pp, precision, parallel_io, &
             mixlayer_vel_profile, mixlayer_vel_coef, mixlayer_domain, &
-            mixlayer_perturb, &
+            mixlayer_perturb, mixlayer_noise, &
             pi_fac, perturb_flow, perturb_flow_fluid, perturb_flow_mag, &
             perturb_sph, perturb_sph_fluid, fluid_rho, &
             cyl_coord, loops_x, loops_y, loops_z, &
             rhoref, pref, bubbles_euler, R0ref, nb, &
             polytropic, thermal, Ca, Web, Re_inv, &
-            polydisperse, poly_sigma, qbmm, &
+            polydisperse, poly_sigma, qbmm, decouple, decouple_vf0, &
             sigR, sigV, dist_type, rhoRV, R0_type, &
             file_per_process, relax, relax_model, &
             palpha_eps, ptgalpha_eps, ib, num_ibs, patch_ib, &
