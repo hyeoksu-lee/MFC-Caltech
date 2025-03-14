@@ -52,6 +52,8 @@ COMMON = {
     'relax_model': ParamType.INT,
     'sigma': ParamType.REAL,
     'adv_n': ParamType.LOG,
+    'decouple': ParamType.LOG,
+    'seeding': ParamType.LOG,
     'cfl_adap_dt': ParamType.LOG,
     'cfl_const_dt': ParamType.LOG,
     'chemistry': ParamType.LOG,
@@ -69,6 +71,7 @@ PRE_PROCESS.update({
     'mixlayer_vel_coef': ParamType.REAL,
     'mixlayer_domain': ParamType.REAL,
     'mixlayer_perturb': ParamType.LOG,
+    'mixlayer_noise': ParamType.LOG,
     'mixlayer_shift': ParamType.INT,
     'perturb_flow': ParamType.LOG,
     'perturb_flow_fluid': ParamType.INT,
@@ -93,6 +96,7 @@ PRE_PROCESS.update({
     'n_start': ParamType.INT,
     'n_start_old': ParamType.INT,
     'surface_tension': ParamType.LOG,
+    'decouple_vf0': ParamType.REAL,
 })
 
 for ib_id in range(1, 10+1):
@@ -204,6 +208,10 @@ SIMULATION.update({
     't_step_stop': ParamType.INT,
     't_step_save': ParamType.INT,
     't_step_print': ParamType.INT,
+    'cell_wrt': ParamType.LOG,
+    'cell_wrt_x': ParamType.REAL,
+    'cell_wrt_y': ParamType.REAL,
+    'cell_wrt_z': ParamType.REAL,
     'time_stepper': ParamType.INT,
     'weno_eps': ParamType.REAL,
     'teno_CT': ParamType.REAL,
@@ -247,6 +255,9 @@ SIMULATION.update({
     'viscous': ParamType.LOG,
     'bubbles_lagrange': ParamType.LOG,
     'rkck_tolerance': ParamType.REAL,
+    'cd_reconstruct': ParamType.LOG,
+    'cd_order': ParamType.INT,
+    'wcns_ld': ParamType.LOG
 })
 
 for var in [ 'heatTransfer_model', 'massTransfer_model', 'pressure_corrector',
