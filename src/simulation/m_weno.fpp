@@ -944,78 +944,6 @@ contains
                                 !$acc loop seq
                                 do i = 1, v_size
 
-                                    ! ! if (.not. wcns_ld) then
-                                    ! dvd(1) = v_rs_ws_${XYZ}$ (j + 2, k, l, i) &
-                                    !         - v_rs_ws_${XYZ}$ (j + 1, k, l, i)
-                                    ! dvd(0) = v_rs_ws_${XYZ}$ (j + 1, k, l, i) &
-                                    !         - v_rs_ws_${XYZ}$ (j, k, l, i)
-                                    ! dvd(-1) = v_rs_ws_${XYZ}$ (j, k, l, i) &
-                                    !         - v_rs_ws_${XYZ}$ (j - 1, k, l, i)
-                                    ! dvd(-2) = v_rs_ws_${XYZ}$ (j - 1, k, l, i) &
-                                    !         - v_rs_ws_${XYZ}$ (j - 2, k, l, i)
-
-                                    ! poly(0) = v_rs_ws_${XYZ}$ (j, k, l, i) &
-                                    !         + poly_coef_cbL_${XYZ}$ (j, 0, 0)*dvd(1) &
-                                    !         + poly_coef_cbL_${XYZ}$ (j, 0, 1)*dvd(0)
-                                    ! poly(1) = v_rs_ws_${XYZ}$ (j, k, l, i) &
-                                    !         + poly_coef_cbL_${XYZ}$ (j, 1, 0)*dvd(0) &
-                                    !         + poly_coef_cbL_${XYZ}$ (j, 1, 1)*dvd(-1)
-                                    ! poly(2) = v_rs_ws_${XYZ}$ (j, k, l, i) &
-                                    !         + poly_coef_cbL_${XYZ}$ (j, 2, 0)*dvd(-1) &
-                                    !         + poly_coef_cbL_${XYZ}$ (j, 2, 1)*dvd(-2)
-                                    ! poly(3) = 0._wp
-
-                                    ! beta(0) = beta_coef_${XYZ}$ (j, 0, 0)*dvd(1)*dvd(1) &
-                                    !         + beta_coef_${XYZ}$ (j, 0, 1)*dvd(1)*dvd(0) &
-                                    !         + beta_coef_${XYZ}$ (j, 0, 2)*dvd(0)*dvd(0) &
-                                    !         + weno_eps
-                                    ! beta(1) = beta_coef_${XYZ}$ (j, 1, 0)*dvd(0)*dvd(0) &
-                                    !         + beta_coef_${XYZ}$ (j, 1, 1)*dvd(0)*dvd(-1) &
-                                    !         + beta_coef_${XYZ}$ (j, 1, 2)*dvd(-1)*dvd(-1) &
-                                    !         + weno_eps
-                                    ! beta(2) = beta_coef_${XYZ}$ (j, 2, 0)*dvd(-1)*dvd(-1) &
-                                    !         + beta_coef_${XYZ}$ (j, 2, 1)*dvd(-1)*dvd(-2) &
-                                    !         + beta_coef_${XYZ}$ (j, 2, 2)*dvd(-2)*dvd(-2) &
-                                    !         + weno_eps
-                                    ! beta(3) = weno_eps
-
-                                    ! tau = abs(beta(2) - beta(0))                   ! Equation 25
-                                    ! alpha(0:2) = d_cbL_${XYZ}$ (0:2, j)*(1._wp + tau/beta(0:2))  ! Equation 28 (note: weno_eps was already added to beta)
-
-                                    ! omega(0:2) = alpha(0:2)/sum(alpha(0:2))
-
-                                    ! vL_rs_vf_${XYZ}$ (j, k, l, i) = sum(omega(0:2)*poly(0:2))
-
-                                    ! if (j == 150 .and. i == 1) then
-                                    !     write(88,*) "L", vL_rs_vf_${XYZ}$ (j, k, l, i), poly(0), poly(1), poly(2), poly(3), beta(0), beta(1), beta(2), beta(3), alpha(0), alpha(1), alpha(2), alpha(3), omega(0), omega(1), omega(2), omega(3)
-                                    ! end if
-
-                                    ! ! reconstruct from right side
-
-                                    ! poly(0) = v_rs_ws_${XYZ}$ (j, k, l, i) &
-                                    !         + poly_coef_cbR_${XYZ}$ (j, 0, 0)*dvd(1) &
-                                    !         + poly_coef_cbR_${XYZ}$ (j, 0, 1)*dvd(0)
-                                    ! poly(1) = v_rs_ws_${XYZ}$ (j, k, l, i) &
-                                    !         + poly_coef_cbR_${XYZ}$ (j, 1, 0)*dvd(0) &
-                                    !         + poly_coef_cbR_${XYZ}$ (j, 1, 1)*dvd(-1)
-                                    ! poly(2) = v_rs_ws_${XYZ}$ (j, k, l, i) &
-                                    !         + poly_coef_cbR_${XYZ}$ (j, 2, 0)*dvd(-1) &
-                                    !         + poly_coef_cbR_${XYZ}$ (j, 2, 1)*dvd(-2)
-
-
-                                    ! alpha(0:2) = d_cbR_${XYZ}$ (0:2, j)*(1._wp + tau/beta(0:2))
-
-                                    ! omega(0:2) = alpha(0:2)/sum(alpha(0:2))
-
-                                    ! vR_rs_vf_${XYZ}$ (j, k, l, i) = sum(omega(0:2)*poly(0:2))
-
-                                    ! if (j == 150 .and. i == 1) then
-                                    !     write(89,*) "R", vR_rs_vf_${XYZ}$ (j, k, l, i), poly(0), poly(1), poly(2), poly(3), beta(0), beta(1), beta(2), beta(3), alpha(0), alpha(1), alpha(2), alpha(3), omega(0), omega(1), omega(2), omega(3)
-                                    ! end if
-
-                                    ! ! end if
-
-
                                     dvd2(3,2) = v_rs_ws_${XYZ}$ (j + 3, k, l, i) &
                                                 - v_rs_ws_${XYZ}$ (j + 2, k, l, i)
                                     dvd2(3,1) = v_rs_ws_${XYZ}$ (j + 3, k, l, i) &
@@ -1122,7 +1050,8 @@ contains
                                             + ( 2863984._wp)*( (dvd2(-3,0) + dvd2(-1,0))*v_rs_ws_${XYZ}$ (j, k, l, i) + dvd2(-3,0)*dvd2(-1,0)) &
                                             + ( 3824847._wp)*( (dvd2(-2,0) + dvd2(-2,0))*v_rs_ws_${XYZ}$ (j, k, l, i) + dvd2(-2,0)*dvd2(-2,0)) &
                                             - ( 1429976._wp)*( (dvd2(-3,0) + dvd2(-2,0))*v_rs_ws_${XYZ}$ (j, k, l, i) + dvd2(-3,0)*dvd2(-2,0)) &
-                                            + (  139633._wp)*( (dvd2(-3,0) + dvd2(-3,0))*v_rs_ws_${XYZ}$ (j, k, l, i) + dvd2(-3,0)*dvd2(-3,0)))/120960._wp &
+                                            + (  139633._wp)*( (dvd2(-3,0) + dvd2(-3,0))*v_rs_ws_${XYZ}$ (j, k, l, i) + dvd2(-3,0)*dvd2(-3,0))) &
+                                            / 120960._wp &
                                             + weno_eps
 
                                     beta_avg = (beta(0) + 4._wp*beta(1) + beta(2))/6._wp
@@ -1150,7 +1079,7 @@ contains
                                     !     write(99,*) j, "L", rtau, tau6, beta_avg, beta(0), beta(1), beta(2), beta(3), sig, sig1, sig2
                                     ! end if
 
-                                    if (rtau > 1000._wp) then
+                                    if (rtau > 35._wp) then
                                         
                                         tau = abs(beta(2) - beta(0))
 
@@ -1219,7 +1148,8 @@ contains
                                             + ( 2863984._wp)*( (dvd2(3, 0) + dvd2(1, 0))*v_rs_ws_${XYZ}$ (j, k, l, i) + dvd2(3,0)*dvd2(1,0)) &
                                             + ( 3824847._wp)*( (dvd2(2, 0) + dvd2(2, 0))*v_rs_ws_${XYZ}$ (j, k, l, i) + dvd2(2,0)*dvd2(2,0)) &
                                             - ( 1429976._wp)*( (dvd2(3, 0) + dvd2(2, 0))*v_rs_ws_${XYZ}$ (j, k, l, i) + dvd2(3,0)*dvd2(2,0)) &
-                                            + (  139633._wp)*( (dvd2(3, 0) + dvd2(3, 0))*v_rs_ws_${XYZ}$ (j, k, l, i) + dvd2(3,0)*dvd2(3,0)))/120960._wp &
+                                            + (  139633._wp)*( (dvd2(3, 0) + dvd2(3, 0))*v_rs_ws_${XYZ}$ (j, k, l, i) + dvd2(3,0)*dvd2(3,0))) &
+                                            / 120960._wp &
                                             + weno_eps
 
                                     beta_avg = (beta(0) + 4._wp*beta(1) + beta(2))/6._wp
@@ -1246,7 +1176,7 @@ contains
                                     !     write(99,*) j, "R", rtau, tau6, beta_avg, beta(0), beta(1), beta(2), beta(3), sig
                                     ! end if
 
-                                    if (rtau > 1000._wp) then
+                                    if (rtau > 35._wp) then
                                         
                                         tau = abs(beta(2) - beta(0))
     
