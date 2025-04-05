@@ -391,7 +391,7 @@ contains
 
         ! Assign mean profiles
         do j = 0, nbpm0
-            u_mean(j) = tanh(y_cb0(j)*xratio)
+            u_mean(j) = patch_icpp(1)%vel(1)*tanh(y_cb0(j)/2._wp*xratio)
         end do
 
         ! Compute differential operator in y-dir

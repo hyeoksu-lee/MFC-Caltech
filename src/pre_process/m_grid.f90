@@ -136,9 +136,10 @@ contains
                 end do
             end do
 
-            y_cb = y_cb*length
+            y_cb = y_cb/(y_cb(n) - y_cb(-1))*length
             y_cc = (y_cb(0:n) + y_cb(-1:n - 1))/2._wp
 
+            print *, y_cb(n), y_cb(-1)
             dy = minval(y_cb(0:n) - y_cb(-1:n - 1))
 
             if (num_procs > 1) call s_mpi_reduce_min(dy)
@@ -271,7 +272,8 @@ contains
                     end do
                 end do
 
-                y_cb_glb = y_cb_glb*length
+                y_cb_glb = y_cb_glb/(y_cb_glb(n_glb) - y_cb_glb(-1))*length
+                print *, y_cb_glb(n_glb), y_cb_glb(-1)
 
             end if
 

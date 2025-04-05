@@ -1071,33 +1071,34 @@ contains
 
                                     omega_central = alpha/sum(alpha)
                                     
-                                    sig1 = abs(dvd2(-1,0) - dvd2(0,1))/(abs(dvd2(-1,0)) + abs(dvd2(0,1)) + weno_eps)
-                                    sig2 = abs(dvd2(-2,-1) - dvd2(-1,0))/(abs(dvd2(-2,-1)) + abs(dvd2(-1,0)) + weno_eps)
-                                    sig = max(sig1,sig2)
+                                    ! sig1 = abs(dvd2(-1,0) - dvd2(0,1))/(abs(dvd2(-1,0)) + abs(dvd2(0,1)) + weno_eps)
+                                    ! sig2 = abs(dvd2(-2,-1) - dvd2(-1,0))/(abs(dvd2(-2,-1)) + abs(dvd2(-1,0)) + weno_eps)
+                                    ! sig = max(sig1,sig2)
                                 
                                     ! if (i == 1) then
-                                    !     write(99,*) j, "L", rtau, tau6, beta_avg, beta(0), beta(1), beta(2), beta(3), sig, sig1, sig2
+                                    !     write(98,*)  "L", j, x_cc(j), rtau, tau6, beta_avg, beta(0), beta(1), beta(2), beta(3), sig
                                     ! end if
 
-                                    if (rtau > 35._wp) then
-                                        
-                                        tau = abs(beta(2) - beta(0))
+                                    ! if (rtau > 35._wp) then
+                                    !     ! write(98,*) proc_rank, i, j, k, l, x_cc(j), y_cc(k), z_cc(l), rtau
 
-                                        dk(0) = 1._wp/10._wp
-                                        dk(1) = 3._wp/5._wp
-                                        dk(2) = 3._wp/10._wp
+                                    !     tau = abs(beta(2) - beta(0))
 
-                                        alpha(0) = dk(0)*(1._wp + (tau/beta(0))**2._wp)
-                                        alpha(1) = dk(1)*(1._wp + (tau/beta(1))**2._wp)
-                                        alpha(2) = dk(2)*(1._wp + (tau/beta(2))**2._wp)
+                                    !     dk(0) = 1._wp/10._wp
+                                    !     dk(1) = 3._wp/5._wp
+                                    !     dk(2) = 3._wp/10._wp
 
-                                        omega_upwind(0:2) = alpha(0:2)/sum(alpha(0:2))
-                                        omega_upwind(3) = 0._wp
+                                    !     alpha(0) = dk(0)*(1._wp + (tau/beta(0))**2._wp)
+                                    !     alpha(1) = dk(1)*(1._wp + (tau/beta(1))**2._wp)
+                                    !     alpha(2) = dk(2)*(1._wp + (tau/beta(2))**2._wp)
 
-                                        omega = sig*omega_upwind + (1._wp - sig)*omega_central
-                                    else
+                                    !     omega_upwind(0:2) = alpha(0:2)/sum(alpha(0:2))
+                                    !     omega_upwind(3) = 0._wp
+
+                                    !     omega = sig*omega_upwind + (1._wp - sig)*omega_central
+                                    ! else
                                         omega = omega_central
-                                    end if
+                                    ! end if
 
                                     vL_rs_vf_${XYZ}$ (j, k, l, i) = sum(omega*poly)
 
@@ -1168,33 +1169,34 @@ contains
 
                                     omega_central = alpha/sum(alpha)
 
-                                    sig1 = abs(dvd2(1,0) - dvd2(0,-1))/(abs(dvd2(1,0)) + abs(dvd2(0,-1)) + weno_eps)
-                                    sig2 = abs(dvd2(2,1) - dvd2(1,0))/(abs(dvd2(2,1)) + abs(dvd2(1,0)) + weno_eps)
-                                    sig = max(sig1,sig2)
+                                    ! sig1 = abs(dvd2(1,0) - dvd2(0,-1))/(abs(dvd2(1,0)) + abs(dvd2(0,-1)) + weno_eps)
+                                    ! sig2 = abs(dvd2(2,1) - dvd2(1,0))/(abs(dvd2(2,1)) + abs(dvd2(1,0)) + weno_eps)
+                                    ! sig = max(sig1,sig2)
                                     
                                     ! if (i == 1) then
-                                    !     write(99,*) j, "R", rtau, tau6, beta_avg, beta(0), beta(1), beta(2), beta(3), sig
+                                    !     write(99,*) "R", j, x_cc(j), rtau, tau6, beta_avg, beta(0), beta(1), beta(2), beta(3), sig
                                     ! end if
 
-                                    if (rtau > 35._wp) then
+                                    ! if (rtau > 35._wp) then
+                                    !     ! write(99,*) proc_rank, i, j, k, l, x_cc(j), y_cc(k), z_cc(l), rtau
                                         
-                                        tau = abs(beta(2) - beta(0))
+                                    !     tau = abs(beta(2) - beta(0))
     
-                                        dk(0) = 1._wp/10._wp
-                                        dk(1) = 3._wp/5._wp
-                                        dk(2) = 3._wp/10._wp
+                                    !     dk(0) = 1._wp/10._wp
+                                    !     dk(1) = 3._wp/5._wp
+                                    !     dk(2) = 3._wp/10._wp
     
-                                        alpha(0) = dk(0)*(1._wp + (tau/beta(0))**2._wp)
-                                        alpha(1) = dk(1)*(1._wp + (tau/beta(1))**2._wp)
-                                        alpha(2) = dk(2)*(1._wp + (tau/beta(2))**2._wp)
+                                    !     alpha(0) = dk(0)*(1._wp + (tau/beta(0))**2._wp)
+                                    !     alpha(1) = dk(1)*(1._wp + (tau/beta(1))**2._wp)
+                                    !     alpha(2) = dk(2)*(1._wp + (tau/beta(2))**2._wp)
                                         
-                                        omega_upwind(0:2) = alpha(0:2)/sum(alpha(0:2))
-                                        omega_upwind(3) = 0._wp
+                                    !     omega_upwind(0:2) = alpha(0:2)/sum(alpha(0:2))
+                                    !     omega_upwind(3) = 0._wp
                                         
-                                        omega = sig*omega_upwind + (1._wp - sig)*omega_central
-                                    else
+                                    !     omega = sig*omega_upwind + (1._wp - sig)*omega_central
+                                    ! else
                                         omega = omega_central
-                                    end if
+                                    ! end if
                                     
                                     vR_rs_vf_${XYZ}$ (j, k, l, i) = sum(omega*poly)
 

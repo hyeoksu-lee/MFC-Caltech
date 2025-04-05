@@ -1,11 +1,10 @@
 #:def Hardcoded2DVariables()
 
     real(wp) :: eps
-    real(wp) :: r, rmax, gam, umax, p0
-    real(wp) :: rhoH, rhoL, pRef, pInt, h, lam, wl, amp, intH, intL, alph
+    real(wp) :: r, rmax, gam, umax, p0, u, r0, r1, p, p_r0, p_inf, sos, rho0, rho, x0, u_vortex
+    real(wp) :: rhoH, rhoL, pRef, pInt, h, lam, wl, amp, intH, intL, alph, bigGamma
 
     eps = 1e-9_wp
-
 #:enddef
 
 #:def Hardcoded2D()
@@ -99,35 +98,132 @@
             q_prim_vf(E_idx)%sf(i, j, 0) = pInt + rhoL*9.81_wp*(intH - y_cc(j))
         end if
 
-    case (205) ! 2D lung wave interaction problem
-        h = 0.0_wp           !non dim origin y
-        lam = 1.0_wp         !non dim lambda
-        amp = patch_icpp(patch_id)%a(2)         !to be changed later!       !non dim amplitude
+    ! case (205) ! 2D lung wave interaction problem
+    !     h = 0.0_wp           !non dim origin y
+    !     lam = 1.0_wp         !non dim lambda
+    !     amp = patch_icpp(patch_id)%a(2)         !to be changed later!       !non dim amplitude
 
-        intH = amp*sin(2*pi*x_cc(i)/lam - pi/2) + h
+    !     intH = amp*sin(2*pi*x_cc(i)/lam - pi/2) + h
 
-        if (y_cc(j) > intH) then
-            q_prim_vf(contxb)%sf(i, j, 0) = patch_icpp(1)%alpha_rho(1)
-            q_prim_vf(contxe)%sf(i, j, 0) = patch_icpp(1)%alpha_rho(2)
-            q_prim_vf(E_idx)%sf(i, j, 0) = patch_icpp(1)%pres
-            q_prim_vf(advxb)%sf(i, j, 0) = patch_icpp(1)%alpha(1)
-            q_prim_vf(advxe)%sf(i, j, 0) = patch_icpp(1)%alpha(2)
+    !     if (y_cc(j) > intH) then
+    !         q_prim_vf(contxb)%sf(i, j, 0) = patch_icpp(1)%alpha_rho(1)
+    !         q_prim_vf(contxe)%sf(i, j, 0) = patch_icpp(1)%alpha_rho(2)
+    !         q_prim_vf(E_idx)%sf(i, j, 0) = patch_icpp(1)%pres
+    !         q_prim_vf(advxb)%sf(i, j, 0) = patch_icpp(1)%alpha(1)
+    !         q_prim_vf(advxe)%sf(i, j, 0) = patch_icpp(1)%alpha(2)
+    !     end if
+
+    ! case (206) ! 2D lung wave interaction problem - horizontal domain
+    !     h = 0.0_wp           !non dim origin y
+    !     lam = 1.0_wp         !non dim lambda
+    !     amp = patch_icpp(patch_id)%a(2)
+
+    !     intL = amp*sin(2*pi*y_cc(j)/lam - pi/2) + h
+
+    !     if (x_cc(i) > intL) then        !this is the liquid
+    !         q_prim_vf(contxb)%sf(i, j, 0) = patch_icpp(1)%alpha_rho(1)
+    !         q_prim_vf(contxe)%sf(i, j, 0) = patch_icpp(1)%alpha_rho(2)
+    !         q_prim_vf(E_idx)%sf(i, j, 0) = patch_icpp(1)%pres
+    !         q_prim_vf(advxb)%sf(i, j, 0) = patch_icpp(1)%alpha(1)
+    !         q_prim_vf(advxe)%sf(i, j, 0) = patch_icpp(1)%alpha(2)
+    !     end if
+
+    case (205) ! Vortex
+        ! Constants
+        p0 = 1.3d0
+        rho0 = 1d0
+        bigGamma = 0.25d0
+        r0 = 0.2d0
+        r1 = 1.0d0
+        gam = 1d0 + 1d0/fluid_pp(1)%gamma
+
+        ! Calculate radius
+        r = (x_cc(i)**2 + y_cc(j)**2)**0.5d0
+        
+        ! Calculate velocity
+        if (r < r0) then
+            u = bigGamma*r*(r0**(-2)-r1**(-2))
+        else if (r < r1) then
+            u = bigGamma*r*(r**(-2)-r1**(-2))
+        else
+            u = 0d0
+        end if
+        
+        ! Calculate pressure
+        p_inf = p0 + rho0 * bigGamma**2 * ( 1d0/r0**2 - 0.5d0/r1**2 - 1d0/r1**2 + 0.5d0*r1**2/r1**4 + 2/r1**2*log(r0/r1) )
+        if (r < r0) then
+            p = p0 + rho0 * bigGamma**2 * 0.5d0*(r0**(-2) - r1**(-2))**2 * r**2
+        else if (r < r1) then
+            p = p0 + rho0 * bigGamma**2 * ( 1d0/r0**2 - 0.5d0/r**2 - 1d0/r1**2 + 0.5d0*r**2/r1**4 + 2/r1**2*log(r0/r) )
+        else
+            p = p_inf
+        end if
+        p = p - p_inf + p0 ! s.t. p(r->inf) = p0 instead of p(r=0) = p0
+        ! if (r < r0) then
+        !     p = p0 + 3d0*bigGamma**2 * (r0**(-2) - r1**(-2)) * r
+        ! else if (r < r1) then
+        !     p = p0 + 3d0*bigGamma**2 * (2d0/r0 - 1d0/r - r/r1**2)
+        ! else
+        !     p = p0 + 3d0*bigGamma**2 * 2d0*(1d0/r0 - 1d0/r1)
+        ! end if
+
+        ! Allocate values
+        q_prim_vf(momxb)%sf(i, j, 0) = -y_cc(j)/r * u
+        q_prim_vf(momxe)%sf(i, j, 0) = x_cc(i)/r * u
+        q_prim_vf(E_idx)%sf(i, j, 0) = p
+        q_prim_vf(contxb)%sf(i, j, 0) = (p/p0)**(1d0/gam) * rho0
+
+    case (206)
+        if (y_cc(j) < 1.732d0*(x_cc(i) - 0.1667d0)) then
+            q_prim_vf(momxb)%sf(i, j, 0) = 0d0 ! u
+            q_prim_vf(momxe)%sf(i, j, 0) = 0d0 ! v
+            q_prim_vf(contxb)%sf(i, j, 0) = 1.4d0 ! rho
+            q_prim_vf(E_idx)%sf(i, j, 0) = 1d0 ! p
+        else
+            q_prim_vf(momxb)%sf(i, j, 0) = 7.145d0 ! u
+            q_prim_vf(momxe)%sf(i, j, 0) = -4.125d0 ! v
+            q_prim_vf(contxb)%sf(i, j, 0) = 8d0 ! rho
+            q_prim_vf(E_idx)%sf(i, j, 0) = 116.8333d0 ! p
         end if
 
-    case (206) ! 2D lung wave interaction problem - horizontal domain
-        h = 0.0_wp           !non dim origin y
-        lam = 1.0_wp         !non dim lambda
-        amp = patch_icpp(patch_id)%a(2)
+    case (207) ! Rayleigh-Taylor instability (Xu and Shu; to compare with TENO paper)
+        gam = 1d0 + 1d0/fluid_pp(1)%gamma
 
-        intL = amp*sin(2*pi*y_cc(j)/lam - pi/2) + h
-
-        if (x_cc(i) > intL) then        !this is the liquid
-            q_prim_vf(contxb)%sf(i, j, 0) = patch_icpp(1)%alpha_rho(1)
-            q_prim_vf(contxe)%sf(i, j, 0) = patch_icpp(1)%alpha_rho(2)
-            q_prim_vf(E_idx)%sf(i, j, 0) = patch_icpp(1)%pres
-            q_prim_vf(advxb)%sf(i, j, 0) = patch_icpp(1)%alpha(1)
-            q_prim_vf(advxe)%sf(i, j, 0) = patch_icpp(1)%alpha(2)
+        if (y_cc(j) < 0.5d0) then
+            q_prim_vf(contxb)%sf(i, j, 0) = 2d0 ! rho
+            q_prim_vf(E_idx)%sf(i, j, 0) = 1d0+2d0*y_cc(j) ! p
+        else
+            q_prim_vf(contxb)%sf(i, j, 0) = 1d0 ! rho
+            q_prim_vf(E_idx)%sf(i, j, 0) = y_cc(j)+3d0/2d0 ! p
         end if
+
+        ! c = sqrt(gam*p/rho)
+        sos = dsqrt(gam*q_prim_vf(E_idx)%sf(i, j, 0)/q_prim_vf(contxb)%sf(i, j, 0))
+        q_prim_vf(momxb)%sf(i, j, 0) = 0d0 ! u
+        q_prim_vf(momxe)%sf(i, j, 0) = -0.025d0*sos*cos(8*pi*x_cc(i)) ! v
+
+    case (210) ! Vortex 2
+        x0 = 4d0
+        u_vortex = -1.2d0
+        
+        ! Calculate radius
+        r = ((x_cc(i)-x0)**2 + y_cc(j)**2)**0.5d0
+        gam = 1d0 + 1d0/fluid_pp(1)%gamma
+
+        u = r*exp((1d0-r**2)/2d0)
+        p = 1d0/gam * (1d0 - (gam-1d0)/2 * 1d0**2*exp(1d0-r**2))**(gam/(gam-1d0))
+        ! print *, '-----------------'
+        ! print *, exp(1d0-r**2)
+        ! print *, (1d0 - (gam-1d0)/2 * 1d0**2*exp(1d0-r**2))
+        ! print *, (1d0 - (gam-1d0)/2 * 1d0**2*exp(1d0-r**2))**gam/(gam-1d0)
+        ! print *, p
+        rho = (p*gam)**(1d0/gam)
+
+        q_prim_vf(momxb)%sf(i, j, 0) = -y_cc(j)/r * u + u_vortex
+        q_prim_vf(momxe)%sf(i, j, 0) = ((x_cc(i)-x0))/r * u
+        q_prim_vf(E_idx)%sf(i, j, 0) = p
+        q_prim_vf(contxb)%sf(i, j, 0) = rho
+        
 
     case default
         if (proc_rank == 0) then

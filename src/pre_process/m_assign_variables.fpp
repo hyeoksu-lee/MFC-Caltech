@@ -593,7 +593,7 @@ contains
         ! Set streamwise velocity to hyperbolic tangent function of y
         if (mixlayer_vel_profile) then
             q_prim_vf(1 + cont_idx%end)%sf(j, k, l) = &
-                (eta*patch_icpp(patch_id)%vel(1)*tanh(y_cc(k)*mixlayer_vel_coef) &
+                (eta*patch_icpp(patch_id)%vel(1)*tanh(y_cc(k)/2._wp*mixlayer_vel_coef) &
                  + (1._wp - eta)*orig_prim_vf(1 + cont_idx%end))
         end if
 
