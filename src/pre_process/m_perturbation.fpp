@@ -391,7 +391,7 @@ contains
 
         ! Assign mean profiles
         do j = 0, nbpm0
-            u_mean(j) = patch_icpp(1)%vel(1)*tanh(y_cb0(j)/2._wp*xratio)
+            u_mean(j) = patch_icpp(1)%vel(1)*tanh(y_cb0(j)*xratio)
         end do
 
         ! Compute differential operator in y-dir
@@ -737,14 +737,6 @@ contains
                     exit
                 end if
             end do
-        end do
-
-        do i = 0, nbpm
-            write(97,*) alpha, beta, i, y_cb(i - 1), ubr(i)
-        end do
-
-        do i = 0, nbpm0
-            write(98,*) alpha, beta, i, y_cb0(i), ubr(i)
         end do
 
         ! Compute average to get cell-centered values
