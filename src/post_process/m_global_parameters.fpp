@@ -268,6 +268,7 @@ module m_global_parameters
     logical :: polydisperse
     logical :: adv_n
     logical :: decouple
+    logical :: seeding
     integer :: thermal  !< 1 = adiabatic, 2 = isotherm, 3 = transfer
     real(wp) :: R_n, R_v, phi_vn, phi_nv, Pe_c, Tw, G, pv, M_n, M_v
     real(wp), dimension(:), allocatable :: k_n, k_v, pb0, mass_n0, mass_v0, Pe_T
@@ -421,6 +422,7 @@ contains
         surface_tension = .false.
         adv_n = .false.
         decouple = .false.
+        seeding = .false.
 
         ! Lagrangian bubbles modeling
         bubbles_lagrange = .false.

@@ -170,7 +170,7 @@ contains
             & 'file_per_process', 'relax', 'cf_wrt', 'adv_n', 'ib',            &
             & 'cfl_adap_dt', 'cfl_const_dt', 'cfl_dt', 'surface_tension',      &
             & 'hyperelasticity', 'bubbles_lagrange', 'rkck_adap_dt',          &
-            & 'output_partial_domain', 'decouple' ]
+            & 'output_partial_domain', 'decouple', 'seeding' ]
             call MPI_BCAST(${VAR}$, 1, MPI_LOGICAL, 0, MPI_COMM_WORLD, ierr)
         #:endfor
 

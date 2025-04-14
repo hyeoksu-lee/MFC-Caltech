@@ -257,7 +257,8 @@ SIMULATION.update({
     'rkck_tolerance': ParamType.REAL,
     'cd_reconstruct': ParamType.LOG,
     'cd_order': ParamType.INT,
-    'wcns_ld': ParamType.LOG
+    'wcns_ld': ParamType.LOG,
+    'decouple_vf0': ParamType.REAL,
 })
 
 for var in [ 'heatTransfer_model', 'massTransfer_model', 'pressure_corrector',

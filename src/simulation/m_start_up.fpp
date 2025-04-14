@@ -114,24 +114,30 @@ contains
         real(wp) :: R3bar
         integer :: i, j, k, l
 
+        if (proc_rank == 0) then
+            print *, "decouple_vf0", decouple_vf0
+        end if 
         if (.not. parallel_io) then
             call s_read_serial_data_files(q_cons_vf)
         else
             call s_read_parallel_data_files(q_cons_vf)
 
             if (seeding .and. bubbles_euler .and. adv_n) then
-
+                print *, "seeding begins"
                 !$acc parallel loop collapse(3) gang vector default(present)
                 do j = 0, m
                     do k = 0, n
                         do l = 0, p
                             
-                            dyn_p = 0._wp
-                            do i = momxb, momxe
-                                dyn_p = dyn_p + 0.5_wp*q_cons_vf(i)%sf(j, k, l)**2._wp / q_cons_vf(1)%sf(j, k, l)
-                            end do
+                            ! dyn_p = 0._wp
+                            ! do i = momxb, momxe
+                                ! dyn_p = dyn_p + 0.5_wp*q_cons_vf(i)%sf(j, k, l)**2._wp / q_cons_vf(1)%sf(j, k, l)
+                            ! end do
 
-                            q_prim_vf(E_idx)%sf(j, k, l) = (q_cons_vf(E_idx)%sf(j, k, l) - dyn_p - fluid_pp(1)%pi_inf)/fluid_pp(1)%gamma
+                            ! q_prim_vf(E_idx)%sf(j, k, l) = (q_cons_vf(E_idx)%sf(j, k, l) - dyn_p - fluid_pp(1)%pi_inf)/fluid_pp(1)%gamma
+
+                            q_prim_vf(alf_idx)%sf(j, k, l) = 1e-5_wp
+                            q_cons_vf(alf_idx)%sf(j, k, l) = 1e-5_wp
 
                             !$acc loop seq
                             do i = 1, nb
@@ -143,13 +149,13 @@ contains
                             R3bar = 0._wp
                             !$acc loop seq
                             do i = 1, nb
-                                call s_compute_equilibrium_state(q_prim_vf(E_idx)%sf(j, k, l), R0(i), q_prim_vf(bub_idx%rs(i))%sf(j, k, l))
+                                ! call s_compute_equilibrium_state(q_prim_vf(E_idx)%sf(j, k, l), R0(i), q_prim_vf(bub_idx%rs(i))%sf(j, k, l))
                                 R3bar = R3bar + weight(i)*(q_prim_vf(bub_idx%rs(i))%sf(j, k, l))**3._wp
                             end do
                             q_prim_vf(n_idx)%sf(j, k, l) = 3._wp*q_prim_vf(alf_idx)%sf(j, k, l)/(4._wp*pi*R3bar)
             
                             if (decouple) then
-                                q_prim_vf(n_idx)%sf(j, k, l) = 3._wp*decouple_vf0/(4._wp*pi*R3bar)
+                                q_prim_vf(n_idx)%sf(j, k, l) = 3._wp*1e-5_wp/(4._wp*pi*R3bar)
                             else
                                 q_prim_vf(n_idx)%sf(j, k, l) = 3._wp*q_prim_vf(alf_idx)%sf(j, k, l)/(4._wp*pi*R3bar)
                             end if
@@ -164,6 +170,11 @@ contains
                         end do
                     end do
                 end do
+                print *, "seeding ended"
+                if (proc_rank == 0) then
+                    print *, "prim", (q_prim_vf(i)%sf(1,1,1), i = 1,sys_size)
+                    print *, "cons", (q_cons_vf(i)%sf(1,1,1), i = 1,sys_size)
+                end if
             end if
         end if
 
@@ -890,7 +901,7 @@ contains
                         end do
                     end if
                 else if (bubbles_euler .and. seeding) then
-                    do i = 1, adv_idx%end
+                    do i = 1, E_idx
                         var_MOK = int(i, MPI_OFFSET_KIND)
 
                         ! Initial displacement to skip at beginning of file
