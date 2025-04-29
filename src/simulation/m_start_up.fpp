@@ -114,16 +114,12 @@ contains
         real(wp) :: R3bar
         integer :: i, j, k, l
 
-        if (proc_rank == 0) then
-            print *, "decouple_vf0", decouple_vf0
-        end if 
         if (.not. parallel_io) then
             call s_read_serial_data_files(q_cons_vf)
         else
             call s_read_parallel_data_files(q_cons_vf)
 
             if (seeding .and. bubbles_euler .and. adv_n) then
-                print *, "seeding begins"
                 !$acc parallel loop collapse(3) gang vector default(present)
                 do j = 0, m
                     do k = 0, n
@@ -136,8 +132,8 @@ contains
 
                             ! q_prim_vf(E_idx)%sf(j, k, l) = (q_cons_vf(E_idx)%sf(j, k, l) - dyn_p - fluid_pp(1)%pi_inf)/fluid_pp(1)%gamma
 
-                            q_prim_vf(alf_idx)%sf(j, k, l) = 1e-5_wp
-                            q_cons_vf(alf_idx)%sf(j, k, l) = 1e-5_wp
+                            q_prim_vf(alf_idx)%sf(j, k, l) = decouple_vf0
+                            q_cons_vf(alf_idx)%sf(j, k, l) = decouple_vf0
 
                             !$acc loop seq
                             do i = 1, nb
@@ -155,7 +151,7 @@ contains
                             q_prim_vf(n_idx)%sf(j, k, l) = 3._wp*q_prim_vf(alf_idx)%sf(j, k, l)/(4._wp*pi*R3bar)
             
                             if (decouple) then
-                                q_prim_vf(n_idx)%sf(j, k, l) = 3._wp*1e-5_wp/(4._wp*pi*R3bar)
+                                q_prim_vf(n_idx)%sf(j, k, l) = 3._wp*decouple_vf0/(4._wp*pi*R3bar)
                             else
                                 q_prim_vf(n_idx)%sf(j, k, l) = 3._wp*q_prim_vf(alf_idx)%sf(j, k, l)/(4._wp*pi*R3bar)
                             end if
@@ -170,11 +166,6 @@ contains
                         end do
                     end do
                 end do
-                print *, "seeding ended"
-                if (proc_rank == 0) then
-                    print *, "prim", (q_prim_vf(i)%sf(1,1,1), i = 1,sys_size)
-                    print *, "cons", (q_cons_vf(i)%sf(1,1,1), i = 1,sys_size)
-                end if
             end if
         end if
 

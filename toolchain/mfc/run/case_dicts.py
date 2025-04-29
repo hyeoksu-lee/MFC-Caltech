@@ -53,7 +53,6 @@ COMMON = {
     'sigma': ParamType.REAL,
     'adv_n': ParamType.LOG,
     'decouple': ParamType.LOG,
-    'seeding': ParamType.LOG,
     'cfl_adap_dt': ParamType.LOG,
     'cfl_const_dt': ParamType.LOG,
     'chemistry': ParamType.LOG,
@@ -73,6 +72,8 @@ PRE_PROCESS.update({
     'mixlayer_perturb': ParamType.LOG,
     'mixlayer_noise': ParamType.LOG,
     'mixlayer_shift': ParamType.INT,
+    'mixlayer_amp_2d': ParamType.REAL,
+    'mixlayer_amp_3d': ParamType.REAL,
     'perturb_flow': ParamType.LOG,
     'perturb_flow_fluid': ParamType.INT,
     'perturb_flow_mag': ParamType.REAL,
@@ -259,6 +260,7 @@ SIMULATION.update({
     'cd_order': ParamType.INT,
     'wcns_ld': ParamType.LOG,
     'decouple_vf0': ParamType.REAL,
+    'seeding': ParamType.LOG,
 })
 
 for var in [ 'heatTransfer_model', 'massTransfer_model', 'pressure_corrector',

@@ -54,6 +54,7 @@ contains
 
         integer :: i !< Generic loop iterator
 
+        
         ! Allocating vectorized buffer regions of conservative variables.
         ! The length of buffer vectors are set according to the size of the
         ! largest buffer region in the sub-domain.
@@ -67,20 +68,19 @@ contains
 
                     allocate (q_cons_buffer_in(0:buff_size* &
                                                sys_size* &
-                                               (m + 2*buff_size + 1)* &
-                                               (n + 2*buff_size + 1)* &
-                                               (p + 2*buff_size + 1)/ &
+                                               (m + 2*buff_size + 1)/ &
                                                (min(m, n, p) &
-                                                + 2*buff_size + 1) - 1))
+                                                + 2*buff_size + 1)* &
+                                               (n + 2*buff_size + 1)* &
+                                               (p + 2*buff_size + 1) - 1))
                     allocate (q_cons_buffer_out(0:buff_size* &
-                                                sys_size* &
-                                                (m + 2*buff_size + 1)* &
-                                                (n + 2*buff_size + 1)* &
-                                                (p + 2*buff_size + 1)/ &
-                                                (min(m, n, p) &
-                                                 + 2*buff_size + 1) - 1))
-
-                    ! Simulation is 2D
+                                               sys_size* &
+                                               (m + 2*buff_size + 1)/ &
+                                               (min(m, n, p) &
+                                               + 2*buff_size + 1)* &
+                                               (n + 2*buff_size + 1)* &
+                                               (p + 2*buff_size + 1) - 1))
+                ! Simulation is 2D
                 else
 
                     allocate (q_cons_buffer_in(0:buff_size* &
@@ -99,7 +99,6 @@ contains
 
                 allocate (q_cons_buffer_in(0:buff_size*sys_size - 1))
                 allocate (q_cons_buffer_out(0:buff_size*sys_size - 1))
-
             end if
 
             ! Initially zeroing out the vectorized buffer region variables
@@ -170,7 +169,7 @@ contains
             & 'file_per_process', 'relax', 'cf_wrt', 'adv_n', 'ib',            &
             & 'cfl_adap_dt', 'cfl_const_dt', 'cfl_dt', 'surface_tension',      &
             & 'hyperelasticity', 'bubbles_lagrange', 'rkck_adap_dt',          &
-            & 'output_partial_domain', 'decouple', 'seeding' ]
+            & 'output_partial_domain', 'decouple' ]
             call MPI_BCAST(${VAR}$, 1, MPI_LOGICAL, 0, MPI_COMM_WORLD, ierr)
         #:endfor
 
@@ -872,7 +871,6 @@ contains
 
                 ! PBC at both ends of the sub-domain
                 if (bc_x%end >= 0) then
-
                     ! Packing the data to be sent to bc_x%end
                     do l = 0, p
                         do k = 0, n

@@ -179,7 +179,7 @@ contains
         call s_instability_wave(2*pi*1.0_wp/Ldomain, 0._wp, wave_tmp, 0._wp)
         print *, "3"
         wave1 = wave1 + wave_tmp
-        wave = wave1*0.05_wp
+        wave = mixlayer_amp_2d*wave1
 
         if (mixlayer_shift == 1) then
             shift(1) = 2*pi*11._wp/31._wp; shift(2) = 2*pi*13._wp/31._wp; shift(3) = 2*pi*17._wp/31._wp;
@@ -283,7 +283,7 @@ contains
             call s_instability_wave(2*pi*1.0_wp/Ldomain, -2*pi*1.0_wp/Ldomain, wave_tmp, shift(6))
             print *, "9"
             wave2 = wave2 + wave_tmp
-            wave = wave + 0.15_wp*wave2
+            wave = wave + mixlayer_amp_3d*wave2
         end if
 
         ! Superpose velocity perturbuations (instability waves) to the velocity field
@@ -391,7 +391,7 @@ contains
 
         ! Assign mean profiles
         do j = 0, nbpm0
-            u_mean(j) = patch_icpp(1)%vel(1)*tanh(y_cb0(j)*xratio)
+            u_mean(j) = tanh(y_cb0(j)*xratio)
         end do
 
         ! Compute differential operator in y-dir

@@ -129,6 +129,8 @@ module m_global_parameters
     logical :: mixlayer_perturb !< Superimpose instability waves to surrounding fluid flow
     logical :: mixlayer_noise
     integer :: mixlayer_shift
+    real(wp) :: mixlayer_amp_2d
+    real(wp) :: mixlayer_amp_3d
 
     real(wp) :: pi_fac !< Factor for artificial pi_inf
     logical :: decouple
@@ -338,6 +340,8 @@ contains
         mixlayer_perturb = .false.
         mixlayer_noise = .false.
         mixlayer_shift = 1
+        mixlayer_amp_2d = 0.05_wp
+        mixlayer_amp_3d = 0.15_wp
         perturb_flow = .false.
         perturb_flow_fluid = dflt_int
         perturb_flow_mag = dflt_real

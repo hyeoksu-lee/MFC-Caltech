@@ -272,7 +272,8 @@ contains
                     end do
                 end do
 
-                y_cb_glb = y_cb_glb/(y_cb_glb(n_glb) - y_cb_glb(-1))*length
+                ! y_cb_glb = y_cb_glb/(y_cb_glb(n_glb) - y_cb_glb(-1))*length
+                y_cb_glb = y_cb_glb*length
                 print *, y_cb_glb(n_glb), y_cb_glb(-1)
 
             end if
