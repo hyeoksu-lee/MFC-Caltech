@@ -86,6 +86,7 @@ contains
         @:PROHIBIT((weno_order == 1 .or. weno_order == 3) .and. teno)
         @:PROHIBIT(weno_order /= 5 .and. mp_weno)
         @:PROHIBIT(model_eqns == 1 .and. weno_avg)
+        @:PROHIBIT(weno_order /= 5 .and. wcnsld)
     end subroutine s_check_inputs_weno
 
     !> Checks constraints on Riemann solver parameters

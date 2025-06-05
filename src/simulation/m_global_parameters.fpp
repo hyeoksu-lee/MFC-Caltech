@@ -118,6 +118,7 @@ module m_global_parameters
         logical, parameter :: mapped_weno = (${mapped_weno}$ /= 0)  !< WENO-M (WENO with mapping of nonlinear weights)
         logical, parameter :: wenoz = (${wenoz}$ /= 0)              !< WENO-Z
         logical, parameter :: teno = (${teno}$ /= 0)                !< TENO (Targeted ENO)
+        logical, parameter :: wcnsld = (${wcnsld}$ /= 0)            !< WCNSLD (Weighted Compact Nonlinear Scheme with Local Dissipation)
         real(wp), parameter :: wenoz_q = ${wenoz_q}$                !< Power constant for WENO-Z
         logical, parameter :: mhd = (${mhd}$ /= 0)                  !< Magnetohydrodynamics
         logical, parameter :: relativity = (${relativity}$ /= 0)    !< Relativity (only for MHD)
@@ -130,6 +131,7 @@ module m_global_parameters
         logical :: mapped_weno    !< WENO-M (WENO with mapping of nonlinear weights)
         logical :: wenoz          !< WENO-Z
         logical :: teno           !< TENO (Targeted ENO)
+        logical :: wcnsld         !< WCNSLD (Weighted Compact Nonlinear Scheme with Local Dissipation)
         real(wp) :: wenoz_q       !< Power constant for WENO-Z
         logical :: mhd            !< Magnetohydrodynamics
         logical :: relativity     !< Relativity (only for MHD)
@@ -174,7 +176,7 @@ module m_global_parameters
     integer :: cpu_start, cpu_end, cpu_rate
 
     #:if not MFC_CASE_OPTIMIZATION
-        !$acc declare create(num_dims, num_vels, weno_polyn, weno_order, weno_num_stencils, num_fluids, wenojs, mapped_weno, wenoz, teno, wenoz_q, mhd, relativity)
+        !$acc declare create(num_dims, num_vels, weno_polyn, weno_order, weno_num_stencils, num_fluids, wenojs, mapped_weno, wenoz, teno, wcnsld, wenoz_q, mhd, relativity)
     #:endif
 
     !$acc declare create(mpp_lim, model_eqns, mixture_err, alt_soundspeed, avg_state, mp_weno, weno_eps, teno_CT, hypoelasticity, hyperelasticity, hyper_model, elasticity, low_Mach, viscous, shear_stress, bulk_stress, cont_damage)
@@ -575,6 +577,7 @@ contains
             mapped_weno = .false.
             wenoz = .false.
             teno = .false.
+            wcnsld = .false.
             wenoz_q = dflt_real
         #:endif
 
@@ -786,6 +789,8 @@ contains
             weno_polyn = (weno_order - 1)/2
             if (teno) then
                 weno_num_stencils = weno_order - 3
+            else if (wcnsld) then
+                weno_num_stencils = weno_polyn + 1
             else
                 weno_num_stencils = weno_polyn
             end if
@@ -1155,7 +1160,7 @@ contains
 
         ! Resort to default WENO-JS if no other WENO scheme is selected
         #:if not MFC_CASE_OPTIMIZATION
-            wenojs = .not. (mapped_weno .or. wenoz .or. teno)
+            wenojs = .not. (mapped_weno .or. wenoz .or. teno .or. wcnsld)
         #:endif
 
         if (ib) allocate (MPI_IO_IB_DATA%var%sf(0:m, 0:n, 0:p))
@@ -1230,7 +1235,7 @@ contains
         !$acc update device(cont_damage, tau_star, cont_damage_s, alpha_bar)
 
         #:if not MFC_CASE_OPTIMIZATION
-            !$acc update device(wenojs, mapped_weno, wenoz, teno)
+            !$acc update device(wenojs, mapped_weno, wenoz, teno, wcnsld)
             !$acc update device(wenoz_q)
             !$acc update device(mhd, relativity)
         #:endif

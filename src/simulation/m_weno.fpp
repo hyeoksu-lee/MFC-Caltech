@@ -144,7 +144,9 @@ contains
         ! Number of cross terms for dvd = (k-1)(k-1+1)/2, where weno_polyn = k-1
         ! Note: k-1 not k because we are using value differences (dvd) not the values themselves
 
-        call s_compute_weno_coefficients(1, is1_weno)
+        if (.not. wcnsld) then
+            call s_compute_weno_coefficients(1, is1_weno)
+        end if
 
         @:ALLOCATE(v_rs_ws_x(is1_weno%beg:is1_weno%end, &
             is2_weno%beg:is2_weno%end, is3_weno%beg:is3_weno%end, 1:sys_size))
@@ -174,7 +176,9 @@ contains
         @:ALLOCATE(beta_coef_y(is2_weno%beg + weno_polyn:is2_weno%end - weno_polyn, 0:weno_polyn, &
             0:weno_polyn*(weno_polyn + 1)/2 - 1))
 
-        call s_compute_weno_coefficients(2, is2_weno)
+        if (.not. wcnsld) then
+            call s_compute_weno_coefficients(2, is2_weno)
+        end if
 
         @:ALLOCATE(v_rs_ws_y(is2_weno%beg:is2_weno%end, &
             is1_weno%beg:is1_weno%end, is3_weno%beg:is3_weno%end, 1:sys_size))
@@ -197,7 +201,9 @@ contains
         @:ALLOCATE(beta_coef_z(is3_weno%beg + weno_polyn:is3_weno%end - weno_polyn, 0:weno_polyn, &
             0:weno_polyn*(weno_polyn + 1)/2 - 1))
 
-        call s_compute_weno_coefficients(3, is3_weno)
+        if (.not. wcnsld) then
+            call s_compute_weno_coefficients(3, is3_weno)
+        end if
 
         @:ALLOCATE(v_rs_ws_z(is3_weno%beg:is3_weno%end, &
             is2_weno%beg:is2_weno%end, is1_weno%beg:is1_weno%end, 1:sys_size))
@@ -650,13 +656,18 @@ contains
         type(int_bounds_info), intent(in) :: is1_weno_d, is2_weno_d, is3_weno_d
 
         real(wp), dimension(-weno_polyn:weno_polyn - 1) :: dvd
+        real(wp), dimension(-3:3, -3:3) :: dvd2
         real(wp), dimension(0:weno_num_stencils) :: poly
         real(wp), dimension(0:weno_num_stencils) :: alpha
-        real(wp), dimension(0:weno_num_stencils) :: omega
+        real(wp), dimension(0:weno_num_stencils) :: omega, omega_central, omega_upwind
         real(wp), dimension(0:weno_num_stencils) :: beta
         real(wp), dimension(0:weno_num_stencils) :: delta
+        real(wp), dimension(0:weno_num_stencils) :: dk
         real(wp), dimension(-3:3) :: v ! temporary field value array for clarity (WENO7 only)
-        real(wp) :: tau
+        real(wp) :: tau, tau6
+        real(wp) :: beta_avg
+        real(wp) :: c_ld
+        real(wp) :: sig, sig1, sig2
 
         integer :: i, j, k, l
 
@@ -670,7 +681,7 @@ contains
             call s_initialize_weno(v_vf, &
                                    norm_dir, weno_dir)
         end if
-
+        
         if (weno_order == 1) then
             if (weno_dir == 1) then
                 !$acc parallel loop collapse(4) default(present)
@@ -791,7 +802,7 @@ contains
                     !$acc end parallel loop
                 end if
             #:endfor
-        elseif (weno_order == 5) then
+        elseif (weno_order == 5 .and. .not. wcnsld) then
             #:for WENO_DIR, XYZ in [(1, 'x'), (2, 'y'), (3, 'z')]
                 if (weno_dir == ${WENO_DIR}$) then
                     !$acc parallel loop vector gang collapse(3) default(present) private(dvd, poly, beta, alpha, omega, tau, delta)
@@ -908,6 +919,280 @@ contains
                     if (mp_weno) then
                         call s_preserve_monotonicity(v_rs_ws_${XYZ}$, vL_rs_vf_${XYZ}$, &
                                                      vR_rs_vf_${XYZ}$)
+                    end if
+                end if
+            #:endfor
+        elseif (weno_order == 5 .and. wcnsld) then
+            #:for WENO_DIR, XYZ in [(1, 'x'), (2, 'y'), (3, 'z')]
+                if (weno_dir == ${WENO_DIR}$) then
+                    !$acc parallel loop vector gang collapse(3) default(present) private(dvd, dvd2, poly, beta, alpha, omega, tau, tau6, beta_avg, c_ld, sig, sig1, sig2, omega_central, omega_upwind, delta)
+                    do l = is3_weno%beg, is3_weno%end
+                        do k = is2_weno%beg, is2_weno%end
+                            do j = is1_weno%beg, is1_weno%end
+
+                                !$acc loop seq
+                                do i = 1, v_size
+
+                                    dvd2(3,2) = v_rs_ws_${XYZ}$ (j + 3, k, l, i) &
+                                                - v_rs_ws_${XYZ}$ (j + 2, k, l, i)
+                                    dvd2(3,1) = v_rs_ws_${XYZ}$ (j + 3, k, l, i) &
+                                                - v_rs_ws_${XYZ}$ (j + 1, k, l, i)
+                                    dvd2(3,0) = v_rs_ws_${XYZ}$ (j + 3, k, l, i) &
+                                                - v_rs_ws_${XYZ}$ (j, k, l, i)
+                                    dvd2(3,-1) = v_rs_ws_${XYZ}$ (j + 3, k, l, i) &
+                                                - v_rs_ws_${XYZ}$ (j - 1, k, l, i)
+                                    dvd2(3,-2) = v_rs_ws_${XYZ}$ (j + 3, k, l, i) &
+                                                - v_rs_ws_${XYZ}$ (j - 2, k, l, i)
+                                    dvd2(3,-3) = v_rs_ws_${XYZ}$ (j + 3, k, l, i) &
+                                                - v_rs_ws_${XYZ}$ (j - 3, k, l, i)
+                                    dvd2(2,3) = -dvd2(3,2)
+                                    dvd2(2,1) = v_rs_ws_${XYZ}$ (j + 2, k, l, i) &
+                                                - v_rs_ws_${XYZ}$ (j + 1, k, l, i)
+                                    dvd2(2,0) = v_rs_ws_${XYZ}$ (j + 2, k, l, i) &
+                                                - v_rs_ws_${XYZ}$ (j, k, l, i)
+                                    dvd2(2,-1) = v_rs_ws_${XYZ}$ (j + 2, k, l, i) &
+                                                - v_rs_ws_${XYZ}$ (j - 1, k, l, i)
+                                    dvd2(2,-2) = v_rs_ws_${XYZ}$ (j + 2, k, l, i) &
+                                                - v_rs_ws_${XYZ}$ (j - 2, k, l, i)
+                                    dvd2(2,-3) = v_rs_ws_${XYZ}$ (j + 2, k, l, i) &
+                                                - v_rs_ws_${XYZ}$ (j - 3, k, l, i)
+                                    dvd2(1,3) = -dvd2(3,1)
+                                    dvd2(1,2) = -dvd2(2,1)
+                                    dvd2(1,0) = v_rs_ws_${XYZ}$ (j + 1, k, l, i) &
+                                                - v_rs_ws_${XYZ}$ (j, k, l, i)
+                                    dvd2(1,-1) = v_rs_ws_${XYZ}$ (j + 1, k, l, i) &
+                                                - v_rs_ws_${XYZ}$ (j - 1, k, l, i)
+                                    dvd2(1,-2) = v_rs_ws_${XYZ}$ (j + 1, k, l, i) &
+                                                - v_rs_ws_${XYZ}$ (j - 2, k, l, i)
+                                    dvd2(1,-3) = v_rs_ws_${XYZ}$ (j + 1, k, l, i) &
+                                                - v_rs_ws_${XYZ}$ (j - 3, k, l, i)
+                                    dvd2(0,3) = -dvd2(3,0)
+                                    dvd2(0,2) = -dvd2(2,0)
+                                    dvd2(0,1) = -dvd2(1,0)
+                                    dvd2(0,-1) = v_rs_ws_${XYZ}$ (j, k, l, i) &
+                                                - v_rs_ws_${XYZ}$ (j - 1, k, l, i)
+                                    dvd2(0,-2) = v_rs_ws_${XYZ}$ (j, k, l, i) &
+                                                - v_rs_ws_${XYZ}$ (j - 2, k, l, i)
+                                    dvd2(0,-3) = v_rs_ws_${XYZ}$ (j, k, l, i) &
+                                                - v_rs_ws_${XYZ}$ (j - 3, k, l, i)
+                                    dvd2(-1,3) = -dvd2(3,-1)
+                                    dvd2(-1,2) = -dvd2(2,-1)
+                                    dvd2(-1,1) = -dvd2(1,-1)
+                                    dvd2(-1,0) = -dvd2(0,-1)
+                                    dvd2(-1,-2) = v_rs_ws_${XYZ}$ (j - 1, k, l, i) &
+                                                - v_rs_ws_${XYZ}$ (j - 2, k, l, i)
+                                    dvd2(-1,-3) = v_rs_ws_${XYZ}$ (j - 1, k, l, i) &
+                                                - v_rs_ws_${XYZ}$ (j - 3, k, l, i)
+                                    dvd2(-2,3) = -dvd2(3,-2)
+                                    dvd2(-2,2) = -dvd2(2,-2)
+                                    dvd2(-2,1) = -dvd2(1,-2)
+                                    dvd2(-2,0) = -dvd2(0,-2)
+                                    dvd2(-2,-1) = -dvd2(-1,-2)
+                                    dvd2(-2,-3) = v_rs_ws_${XYZ}$ (j - 2, k, l, i) &
+                                                - v_rs_ws_${XYZ}$ (j - 3, k, l, i)
+                                    dvd2(-3,3) = -dvd2(3,-3)
+                                    dvd2(-3,2) = -dvd2(2,-3)
+                                    dvd2(-3,1) = -dvd2(1,-3)
+                                    dvd2(-3,0) = -dvd2(0,-3)
+                                    dvd2(-3,-1) = -dvd2(-1,-3)
+                                    dvd2(-3,-2) = -dvd2(-2,-3)
+
+                                    ! reconstruct from left side
+                                    poly(0) = -(1._wp/3._wp)*dvd2(1,2) &
+                                            + (5._wp/6._wp)*dvd2(0,1) &
+                                            + v_rs_ws_${XYZ}$ (j, k, l, i)
+                                    poly(1) = (1._wp/6._wp)*dvd2(0,1) &
+                                            + (1._wp/3._wp)*dvd2(-1,0) &
+                                            + v_rs_ws_${XYZ}$ (j, k, l, i)
+                                    poly(2) = (2._wp/3._wp)*dvd2(-1,0) &
+                                            - (1._wp/6._wp)*dvd2(-2,-1) &
+                                            + v_rs_ws_${XYZ}$ (j, k, l, i)
+                                    poly(3) = -(5._wp/6._wp)*dvd2(-2,-1) &
+                                            + (1._wp/3._wp)*dvd2(-3,-2) &
+                                            + v_rs_ws_${XYZ}$ (j - 1, k, l, i)
+                                    
+                                    beta(0) = (1._wp/4._wp) * (3._wp*dvd2(0,1) - dvd2(1,2))**2._wp &
+                                            + (13._wp/12._wp) * (dvd2(0,1) - dvd2(1,2))**2._wp &
+                                            + weno_eps
+                                    beta(1) = (1._wp/4._wp) * (dvd2(-1,0) + dvd2(0,1))**2._wp &
+                                            + (13._wp/12._wp) * (dvd2(-1,0) - dvd2(0,1))**2._wp &
+                                            + weno_eps
+                                    beta(2) = (1._wp/4._wp) * (dvd2(-2,-1) - 3._wp*dvd2(-1,0))**2._wp &
+                                            + (13._wp/12._wp) * (dvd2(-2,-1) - dvd2(-1,0))**2._wp &
+                                            + weno_eps
+                                    beta(3) =((  271779._wp)*(-(dvd2( 0,2) + dvd2( 0,2))*v_rs_ws_${XYZ}$ (j, k, l, i) + dvd2(0,2)*dvd2(0,2)) &
+                                            - ( 2380800._wp)*(-(dvd2( 0,1) + dvd2( 0,2))*v_rs_ws_${XYZ}$ (j, k, l, i) + dvd2(0,1)*dvd2(0,2)) &
+                                            + ( 4086352._wp)*(             - dvd2( 0,2) *v_rs_ws_${XYZ}$ (j, k, l, i)) &
+                                            - ( 3462252._wp)*( (dvd2(-1,0) - dvd2( 0,2))*v_rs_ws_${XYZ}$ (j, k, l, i) - dvd2(-1,0)*dvd2(0,2)) &
+                                            + ( 1458762._wp)*( (dvd2(-2,0) - dvd2( 0,2))*v_rs_ws_${XYZ}$ (j, k, l, i) - dvd2(-2,0)*dvd2(0,2)) &
+                                            - (  245620._wp)*( (dvd2(-3,0) - dvd2( 0,2))*v_rs_ws_${XYZ}$ (j, k, l, i) - dvd2(-3,0)*dvd2(0,2)) &
+                                            + ( 5653317._wp)*(-(dvd2( 0,1) + dvd2( 0,1))*v_rs_ws_${XYZ}$ (j, k, l, i) + dvd2(0,1)*dvd2(0,1)) &
+                                            - (20427884._wp)*(             - dvd2( 0,1) *v_rs_ws_${XYZ}$ (j, k, l, i)) &
+                                            + (17905032._wp)*( (dvd2(-1,0) - dvd2( 0,1))*v_rs_ws_${XYZ}$ (j, k, l, i) - dvd2(-1,0)*dvd2(0,1)) &
+                                            - ( 7727988._wp)*( (dvd2(-2,0) - dvd2( 0,1))*v_rs_ws_${XYZ}$ (j, k, l, i) - dvd2(-2,0)*dvd2(0,1)) &
+                                            + ( 1325006._wp)*( (dvd2(-3,0) - dvd2( 0,1))*v_rs_ws_${XYZ}$ (j, k, l, i) - dvd2(-3,0)*dvd2(0,1)) &
+                                            - (35817664._wp)*(               dvd2(-1,0) *v_rs_ws_${XYZ}$ (j, k, l, i)) &
+                                            + (15929912._wp)*(               dvd2(-2,0) *v_rs_ws_${XYZ}$ (j, k, l, i)) &
+                                            - ( 2792660._wp)*(               dvd2(-3,0) *v_rs_ws_${XYZ}$ (j, k, l, i)) &
+                                            + (17195652._wp)*( (dvd2(-1,0) + dvd2(-1,0))*v_rs_ws_${XYZ}$ (j, k, l, i) + dvd2(-1,0)*dvd2(-1,0)) &
+                                            - (15880404._wp)*( (dvd2(-2,0) + dvd2(-1,0))*v_rs_ws_${XYZ}$ (j, k, l, i) + dvd2(-2,0)*dvd2(-1,0)) &
+                                            + ( 2863984._wp)*( (dvd2(-3,0) + dvd2(-1,0))*v_rs_ws_${XYZ}$ (j, k, l, i) + dvd2(-3,0)*dvd2(-1,0)) &
+                                            + ( 3824847._wp)*( (dvd2(-2,0) + dvd2(-2,0))*v_rs_ws_${XYZ}$ (j, k, l, i) + dvd2(-2,0)*dvd2(-2,0)) &
+                                            - ( 1429976._wp)*( (dvd2(-3,0) + dvd2(-2,0))*v_rs_ws_${XYZ}$ (j, k, l, i) + dvd2(-3,0)*dvd2(-2,0)) &
+                                            + (  139633._wp)*( (dvd2(-3,0) + dvd2(-3,0))*v_rs_ws_${XYZ}$ (j, k, l, i) + dvd2(-3,0)*dvd2(-3,0))) &
+                                            / 120960._wp &
+                                            + weno_eps
+
+                                    beta_avg = (beta(0) + 4._wp*beta(1) + beta(2))/6._wp
+                                    tau6 = abs(beta(3) - beta_avg)
+                                    rtau = tau6/beta_avg
+
+                                    dk(0) = 1._wp/20._wp
+                                    dk(1) = 9._wp/20._wp
+                                    dk(2) = 9._wp/20._wp
+                                    dk(3) = 1._wp/20._wp
+                                    c_ld = 1e9_wp
+
+                                    alpha(0) = dk(0)*(c_ld + (tau6/beta(0))**4._wp)
+                                    alpha(1) = dk(1)*(c_ld + (tau6/beta(1))**4._wp)
+                                    alpha(2) = dk(2)*(c_ld + (tau6/beta(2))**4._wp)
+                                    alpha(3) = dk(3)*(c_ld + (tau6/beta(3))**4._wp)
+
+                                    omega_central = alpha/sum(alpha)
+
+                                    sig1 = abs(dvd2(-1,0) - dvd2(0,1))/(abs(dvd2(-1,0)) + abs(dvd2(0,1)) + weno_eps)
+                                    sig2 = abs(dvd2(-2,-1) - dvd2(-1,0))/(abs(dvd2(-2,-1)) + abs(dvd2(-1,0)) + weno_eps)
+                                    sig = max(sig1,sig2)
+
+                                    if (i == 1) then
+                                        write(98,*) j, x_cc(j), rtau, tau6, beta_avg, beta(0), beta(1), beta(2), beta(3), sig
+                                    end if
+
+                                    if (rtau > 35._wp) then
+                                        ! write(98,*) proc_rank, i, j, k, l, x_cc(j), y_cc(k), z_cc(l), rtau
+
+                                        tau = abs(beta(2) - beta(0))
+
+                                        dk(0) = 1._wp/10._wp
+                                        dk(1) = 3._wp/5._wp
+                                        dk(2) = 3._wp/10._wp
+
+                                        alpha(0) = dk(0)*(1._wp + (tau/beta(0))**2._wp)
+                                        alpha(1) = dk(1)*(1._wp + (tau/beta(1))**2._wp)
+                                        alpha(2) = dk(2)*(1._wp + (tau/beta(2))**2._wp)
+
+                                        omega_upwind(0:2) = alpha(0:2)/sum(alpha(0:2))
+                                        omega_upwind(3) = 0._wp
+
+                                        omega = sig*omega_upwind + (1._wp - sig)*omega_central
+                                    else
+                                        omega = omega_central
+                                    end if
+
+                                    vL_rs_vf_${XYZ}$ (j, k, l, i) = sum(omega*poly)
+
+                                    ! reconstruct from right side
+                                    poly(0) = -(1._wp/3._wp)*dvd2(-1,-2) &
+                                            + (5._wp/6._wp)*dvd2(0,-1) &
+                                            + v_rs_ws_${XYZ}$ (j, k, l, i)
+                                    poly(1) = (1._wp/6._wp)*dvd2(0,-1) &
+                                            + (1._wp/3._wp)*dvd2(1,0) &
+                                            + v_rs_ws_${XYZ}$ (j, k, l, i)
+                                    poly(2) = (2._wp/3._wp)*dvd2(1,0) &
+                                            - (1._wp/6._wp)*dvd2(2,1) &
+                                            + v_rs_ws_${XYZ}$ (j, k, l, i)
+                                    poly(3) = -(5._wp/6._wp)*dvd2(2,1) &
+                                            + (1._wp/3._wp)*dvd2(3,2) &
+                                            + v_rs_ws_${XYZ}$ (j + 1, k, l, i)
+                                    
+                                    beta(0) = (1._wp/4._wp) * (3._wp*dvd2(0,-1) - dvd2(-1,-2))**2._wp &
+                                            + (13._wp/12._wp) * (dvd2(0,-1) - dvd2(-1,-2))**2._wp &
+                                            + weno_eps
+                                    beta(1) = (1._wp/4._wp) * (dvd2(1,0) + dvd2(0,-1))**2._wp &
+                                            + (13._wp/12._wp) * (dvd2(1,0) - dvd2(0,-1))**2._wp &
+                                            + weno_eps
+                                    beta(2) = (1._wp/4._wp) * (dvd2(2,1) - 3._wp*dvd2(1,0))**2._wp &
+                                            + (13._wp/12._wp) * (dvd2(2,1) - dvd2(1,0))**2._wp &
+                                            + weno_eps
+                                    beta(3) =((  271779._wp)*(-(dvd2(0,-2) + dvd2(0,-2))*v_rs_ws_${XYZ}$ (j, k, l, i) + dvd2(0,-2)*dvd2(0,-2)) &
+                                            - ( 2380800._wp)*(-(dvd2(0,-1) + dvd2(0,-2))*v_rs_ws_${XYZ}$ (j, k, l, i) + dvd2(0,-1)*dvd2(0,-2)) &
+                                            + ( 4086352._wp)*(             - dvd2(0,-2) *v_rs_ws_${XYZ}$ (j, k, l, i)) &
+                                            - ( 3462252._wp)*( (dvd2(1, 0) - dvd2(0,-2))*v_rs_ws_${XYZ}$ (j, k, l, i) - dvd2(1,0)*dvd2(0,-2)) &
+                                            + ( 1458762._wp)*( (dvd2(2, 0) - dvd2(0,-2))*v_rs_ws_${XYZ}$ (j, k, l, i) - dvd2(2,0)*dvd2(0,-2)) &
+                                            - (  245620._wp)*( (dvd2(3, 0) - dvd2(0,-2))*v_rs_ws_${XYZ}$ (j, k, l, i) - dvd2(3,0)*dvd2(0,-2)) &
+                                            + ( 5653317._wp)*(-(dvd2(0,-1) + dvd2(0,-1))*v_rs_ws_${XYZ}$ (j, k, l, i) + dvd2(0,-1)*dvd2(0,-1)) &
+                                            - (20427884._wp)*(             - dvd2(0,-1) *v_rs_ws_${XYZ}$ (j, k, l, i)) &
+                                            + (17905032._wp)*( (dvd2(1, 0) - dvd2(0,-1))*v_rs_ws_${XYZ}$ (j, k, l, i) - dvd2(1,0)*dvd2(0,-1)) &
+                                            - ( 7727988._wp)*( (dvd2(2, 0) - dvd2(0,-1))*v_rs_ws_${XYZ}$ (j, k, l, i) - dvd2(2,0)*dvd2(0,-1)) &
+                                            + ( 1325006._wp)*( (dvd2(3, 0) - dvd2(0,-1))*v_rs_ws_${XYZ}$ (j, k, l, i) - dvd2(3,0)*dvd2(0,-1)) &
+                                            - (35817664._wp)*(               dvd2(1, 0) *v_rs_ws_${XYZ}$ (j, k, l, i)) &
+                                            + (15929912._wp)*(               dvd2(2, 0) *v_rs_ws_${XYZ}$ (j, k, l, i)) &
+                                            - ( 2792660._wp)*(               dvd2(3, 0) *v_rs_ws_${XYZ}$ (j, k, l, i)) &
+                                            + (17195652._wp)*( (dvd2(1, 0) + dvd2(1, 0))*v_rs_ws_${XYZ}$ (j, k, l, i) + dvd2(1,0)*dvd2(1,0)) &
+                                            - (15880404._wp)*( (dvd2(2, 0) + dvd2(1, 0))*v_rs_ws_${XYZ}$ (j, k, l, i) + dvd2(2,0)*dvd2(1,0)) &
+                                            + ( 2863984._wp)*( (dvd2(3, 0) + dvd2(1, 0))*v_rs_ws_${XYZ}$ (j, k, l, i) + dvd2(3,0)*dvd2(1,0)) &
+                                            + ( 3824847._wp)*( (dvd2(2, 0) + dvd2(2, 0))*v_rs_ws_${XYZ}$ (j, k, l, i) + dvd2(2,0)*dvd2(2,0)) &
+                                            - ( 1429976._wp)*( (dvd2(3, 0) + dvd2(2, 0))*v_rs_ws_${XYZ}$ (j, k, l, i) + dvd2(3,0)*dvd2(2,0)) &
+                                            + (  139633._wp)*( (dvd2(3, 0) + dvd2(3, 0))*v_rs_ws_${XYZ}$ (j, k, l, i) + dvd2(3,0)*dvd2(3,0))) &
+                                            / 120960._wp &
+                                            + weno_eps
+
+                                    beta_avg = (beta(0) + 4._wp*beta(1) + beta(2))/6._wp
+                                    tau6 = abs(beta(3) - beta_avg)
+                                    rtau = tau6/beta_avg
+
+                                    dk(0) = 1._wp/20._wp
+                                    dk(1) = 9._wp/20._wp
+                                    dk(2) = 9._wp/20._wp
+                                    dk(3) = 1._wp/20._wp
+
+                                    alpha(0) = dk(0)*(c_ld + (tau6/beta(0))**4._wp)
+                                    alpha(1) = dk(1)*(c_ld + (tau6/beta(1))**4._wp)
+                                    alpha(2) = dk(2)*(c_ld + (tau6/beta(2))**4._wp)
+                                    alpha(3) = dk(3)*(c_ld + (tau6/beta(3))**4._wp)
+
+                                    omega_central = alpha/sum(alpha)
+
+                                    sig1 = abs(dvd2(1,0) - dvd2(0,-1))/(abs(dvd2(1,0)) + abs(dvd2(0,-1)) + weno_eps)
+                                    sig2 = abs(dvd2(2,1) - dvd2(1,0))/(abs(dvd2(2,1)) + abs(dvd2(1,0)) + weno_eps)
+                                    sig = max(sig1,sig2)
+                                    
+                                    if (i == 1) then
+                                        write(99,*) j, x_cc(j), rtau, tau6, beta_avg, beta(0), beta(1), beta(2), beta(3), sig
+                                    end if
+
+                                    if (rtau > 35._wp) then
+                                        ! write(99,*) proc_rank, i, j, k, l, x_cc(j), y_cc(k), z_cc(l), rtau
+                                        
+                                        tau = abs(beta(2) - beta(0))
+    
+                                        dk(0) = 1._wp/10._wp
+                                        dk(1) = 3._wp/5._wp
+                                        dk(2) = 3._wp/10._wp
+    
+                                        alpha(0) = dk(0)*(1._wp + (tau/beta(0))**2._wp)
+                                        alpha(1) = dk(1)*(1._wp + (tau/beta(1))**2._wp)
+                                        alpha(2) = dk(2)*(1._wp + (tau/beta(2))**2._wp)
+                                        
+                                        omega_upwind(0:2) = alpha(0:2)/sum(alpha(0:2))
+                                        omega_upwind(3) = 0._wp
+                                        
+                                        omega = sig*omega_upwind + (1._wp - sig)*omega_central
+                                    else
+                                        omega = omega_central
+                                    end if
+                                    
+                                    vR_rs_vf_${XYZ}$ (j, k, l, i) = sum(omega*poly)
+
+                                end do
+                            end do
+                        end do
+                    end do
+                    !$acc end parallel loop
+
+                    if (mp_weno) then
+                        call s_preserve_monotonicity(v_rs_ws_${XYZ}$, vL_rs_vf_${XYZ}$, &
+                                                        vR_rs_vf_${XYZ}$)
                     end if
                 end if
             #:endfor

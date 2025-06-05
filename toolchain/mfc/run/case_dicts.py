@@ -255,6 +255,7 @@ SIMULATION.update({
     'mapped_weno': ParamType.LOG,
     'wenoz': ParamType.LOG,
     'teno': ParamType.LOG,
+    'wcnsld': ParamType.LOG,
     'mp_weno': ParamType.LOG,
     'weno_avg': ParamType.LOG,
     'weno_Re_flux': ParamType.LOG,
@@ -470,7 +471,7 @@ ALL.update(PRE_PROCESS)
 ALL.update(SIMULATION)
 ALL.update(POST_PROCESS)
 
-CASE_OPTIMIZATION = [ "mapped_weno", "wenoz", "teno", "wenoz_q", "nb", "weno_order", "num_fluids", "mhd", "relativity" ]
+CASE_OPTIMIZATION = [ "mapped_weno", "wenoz", "teno", "wcnsld", "wenoz_q", "nb", "weno_order", "num_fluids", "mhd", "relativity" ]
 
 _properties = { k: v.value for k, v in ALL.items() }
 
