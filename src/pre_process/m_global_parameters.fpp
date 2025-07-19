@@ -213,8 +213,9 @@ module m_global_parameters
 
     !> @name Bubble modeling
     !> @{
+    type(bubbles_ref_scales) :: bub_refs
     integer :: nb
-    real(wp) :: R0ref, V0ref
+    real(wp) :: R0ref
     real(wp) :: Ca, Web, Re_inv
     real(wp), dimension(:), allocatable :: weight, R0, V0
     logical :: bubbles_euler
@@ -252,7 +253,6 @@ module m_global_parameters
     real(wp) :: gamma_m, gamma_n, mu_n
     real(wp) :: poly_sigma
     integer :: dist_type !1 = binormal, 2 = lognormal-normal
-    integer :: R0_type   !1 = simpson
     !> @}
 
     !> @name Surface Tension Modeling
@@ -468,14 +468,13 @@ contains
         rhoref = dflt_real
         pref = dflt_real
 
-        ! Bubble modeling
+        ! Bubble modeling        
         bubbles_euler = .false.
         polytropic = .true.
         polydisperse = .false.
 
         thermal = dflt_int
         R0ref = dflt_real
-        V0ref = dflt_real
         nb = dflt_int
 
         Ca = dflt_real
@@ -492,7 +491,6 @@ contains
         sigV = dflt_real
         rhoRV = 0._wp
         dist_type = dflt_int
-        R0_type = dflt_int
 
         R_n = dflt_real
         R_v = dflt_real
@@ -500,6 +498,16 @@ contains
         phi_nv = dflt_real
         Pe_c = dflt_real
         Tw = dflt_real
+
+        ! Reference scales for subgrid bubble model
+        bub_refs%rho0 = dflt_real
+        bub_refs%x0 = dflt_real
+        bub_refs%c0 = dflt_real
+        bub_refs%p0 = dflt_real
+        bub_refs%T0 = dflt_real
+        bub_refs%Thost = dflt_real
+        bub_refs%p0inf = dflt_real
+        bub_refs%R0ref = dflt_real
 
         ! surface tension modeling
         sigma = dflt_real

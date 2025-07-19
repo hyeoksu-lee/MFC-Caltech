@@ -279,8 +279,9 @@ module m_global_parameters
 
     !> @name Bubble modeling variables and parameters
     !> @{
+    type(bubbles_ref_scales) :: bub_refs
     integer :: nb
-    real(wp) :: R0ref, V0ref
+    real(wp) :: R0ref
     real(wp) :: Ca, Web, Re_inv
     real(wp), dimension(:), allocatable :: weight, R0, V0
     logical :: bubbles_euler
@@ -443,7 +444,6 @@ contains
         bubbles_euler = .false.
         qbmm = .false.
         R0ref = dflt_real
-        V0ref = dflt_real
         nb = dflt_int
         polydisperse = .false.
         poly_sigma = dflt_real
@@ -451,6 +451,16 @@ contains
         sigma = dflt_real
         surface_tension = .false.
         adv_n = .false.
+
+        ! Reference scales for subgrid bubble model
+        bub_refs%rho0 = dflt_real
+        bub_refs%x0 = dflt_real
+        bub_refs%c0 = dflt_real
+        bub_refs%p0 = dflt_real
+        bub_refs%T0 = dflt_real
+        bub_refs%Thost = dflt_real
+        bub_refs%p0inf = dflt_real
+        bub_refs%R0ref = dflt_real
 
         ! Lagrangian bubbles modeling
         bubbles_lagrange = .false.

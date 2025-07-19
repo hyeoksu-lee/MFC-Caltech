@@ -143,7 +143,7 @@ contains
         if (adap_dt .and. f_is_default(adap_dt_tol)) adap_dt_tol = dflt_adap_dt_tol
 
         ! Starting bubbles
-        call s_start_bubbles_inputs()
+        call s_initialize_bubbles_inputs()
         call s_read_input_bubbles(q_cons_vf)
 
     end subroutine s_initialize_bubbles_EL_module

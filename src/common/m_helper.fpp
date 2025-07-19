@@ -17,6 +17,7 @@ module m_helper
     private; 
     public :: s_comp_n_from_prim, &
               s_comp_n_from_cons, &
+              s_initialize_bubbles_inputs, &
               s_initialize_nonpoly, &
               s_simpson, &
               s_transcoeff, &
@@ -100,6 +101,65 @@ contains
         write (*, fmt="(A1)") " "
 
     end subroutine s_print_2D_array
+
+
+    !> The purpose of this procedure is to start EE/EL bubble parameters applying nondimensionalization if needed
+    impure subroutine s_initialize_bubbles_inputs()
+
+        integer :: id_bubbles, id_host
+        real(wp) :: rho0, c0, T0, x0, p0
+
+        !Reference values
+        rho0 = bub_refs%rho0
+        c0 = bub_refs%c0
+        T0 = bub_refs%T0
+        x0 = bub_refs%x0
+        p0 = rho0*c0*c0
+
+#ifdef MFC_SIMULATION
+        if (bubbles_euler) then
+          id_host = 1
+          if (num_fluids == 1) then
+            id_bubbles = num_fluids + 1
+          else
+            id_bubbles = num_fluids
+          end if
+        else if (bubbles_lagrange) then
+          id_bubbles = num_fluids
+          id_host = num_fluids - 1
+        end if
+
+        !Update inputs
+        Tw = bub_refs%Thost/T0
+        pv = fluid_pp(id_host)%pv/p0
+        gamma_v = fluid_pp(id_bubbles)%gamma_v
+        gamma_n = fluid_pp(id_host)%gamma_v
+        k_vl = fluid_pp(id_bubbles)%k_v*(T0/(x0*rho0*c0*c0*c0))
+        k_nl = fluid_pp(id_host)%k_v*(T0/(x0*rho0*c0*c0*c0))
+        cp_v = fluid_pp(id_bubbles)%cp_v*(T0/(c0*c0))
+        cp_n = fluid_pp(id_host)%cp_v*(T0/(c0*c0))
+        R_v = (R_uni/fluid_pp(id_bubbles)%M_v)*(T0/(c0*c0))
+        R_n = (R_uni/fluid_pp(id_host)%M_v)*(T0/(c0*c0))
+        ss = fluid_pp(id_host)%ss/(rho0*x0*c0*c0)
+        mul0 = fluid_pp(id_host)%mul0/(rho0*x0*c0)
+        if (bubbles_lagrange) then
+          lag_params%diffcoefvap = lag_params%diffcoefvap/(x0*c0)
+        end if
+
+        ! Parameters used in bubble_model
+        Ca = (bub_refs%p0inf - pv)/p0
+        Web = 1._wp/ss
+        Re_inv = mul0
+
+        if (bubbles_lagrange) then
+          ! Need improvements to accept polytropic gas compression, isothermal and adiabatic thermal models, and
+          ! the Gilmore and RP bubble models.
+          polytropic = .false.    ! Forcing no polytropic model
+          thermal = 3             ! Forcing constant transfer coefficient model based on Preston et al., 2007
+          ! If Keller-Miksis model is not selected, then no radial motion
+        end if
+#endif        
+    end subroutine s_initialize_bubbles_inputs 
 
     !> Initializes non-polydisperse bubble modeling
     impure subroutine s_initialize_nonpoly

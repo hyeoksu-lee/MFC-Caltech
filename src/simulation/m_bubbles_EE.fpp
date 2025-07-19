@@ -17,6 +17,8 @@ module m_bubbles_EE
 
     use m_bubbles              !< General bubble dynamics procedures
 
+    use m_helper
+    
     implicit none
 
     real(wp), allocatable, dimension(:, :, :) :: bub_adv_src
@@ -67,7 +69,7 @@ contains
 
         if (adap_dt .and. f_is_default(adap_dt_tol)) adap_dt_tol = dflt_adap_dt_tol
 
-        call s_start_bubbles_inputs()
+        call s_initialize_bubbles_inputs()
 
     end subroutine s_initialize_bubbles_EE_module   
 

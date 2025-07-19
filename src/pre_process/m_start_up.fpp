@@ -139,10 +139,10 @@ contains
             pi_fac, perturb_flow, perturb_flow_fluid, perturb_flow_mag, &
             perturb_sph, perturb_sph_fluid, fluid_rho, &
             cyl_coord, loops_x, loops_y, loops_z, &
-            rhoref, pref, bubbles_euler, R0ref, V0ref, nb, &
+            rhoref, pref, bubbles_euler, R0ref, nb, &
             polytropic, thermal, Ca, Web, Re_inv, &
             polydisperse, poly_sigma, qbmm, &
-            sigR, sigV, dist_type, rhoRV, R0_type, &
+            sigR, sigV, dist_type, rhoRV, &
             file_per_process, relax, relax_model, &
             palpha_eps, ptgalpha_eps, ib, num_ibs, patch_ib, &
             sigma, adv_n, cfl_adap_dt, cfl_const_dt, n_start, &

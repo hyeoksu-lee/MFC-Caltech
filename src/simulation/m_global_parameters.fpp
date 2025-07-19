@@ -381,11 +381,10 @@ module m_global_parameters
     #:endif
 
     real(wp) :: R0ref    !< Reference bubble size
-    real(wp) :: V0ref
     real(wp) :: Ca       !< Cavitation number
     real(wp) :: Web      !< Weber number
     real(wp) :: Re_inv   !< Inverse Reynolds number
-    $:GPU_DECLARE(create='[R0ref,V0ref,Ca,Web,Re_inv]')
+    $:GPU_DECLARE(create='[R0ref,Ca,Web,Re_inv]')
 
     real(wp), dimension(:), allocatable :: weight !< Simpson quadrature weights
     real(wp), dimension(:), allocatable :: R0     !< Bubble sizes
@@ -397,8 +396,8 @@ module m_global_parameters
     logical :: polydisperse !< Polydisperse bubbles
     $:GPU_DECLARE(create='[bubbles_euler,polytropic,polydisperse]')
 
-    type(bubbles_parameters) :: bub_params     !< EE/EL bubbles' parameters
-    $:GPU_DECLARE(create='[bub_params]')
+    type(bubbles_ref_scales) :: bub_refs     !< Reference scales for subgrid bubbles
+    $:GPU_DECLARE(create='[bub_refs]')
 
     logical :: adv_n        !< Solve the number density equation and compute alpha from number density
     logical :: adap_dt      !< Adaptive step size control
@@ -418,10 +417,9 @@ module m_global_parameters
     integer, parameter :: nmom = 6 !< Number of carried moments per R0 location
     integer :: nmomsp    !< Number of moments required by ensemble-averaging
     integer :: nmomtot   !< Total number of carried moments moments/transport equations
-    integer :: R0_type
 
     real(wp) :: pi_fac   !< Factor for artificial pi_inf
-    $:GPU_DECLARE(create='[qbmm, nmomsp,nmomtot,R0_type,pi_fac]')
+    $:GPU_DECLARE(create='[qbmm, nmomsp,nmomtot,pi_fac]')
 
     #:if not MFC_CASE_OPTIMIZATION
         $:GPU_DECLARE(create='[nb]')
@@ -653,15 +651,12 @@ contains
         polydisperse = .false.
         thermal = dflt_int
         R0ref = 1._wp
-        V0ref = 1._wp
 
         #:if not MFC_CASE_OPTIMIZATION
             nb = 1
             weno_order = dflt_int
             num_fluids = dflt_int
         #:endif
-
-        R0_type = dflt_int
 
         adv_n = .false.
         adap_dt = .false.
@@ -754,13 +749,15 @@ contains
             bc_${dir}$%grcbc_vel_out = .false.
         #:endfor
 
-        ! EE/EL subgrid bubble model
-        bub_params%c0 = dflt_real
-        bub_params%rho0 = dflt_real
-        bub_params%T0 = dflt_real
-        bub_params%Thost = dflt_real
-        bub_params%x0 = dflt_real
-        bub_params%p0inf = dflt_real
+        ! Reference scales for subgrid bubble model
+        bub_refs%rho0 = dflt_real
+        bub_refs%x0 = dflt_real
+        bub_refs%c0 = dflt_real
+        bub_refs%p0 = dflt_real
+        bub_refs%T0 = dflt_real
+        bub_refs%Thost = dflt_real
+        bub_refs%p0inf = dflt_real
+        bub_refs%R0ref = dflt_real
 
         ! Lagrangian subgrid bubble model
         bubbles_lagrange = .false.
@@ -1266,8 +1263,8 @@ contains
             $:GPU_UPDATE(device='[mhd, relativity]')
         #:endif
 
-        $:GPU_ENTER_DATA(copyin='[nb,R0ref,V0ref,Ca,Web,Re_inv,weight,R0, &
-            & V0,bubbles_euler,polytropic,polydisperse,qbmm,R0_type, &
+        $:GPU_ENTER_DATA(copyin='[nb,R0ref,Ca,Web,Re_inv,weight,R0, &
+            & V0,bubbles_euler,polytropic,polydisperse,qbmm, &
             & ptil,bubble_model,thermal,poly_sigma]')
         $:GPU_ENTER_DATA(copyin='[R_n,R_v,phi_vn,phi_nv,Pe_c,Tw,pv, &
             & M_n,M_v,k_n,k_v,pb0,mass_n0,mass_v0,Pe_T, &

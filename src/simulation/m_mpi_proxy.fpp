@@ -100,10 +100,9 @@ contains
             & 't_step_start','t_step_stop','t_step_save','t_step_print',       &
             & 'model_eqns','time_stepper', 'riemann_solver', 'low_Mach',       &
             & 'wave_speeds', 'avg_state', 'precision', 'bc_x%beg', 'bc_x%end', &
-            & 'bc_y%beg', 'bc_y%end', 'bc_z%beg', 'bc_z%end',  'fd_order',     &
+            & 'bc_y%beg', 'bc_y%end', 'bc_z%beg', 'bc_z%end', 'fd_order',      &
             & 'num_probes', 'num_integrals', 'bubble_model', 'thermal',        &
-            & 'R0_type', 'num_source', 'relax_model', 'num_ibs', 'n_start',    &
-            & 'num_bc_patches']
+            & 'num_source','relax_model','num_ibs','n_start','num_bc_patches' ]
             call MPI_BCAST(${VAR}$, 1, MPI_INTEGER, 0, MPI_COMM_WORLD, ierr)
         #:endfor
 
@@ -134,8 +133,8 @@ contains
         end if
 
         if (bubbles_euler .or. bubbles_lagrange) then
-            #:for VAR in [ 'c0', 'rho0', 'T0', 'x0', 'Thost', 'p0inf']
-                call MPI_BCAST(bub_params%${VAR}$, 1, mpi_p, 0, MPI_COMM_WORLD, ierr)
+            #:for VAR in [ 'rho0', 'x0', 'c0', 'p0', 'T0', 'Thost', 'p0inf', 'R0ref']
+                call MPI_BCAST(bub_refs%${VAR}$, 1, mpi_p, 0, MPI_COMM_WORLD, ierr)
             #:endfor
         end if 
 
@@ -154,7 +153,7 @@ contains
             #:endfor
         end if
 
-        #:for VAR in [ 'dt','weno_eps','teno_CT','pref','rhoref','R0ref','V0ref','Web','Ca', 'sigma', &
+        #:for VAR in [ 'dt','weno_eps','teno_CT','pref','rhoref','R0ref','Web','Ca', 'sigma', &
             & 'Re_inv', 'poly_sigma', 'palpha_eps', 'ptgalpha_eps', 'pi_fac',    &
             & 'bc_x%vb1','bc_x%vb2','bc_x%vb3','bc_x%ve1','bc_x%ve2','bc_x%ve2', &
             & 'bc_y%vb1','bc_y%vb2','bc_y%vb3','bc_y%ve1','bc_y%ve2','bc_y%ve3', &

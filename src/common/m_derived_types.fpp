@@ -420,16 +420,19 @@ module m_derived_types
         integer :: gamma_method
     end type chemistry_parameters
 
-    !> General bubble parameters (EE/EL)
-    type bubbles_parameters
+    !> Reference scales of subgrid bubbles
+    type bubbles_ref_scales
 
-        real(wp) :: c0               !< Reference speed
-        real(wp) :: rho0             !< Reference density
-        real(wp) :: T0, Thost        !< Reference temperature and host temperature
-        real(wp) :: x0               !< Reference length
-        real(wp) :: p0inf            !< Initial pressure at infinity
-        
-    end type bubbles_parameters
+        real(wp) :: rho0              !< Reference density 
+        real(wp) :: x0                !< Reference length
+        real(wp) :: c0                !< Reference velocity
+        real(wp) :: p0                !< Reference pressure
+        real(wp) :: T0, Thost         !< Reference temperature and host temperature
+
+        real(wp) :: p0inf             !< Reference pressure at infinity
+        real(wp) :: R0ref             !< Reference bubble radius
+
+    end type bubbles_ref_scales
 
     !> Lagrangian bubble parameters
     type bubbles_lagrange_parameters
