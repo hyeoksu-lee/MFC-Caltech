@@ -67,7 +67,9 @@ contains
 
         if (adap_dt .and. f_is_default(adap_dt_tol)) adap_dt_tol = dflt_adap_dt_tol
 
-    end subroutine s_initialize_bubbles_EE_module
+        call s_start_bubbles_inputs()
+
+    end subroutine s_initialize_bubbles_EE_module   
 
     ! Compute the bubble volume fraction alpha from the bubble number density n
         !! @param q_cons_vf is the conservative variable
@@ -287,7 +289,7 @@ contains
 
                         if (adap_dt) then
 
-                            call s_advance_step(myRho, myP, myR, myV, R0(q), &
+                            call s_advance_step(myRho, myP, myR, myV, R0(q)*R0ref, &
                                                 pb, pbdot, alf, n_tait, B_tait, &
                                                 bub_adv_src(j, k, l), divu%sf(j, k, l), &
                                                 dmBub_id, dmMass_v, dmMass_n, dmBeta_c, &
@@ -297,7 +299,7 @@ contains
                             q_cons_vf(vs(q))%sf(j, k, l) = nbub*myV
 
                         else
-                            rddot = f_rddot(myRho, myP, myR, myV, R0(q), &
+                            rddot = f_rddot(myRho, myP, myR, myV, R0(q)*R0ref, &
                                             pb, pbdot, alf, n_tait, B_tait, &
                                             bub_adv_src(j, k, l), divu%sf(j, k, l), &
                                             dmCson)

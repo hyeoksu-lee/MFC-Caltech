@@ -127,7 +127,7 @@ contains
             call MPI_BCAST(fluid_pp(i)%G, 1, mpi_p, 0, MPI_COMM_WORLD, ierr)
         end do
 
-        #:for VAR in [ 'pref', 'rhoref', 'R0ref', 'poly_sigma', 'Web', 'Ca', &
+        #:for VAR in [ 'pref', 'rhoref', 'R0ref', 'V0ref', 'poly_sigma', 'Web', 'Ca', &
             & 'Re_inv', 'Bx0', 'sigma', 't_save', 't_stop',   &
             & 'x_output%beg', 'x_output%end', 'y_output%beg', &
             & 'y_output%end', 'z_output%beg', 'z_output%end' ]

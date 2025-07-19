@@ -381,10 +381,11 @@ module m_global_parameters
     #:endif
 
     real(wp) :: R0ref    !< Reference bubble size
+    real(wp) :: V0ref
     real(wp) :: Ca       !< Cavitation number
     real(wp) :: Web      !< Weber number
     real(wp) :: Re_inv   !< Inverse Reynolds number
-    $:GPU_DECLARE(create='[R0ref,Ca,Web,Re_inv]')
+    $:GPU_DECLARE(create='[R0ref,V0ref,Ca,Web,Re_inv]')
 
     real(wp), dimension(:), allocatable :: weight !< Simpson quadrature weights
     real(wp), dimension(:), allocatable :: R0     !< Bubble sizes
@@ -395,6 +396,9 @@ module m_global_parameters
     logical :: polytropic   !< Polytropic  switch
     logical :: polydisperse !< Polydisperse bubbles
     $:GPU_DECLARE(create='[bubbles_euler,polytropic,polydisperse]')
+
+    type(bubbles_parameters) :: bub_params     !< EE/EL bubbles' parameters
+    $:GPU_DECLARE(create='[bub_params]')
 
     logical :: adv_n        !< Solve the number density equation and compute alpha from number density
     logical :: adap_dt      !< Adaptive step size control
@@ -648,7 +652,8 @@ contains
         polytropic = .true.
         polydisperse = .false.
         thermal = dflt_int
-        R0ref = dflt_real
+        R0ref = 1._wp
+        V0ref = 1._wp
 
         #:if not MFC_CASE_OPTIMIZATION
             nb = 1
@@ -749,6 +754,14 @@ contains
             bc_${dir}$%grcbc_vel_out = .false.
         #:endfor
 
+        ! EE/EL subgrid bubble model
+        bub_params%c0 = dflt_real
+        bub_params%rho0 = dflt_real
+        bub_params%T0 = dflt_real
+        bub_params%Thost = dflt_real
+        bub_params%x0 = dflt_real
+        bub_params%p0inf = dflt_real
+
         ! Lagrangian subgrid bubble model
         bubbles_lagrange = .false.
         lag_params%solver_approach = dflt_int
@@ -763,11 +776,6 @@ contains
         lag_params%epsilonb = 1._wp
         lag_params%charwidth = dflt_real
         lag_params%valmaxvoid = dflt_real
-        lag_params%c0 = dflt_real
-        lag_params%rho0 = dflt_real
-        lag_params%T0 = dflt_real
-        lag_params%Thost = dflt_real
-        lag_params%x0 = dflt_real
         lag_params%diffcoefvap = dflt_real
 
         ! Continuum damage model
@@ -1258,7 +1266,7 @@ contains
             $:GPU_UPDATE(device='[mhd, relativity]')
         #:endif
 
-        $:GPU_ENTER_DATA(copyin='[nb,R0ref,Ca,Web,Re_inv,weight,R0, &
+        $:GPU_ENTER_DATA(copyin='[nb,R0ref,V0ref,Ca,Web,Re_inv,weight,R0, &
             & V0,bubbles_euler,polytropic,polydisperse,qbmm,R0_type, &
             & ptil,bubble_model,thermal,poly_sigma]')
         $:GPU_ENTER_DATA(copyin='[R_n,R_v,phi_vn,phi_nv,Pe_c,Tw,pv, &

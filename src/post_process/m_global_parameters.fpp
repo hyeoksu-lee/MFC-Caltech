@@ -280,7 +280,7 @@ module m_global_parameters
     !> @name Bubble modeling variables and parameters
     !> @{
     integer :: nb
-    real(wp) :: R0ref
+    real(wp) :: R0ref, V0ref
     real(wp) :: Ca, Web, Re_inv
     real(wp), dimension(:), allocatable :: weight, R0, V0
     logical :: bubbles_euler
@@ -443,6 +443,7 @@ contains
         bubbles_euler = .false.
         qbmm = .false.
         R0ref = dflt_real
+        V0ref = dflt_real
         nb = dflt_int
         polydisperse = .false.
         poly_sigma = dflt_real

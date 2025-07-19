@@ -37,6 +37,7 @@ COMMON = {
     'm': ParamType.INT,
     'mpp_lim': ParamType.LOG,
     'R0ref': ParamType.REAL,
+    'V0ref': ParamType.REAL,
     'num_fluids': ParamType.INT,
     'model_eqns': ParamType.INT,
     'nb': ParamType.REAL,
@@ -307,9 +308,11 @@ for var in [ 'heatTransfer_model', 'massTransfer_model', 'pressure_corrector',
 for var in [ 'solver_approach', 'cluster_type', 'smooth_type', 'nBubs_glb']:
     SIMULATION[f'lag_params%{var}'] = ParamType.INT
 
-for var in [ 'epsilonb', 'valmaxvoid', 'charwidth', 'diffcoefvap',
-            'c0', 'rho0', 'T0', 'x0', 'Thost' ]:
+for var in [ 'epsilonb', 'valmaxvoid', 'charwidth', 'diffcoefvap']:
     SIMULATION[f'lag_params%{var}'] = ParamType.REAL
+
+for var in [ 'c0', 'rho0', 'T0', 'x0', 'Thost', 'p0inf' ]:
+    SIMULATION[f'bub_params%{var}'] = ParamType.REAL
 
 for var in [ 'diffusion', 'reactions' ]:
     SIMULATION[f'chem_params%{var}'] = ParamType.LOG

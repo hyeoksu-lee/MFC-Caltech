@@ -420,6 +420,17 @@ module m_derived_types
         integer :: gamma_method
     end type chemistry_parameters
 
+    !> General bubble parameters (EE/EL)
+    type bubbles_parameters
+
+        real(wp) :: c0               !< Reference speed
+        real(wp) :: rho0             !< Reference density
+        real(wp) :: T0, Thost        !< Reference temperature and host temperature
+        real(wp) :: x0               !< Reference length
+        real(wp) :: p0inf            !< Initial pressure at infinity
+        
+    end type bubbles_parameters
+
     !> Lagrangian bubble parameters
     type bubbles_lagrange_parameters
 
@@ -435,10 +446,6 @@ module m_derived_types
         real(wp) :: epsilonb         !< Standard deviation scaling for the gaussian function
         real(wp) :: charwidth        !< Domain virtual depth (z direction, for 2D simulations)
         real(wp) :: valmaxvoid       !< Maximum void fraction permitted
-        real(wp) :: c0               !< Reference speed
-        real(wp) :: rho0             !< Reference density
-        real(wp) :: T0, Thost        !< Reference temperature and host temperature
-        real(wp) :: x0               !< Reference length
         real(wp) :: diffcoefvap      !< Vapor diffusivity in the gas
 
     end type bubbles_lagrange_parameters

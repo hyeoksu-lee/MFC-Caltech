@@ -101,12 +101,13 @@ BASE_CFG = {
     'lag_params%heatTransfer_model'    : 'F',
     'lag_params%massTransfer_model'    : 'F',
     'lag_params%valmaxvoid'            : 0.9,
-    'lag_params%c0'                    : 10.1,
-    'lag_params%rho0'                  : 1000.,
-    'lag_params%T0'                    : 298.,
-    'lag_params%x0'                    : 1.,
+    'bub_params%c0'                    : 10.1,
+    'bub_params%rho0'                  : 1000.,
+    'bub_params%T0'                    : 298.,
+    'bub_params%x0'                    : 1.,
     'lag_params%diffcoefvap'           : 2.5e-5,
-    'lag_params%Thost'                 : 298.,
+    'bub_params%Thost'                 : 298.,
+    'bub_params%p0inf'                 : 101325.,
 }
 
 def trace_to_uuid(trace: str) -> str:
