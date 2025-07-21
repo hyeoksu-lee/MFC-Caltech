@@ -1023,7 +1023,7 @@ contains
                     if (nb == 1) then
                         weight(:) = 1._wp
                         R0(:) = 1._wp
-                        V0(:) = 0._wp
+                        V0(:) = 1._wp
                     else if (nb > 1) then
                         V0(:) = 1._wp
                     else

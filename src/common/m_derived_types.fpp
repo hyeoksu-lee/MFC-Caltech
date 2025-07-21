@@ -420,17 +420,17 @@ module m_derived_types
         integer :: gamma_method
     end type chemistry_parameters
 
-    !> Reference scales of subgrid bubbles
+    !> Reference bubble scales of subgrid bubbles
     type bubbles_ref_scales
 
-        real(wp) :: rho0              !< Reference density 
-        real(wp) :: x0                !< Reference length
-        real(wp) :: c0                !< Reference velocity
-        real(wp) :: p0                !< Reference pressure
-        real(wp) :: T0, Thost         !< Reference temperature and host temperature
+        real(wp) :: rho0        !< [kg/m3] Reference density
+        real(wp) :: x0          !< [m] Reference length
+        real(wp) :: c0          !< [m/s] Reference velocity
+        real(wp) :: p0          !< [N/m2] Reference pressure
+        real(wp) :: T0, Thost   !< [K] Reference temperature and host temperature
 
-        real(wp) :: p0inf             !< Reference pressure at infinity
-        real(wp) :: R0ref             !< Reference bubble radius
+        real(wp) :: p0inf       !< [N/m2] Reference pressure at infinity
+        real(wp) :: R0ref       !< [m] Reference bubble radius
 
     end type bubbles_ref_scales
 
