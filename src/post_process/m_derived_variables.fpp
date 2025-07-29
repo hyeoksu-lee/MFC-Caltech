@@ -665,6 +665,7 @@ contains
                     ! As eigenvector can have +/- signs, we can choose the sign
                     ! so that omega_proj is positive
                     if (omega_proj < 0._wp) then
+                        eigvec = -eigvec
                         omega_proj = -omega_proj
                     end if
 

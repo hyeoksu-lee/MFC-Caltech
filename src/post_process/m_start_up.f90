@@ -609,7 +609,9 @@ contains
                         theta2 = atan(liutex_axis(i, j, k, 3) / liutex_axis(i, j, k, 1)) / pi * 180._wp
                         if (theta1 .ge. 0._wp .and. theta1 .le. 90._wp) then
                             if (theta2 .ge. -45._wp .and. theta2 .le. 45._wp) then
-                                q_sf(i, j, k) = 1._wp 
+                                if (liutex_mag(i, j, k) > 0.01_wp) then
+                                    q_sf(i, j, k) = 1._wp 
+                                end if
                             end if
                         end if
                     end do
