@@ -593,37 +593,40 @@ contains
         ! Adding Liutex magnitude to the formatted database file
         if (liutex_wrt) then
 
-            ! ! Compute Liutex vector and its magnitude
-            ! call s_derive_liutex(q_prim_vf, liutex_mag, liutex_axis, omega, vort_stretch, vort_stretch_proj, vort_stretch_res, A_rr, A_ps, A_ns, A_sr, liutex_mag_filtered)
+            ! Compute Liutex vector and its magnitude
+            call s_derive_liutex(q_prim_vf, liutex_mag, liutex_axis, omega, vort_stretch, vort_stretch_proj, vort_stretch_res, A_rr, A_ps, A_ns, A_sr)
 
-            ! ! Liutex magnitude
-            ! q_sf = liutex_mag
+            ! Liutex magnitude
+            q_sf = liutex_mag
 
-            ! write (varname, '(A)') 'liutex_mag'
-            ! call s_write_variable_to_formatted_database_file(varname, t_step)
+            write (varname, '(A)') 'liutex_mag'
+            call s_write_variable_to_formatted_database_file(varname, t_step)
 
-            ! varname(:) = ' '
+            varname(:) = ' '
 
             ! Filtered vairables
-            call s_apply_gaussian_filter(q_prim_vf(mom_idx%beg    )%sf(:, :, :), vel_filtered(:,:,:,1) )
-            q_sf = vel_filtered(:,:,:,1) 
+            call s_apply_gaussian_filter(q_prim_vf(mom_idx%beg    )%sf(-offset_x%beg:m+offset_x%end,-offset_y%beg:n+offset_y%end,-offset_z%beg:p+offset_z%end), &
+                                         q_prim_ft(mom_idx%beg    )%sf(-offset_x%beg:m+offset_x%end,-offset_y%beg:n+offset_y%end,-offset_z%beg:p+offset_z%end))
+            q_sf = q_prim_ft(mom_idx%beg)%sf(-offset_x%beg:m+offset_x%end,-offset_y%beg:n+offset_y%end,-offset_z%beg:p+offset_z%end)
             write (varname, '(A)') 'vel1_filtered'
             call s_write_variable_to_formatted_database_file(varname, t_step)
             varname(:) = ' '
 
-            call s_apply_gaussian_filter(q_prim_vf(mom_idx%beg + 1)%sf(:, :, :), vel_filtered(:,:,:,2) )
-            q_sf = vel_filtered(:,:,:,2) 
+            call s_apply_gaussian_filter(q_prim_vf(mom_idx%beg + 1)%sf(-offset_x%beg:m+offset_x%end,-offset_y%beg:n+offset_y%end,-offset_z%beg:p+offset_z%end), &
+                                         q_prim_ft(mom_idx%beg + 1)%sf(-offset_x%beg:m+offset_x%end,-offset_y%beg:n+offset_y%end,-offset_z%beg:p+offset_z%end))
+            q_sf = q_prim_ft(mom_idx%beg + 1)%sf(-offset_x%beg:m+offset_x%end,-offset_y%beg:n+offset_y%end,-offset_z%beg:p+offset_z%end)
             write (varname, '(A)') 'vel2_filtered'
             call s_write_variable_to_formatted_database_file(varname, t_step)
             varname(:) = ' '
 
-            call s_apply_gaussian_filter(q_prim_vf(mom_idx%beg + 2)%sf(:, :, :), vel_filtered(:,:,:,3) )
-            q_sf = vel_filtered(:,:,:,3) 
+            call s_apply_gaussian_filter(q_prim_vf(mom_idx%beg + 2)%sf(-offset_x%beg:m+offset_x%end,-offset_y%beg:n+offset_y%end,-offset_z%beg:p+offset_z%end), &
+                                         q_prim_ft(mom_idx%beg + 2)%sf(-offset_x%beg:m+offset_x%end,-offset_y%beg:n+offset_y%end,-offset_z%beg:p+offset_z%end))
+            q_sf = q_prim_ft(mom_idx%beg + 2)%sf(-offset_x%beg:m+offset_x%end,-offset_y%beg:n+offset_y%end,-offset_z%beg:p+offset_z%end)
             write (varname, '(A)') 'vel3_filtered'
             call s_write_variable_to_formatted_database_file(varname, t_step)
             varname(:) = ' '
 
-            call s_derive_liutex2(vel_filtered, liutex_mag_filtered, liutex_axis, omega)
+            call s_derive_liutex(q_prim_ft, liutex_mag_filtered, liutex_axis, omega, vort_stretch, vort_stretch_proj, vort_stretch_res, A_rr, A_ps, A_ns, A_sr)
 
             q_sf = omega(:,:,:,1)
             write (varname, '(A)') 'omega1_filtered'
@@ -701,29 +704,28 @@ contains
             ! call s_write_variable_to_formatted_database_file(varname, t_step)
             ! varname(:) = ' '
 
+            ! ! QSV detection
+            ! do k = -offset_z%beg, p + offset_z%end
+            !     do j = -offset_y%beg, n + offset_y%end
+            !         do i = -offset_x%beg, m + offset_x%end
+            !             q_sf(i, j, k) = 0._wp
+            !             theta1 = atan(liutex_axis(i, j, k, 2) / liutex_axis(i, j, k, 1)) / pi * 180._wp
+            !             theta2 = atan(liutex_axis(i, j, k, 3) / liutex_axis(i, j, k, 1)) / pi * 180._wp
+            !             if (theta1 .ge. 0._wp .and. theta1 .le. 90._wp) then
+            !                 if (theta2 .ge. -45._wp .and. theta2 .le. 45._wp) then
+            !                     if (liutex_mag(i, j, k) > 0.01_wp) then
+            !                         q_sf(i, j, k) = 1._wp 
+            !                     end if
+            !                 end if
+            !             end if
+            !         end do
+            !     end do
+            ! end do
 
-            ! QSV detection
-            do k = -offset_z%beg, p + offset_z%end
-                do j = -offset_y%beg, n + offset_y%end
-                    do i = -offset_x%beg, m + offset_x%end
-                        q_sf(i, j, k) = 0._wp
-                        theta1 = atan(liutex_axis(i, j, k, 2) / liutex_axis(i, j, k, 1)) / pi * 180._wp
-                        theta2 = atan(liutex_axis(i, j, k, 3) / liutex_axis(i, j, k, 1)) / pi * 180._wp
-                        if (theta1 .ge. 0._wp .and. theta1 .le. 90._wp) then
-                            if (theta2 .ge. -45._wp .and. theta2 .le. 45._wp) then
-                                if (liutex_mag(i, j, k) > 0.01_wp) then
-                                    q_sf(i, j, k) = 1._wp 
-                                end if
-                            end if
-                        end if
-                    end do
-                end do
-            end do
+            ! write (varname, '(A)') 'qsv'
+            ! call s_write_variable_to_formatted_database_file(varname, t_step)
 
-            write (varname, '(A)') 'qsv'
-            call s_write_variable_to_formatted_database_file(varname, t_step)
-
-            varname(:) = ' '
+            ! varname(:) = ' '
 
         end if
 

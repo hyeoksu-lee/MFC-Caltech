@@ -53,6 +53,9 @@ module m_data_input
     type(scalar_field), allocatable, dimension(:), public :: q_prim_vf !<
     !! Primitive variables
 
+    type(scalar_field), allocatable, dimension(:), public :: q_prim_ft !<
+    !! Primitive variables
+
     type(integer_field), allocatable, dimension(:, :), public :: bc_type !<
     !! Boundary condition identifiers
 
@@ -200,6 +203,7 @@ contains
         do i = 1, sys_size
             allocate (q_cons_vf(i)%sf(start_idx:end_x, start_idx:end_y, start_idx:end_z))
             allocate (q_prim_vf(i)%sf(start_idx:end_x, start_idx:end_y, start_idx:end_z))
+            allocate (q_prim_ft(i)%sf(start_idx:end_x, start_idx:end_y, start_idx:end_z))
         end do
 
         if (ib) then
@@ -528,6 +532,7 @@ contains
         ! the simulation
         allocate (q_cons_vf(1:sys_size))
         allocate (q_prim_vf(1:sys_size))
+        allocate (q_prim_ft(1:sys_size))
 
         ! Allocating the parts of the conservative and primitive variables
         ! that do require the direct knowledge of the dimensionality of
@@ -578,10 +583,12 @@ contains
         do i = 1, sys_size
             deallocate (q_cons_vf(i)%sf)
             deallocate (q_prim_vf(i)%sf)
+            deallocate (q_prim_ft(i)%sf)
         end do
 
         deallocate (q_cons_vf)
         deallocate (q_prim_vf)
+        deallocate (q_prim_ft)
 
         if (ib) then
             deallocate (ib_markers%sf)
