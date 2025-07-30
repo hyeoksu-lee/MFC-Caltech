@@ -33,6 +33,8 @@ module m_derived_variables
  s_derive_vorticity_component, &
  s_derive_qm, &
  s_derive_liutex, &
+ s_derive_liutex2, &
+ s_apply_gaussian_filter, &
  s_derive_numerical_schlieren_function, &
  s_compute_speed_of_sound, &
  s_finalize_derived_variables_module
@@ -754,14 +756,57 @@ contains
             end do
         end do
 
-        ! Filtered vairables
-        print *, "filering begins ..."
-        call apply_gaussian_filter(q_prim_vf(mom_idx%beg    )%sf(:, :, :), u_filtered)
-        print *, "u_filtered done"
-        call apply_gaussian_filter(q_prim_vf(mom_idx%beg + 1)%sf(:, :, :), v_filtered)
-        print *, "v_filtered done"
-        call apply_gaussian_filter(q_prim_vf(mom_idx%beg + 2)%sf(:, :, :), w_filtered)
-        print *, "w_filtered done"
+    end subroutine s_derive_liutex
+
+    !> This subroutine gets as inputs the primitive variables. From those
+        !!      inputs, it proceeds to calculate the Liutex vector and its 
+        !!      magnitude.
+        !!  @param q_prim_vf Primitive variables
+        !!  @param liutex_mag Liutex magnitude
+        !!  @param liutex_axis Liutex axis
+    impure subroutine s_derive_liutex2(vel, liutex_mag, liutex_axis, omega)
+        real(wp), &
+            dimension(-offset_x%beg:m + offset_x%end, &
+                      -offset_y%beg:n + offset_y%end, &
+                      -offset_z%beg:p + offset_z%end, 3), &
+            intent(in) :: vel !< Liutex magnitude
+
+        real(wp), &
+            dimension(-offset_x%beg:m + offset_x%end, &
+                      -offset_y%beg:n + offset_y%end, &
+                      -offset_z%beg:p + offset_z%end), &
+            intent(out) :: liutex_mag !< Liutex magnitude
+
+        real(wp), &
+            dimension(-offset_x%beg:m + offset_x%end, &
+                      -offset_y%beg:n + offset_y%end, &
+                      -offset_z%beg:p + offset_z%end, 3), &
+            intent(out) :: liutex_axis !< Liutex rigid rotation axis
+
+        real(wp), &
+            dimension(-offset_x%beg:m + offset_x%end, &
+                      -offset_y%beg:n + offset_y%end, &
+                      -offset_z%beg:p + offset_z%end, 3), &
+            intent(out) :: omega !< Vorticity
+
+        real(wp), dimension(3, 3) :: vgt, vgti !< velocity gradient tensor
+
+        real(wp), dimension(3, 3) :: A_S, A_W
+        real(wp), dimension(3) :: vort_ps
+        real(wp) :: S2, W2
+
+        real(wp), dimension(3) :: lr, li !< eigenvalues
+        real(wp), dimension(3, 3) :: zr, zi !< eigenvectors
+        real(wp), dimension(3) :: fv1, fv2, fv3 !< temporary memory
+        real(wp), dimension(3) :: eigvec !< real eigenvector
+        real(wp) :: eigvec_mag !< magnitude of real eigenvector
+        real(wp) :: omega_proj !< projection of vorticity on real eigenvector
+        real(wp) :: lci !< imaginary part of complex eigenvalue
+        real(wp) :: alpha
+
+        integer :: j, k, l, r, i, il, jq, kr !< Generic loop iterators
+        integer :: idx
+        integer :: ierr
 
         do l = -offset_z%beg, p + offset_z%end
             do k = -offset_y%beg, n + offset_y%end
@@ -777,17 +822,17 @@ contains
                             vgt(i, 1) = &
                                 vgt(i, 1) + &
                                 fd_coeff_x(r, j)* &
-                                u_filtered(r + j, k, l)
+                                vel(r + j, k, l, i)
                             ! d()/dy
                             vgt(i, 2) = &
                                 vgt(i, 2) + &
                                 fd_coeff_y(r, k)* &
-                                v_filtered(j, r + k, l)
+                                vel(j, r + k, l, i)
                             ! d()/dz
                             vgt(i, 3) = &
                                 vgt(i, 3) + &
                                 fd_coeff_z(r, l)* &
-                                w_filtered(j, k, r + l)
+                                vel(j, k, r + l, i)
                         end do
                     end do
                     
@@ -836,20 +881,27 @@ contains
                     ! Compute Liutex magnitude
                     alpha = omega_proj**2._wp - 4._wp*lci**2._wp ! (2*alpha)^2 
                     if (alpha .gt. 0._wp) then
-                        liutex_mag_filtered(j, k, l) = omega_proj - sqrt(alpha)
+                        liutex_mag(j, k, l) = omega_proj - sqrt(alpha)
                     else
-                        liutex_mag_filtered(j, k, l) = omega_proj
+                        liutex_mag(j, k, l) = omega_proj
                     end if
 
+                    ! Compute Liutex axis
+                    if (liutex_mag(j, k, l) > 0.01) then
+                        liutex_axis(j, k, l, :) = eigvec(:)
+                    else
+                        liutex_axis(j, k, l, :) = 0._wp
+                    end if
+                    
                 end do
             end do
         end do
 
-    end subroutine s_derive_liutex
+    end subroutine s_derive_liutex2
 
-    impure subroutine apply_gaussian_filter(field, field_filtered)
-        real(wp), parameter :: sigma = 2._wp  ! Gaussian filter width
-        integer, parameter :: kernel_size = 21  ! Kernel size (odd number)
+    impure subroutine s_apply_gaussian_filter(field, field_filtered)
+        real(wp) :: sigma  ! Gaussian filter width
+        integer, parameter :: kernel_size = 11  ! Kernel size (odd number)
         integer, parameter :: pad_size = (kernel_size - 1)/2
 
         real(wp), &
@@ -867,6 +919,8 @@ contains
         real(wp), dimension(-pad_size:pad_size) :: kernel_x, kernel_y, kernel_z
         integer :: i, j, k, l, q, r, il, jq, kr
         real(wp) :: sum, norm, dist_x, dist_y, dist_z
+
+        sigma = nint((pad_size - 1)/2)*dx
 
         norm = 1._wp / (sigma * sqrt(2._wp * pi))
         field_filtered = 0._wp
@@ -888,6 +942,7 @@ contains
                     kernel_y = kernel_y / sum(kernel_y)
                     kernel_z = kernel_z / sum(kernel_z)
 
+
                     field_filtered(i, j, k) = 0._wp
                     do r = -pad_size, pad_size
                         do q = -pad_size, pad_size
@@ -900,16 +955,27 @@ contains
                                 if (il > m) il = il - m
                                 if (kr < 1) kr = kr + p
                                 if (kr > p) kr = kr - p
-                                if (jq >= 1 .and. jq <= n) then
+                                if (jq > 1 .and. jq < n) then
                                     field_filtered(i, j, k) = field_filtered(i, j, k) + field(il, jq, kr) * (kernel_x(l) * kernel_y(q) * kernel_z(r))
                                 end if
+
+                                if (proc_rank == 0 .and. i == 511 .and. j == 511 .and. k == 255) then
+                                    print *, il, jq, kr
+                                    print *, kernel_x
+                                    print *, kernel_y
+                                    print *, kernel_z
+                                    print *, field(il, jq, kr), field_filtered(i, j, k)
+                                    print *, " "
+                                end if
+
                             end do
                         end do
                     end do
+                    if (proc_rank == 0 .and. i == 511 .and. j == 511 .and. k == 255) call s_mpi_abort()
                 end do
             end do
         end do
-    end subroutine apply_gaussian_filter
+    end subroutine s_apply_gaussian_filter
 
     !>  This subroutine gets as inputs the conservative variables
         !!      and density. From those inputs, it proceeds to calculate

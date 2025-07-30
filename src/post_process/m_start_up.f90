@@ -211,7 +211,7 @@ contains
 
         real(wp), dimension(-offset_x%beg:m + offset_x%end, &
                             -offset_y%beg:n + offset_y%end, &
-                            -offset_z%beg:p + offset_z%end, 3) :: liutex_axis, omega, vort_stretch
+                            -offset_z%beg:p + offset_z%end, 3) :: liutex_axis, omega, vort_stretch, vel_filtered
 
         integer :: i, j, k, l
 
@@ -593,80 +593,114 @@ contains
         ! Adding Liutex magnitude to the formatted database file
         if (liutex_wrt) then
 
-            ! Compute Liutex vector and its magnitude
-            call s_derive_liutex(q_prim_vf, liutex_mag, liutex_axis, omega, vort_stretch, vort_stretch_proj, vort_stretch_res, A_rr, A_ps, A_ns, A_sr, liutex_mag_filtered)
+            ! ! Compute Liutex vector and its magnitude
+            ! call s_derive_liutex(q_prim_vf, liutex_mag, liutex_axis, omega, vort_stretch, vort_stretch_proj, vort_stretch_res, A_rr, A_ps, A_ns, A_sr, liutex_mag_filtered)
 
-            ! Liutex magnitude
-            q_sf = liutex_mag
+            ! ! Liutex magnitude
+            ! q_sf = liutex_mag
 
-            write (varname, '(A)') 'liutex_mag'
-            call s_write_variable_to_formatted_database_file(varname, t_step)
+            ! write (varname, '(A)') 'liutex_mag'
+            ! call s_write_variable_to_formatted_database_file(varname, t_step)
 
-            varname(:) = ' '
+            ! varname(:) = ' '
 
-            ! Liutex axis
-            do i = 1, 3
-                q_sf = liutex_axis(:,:,:,i)
-
-                write (varname, '(A,I0)') 'liutex_axis', i
-                call s_write_variable_to_formatted_database_file(varname, t_step)
-
-                varname(:) = ' '
-            end do
-
-            ! Vortex stretching term 
-            do i = 1, 3
-                q_sf = vort_stretch(:,:,:,i)
-
-                write (varname, '(A,I0)') 'vort_stretch', i
-                call s_write_variable_to_formatted_database_file(varname, t_step)
-
-                varname(:) = ' '
-            end do
-
-            ! Projection of vortex stretching term on Liutex axis
-            q_sf = vort_stretch_proj
-
-            write (varname, '(A)') 'vort_stretch_proj'
-            call s_write_variable_to_formatted_database_file(varname, t_step)
-
-            varname(:) = ' '
-
-            q_sf = vort_stretch_res
-
-            write (varname, '(A)') 'vort_stretch_res'
-            call s_write_variable_to_formatted_database_file(varname, t_step)
-
-            varname(:) = ' '
-
-            !
-            q_sf = A_rr
-            write (varname, '(A)') 'A_rr'
+            ! Filtered vairables
+            call s_apply_gaussian_filter(q_prim_vf(mom_idx%beg    )%sf(:, :, :), vel_filtered(:,:,:,1) )
+            q_sf = vel_filtered(:,:,:,1) 
+            write (varname, '(A)') 'vel1_filtered'
             call s_write_variable_to_formatted_database_file(varname, t_step)
             varname(:) = ' '
 
-            q_sf = A_ps
-            write (varname, '(A)') 'A_ps'
+            call s_apply_gaussian_filter(q_prim_vf(mom_idx%beg + 1)%sf(:, :, :), vel_filtered(:,:,:,2) )
+            q_sf = vel_filtered(:,:,:,2) 
+            write (varname, '(A)') 'vel2_filtered'
             call s_write_variable_to_formatted_database_file(varname, t_step)
             varname(:) = ' '
 
-            q_sf = A_ns
-            write (varname, '(A)') 'A_ns'
+            call s_apply_gaussian_filter(q_prim_vf(mom_idx%beg + 2)%sf(:, :, :), vel_filtered(:,:,:,3) )
+            q_sf = vel_filtered(:,:,:,3) 
+            write (varname, '(A)') 'vel3_filtered'
             call s_write_variable_to_formatted_database_file(varname, t_step)
             varname(:) = ' '
 
-            q_sf = A_sr
-            write (varname, '(A)') 'A_sr'
+            call s_derive_liutex2(vel_filtered, liutex_mag_filtered, liutex_axis, omega)
+
+            q_sf = omega(:,:,:,1)
+            write (varname, '(A)') 'omega1_filtered'
             call s_write_variable_to_formatted_database_file(varname, t_step)
             varname(:) = ' '
 
-            ! Liutex magnitude
+            q_sf = omega(:,:,:,2)
+            write (varname, '(A)') 'omega2_filtered'
+            call s_write_variable_to_formatted_database_file(varname, t_step)
+            varname(:) = ' '
+
+            q_sf = omega(:,:,:,3)
+            write (varname, '(A)') 'omega3_filtered'
+            call s_write_variable_to_formatted_database_file(varname, t_step)
+            varname(:) = ' '
+
             q_sf = liutex_mag_filtered
-
             write (varname, '(A)') 'liutex_mag_filtered'
             call s_write_variable_to_formatted_database_file(varname, t_step)
-
             varname(:) = ' '
+
+            ! ! Liutex axis
+            ! do i = 1, 3
+            !     q_sf = liutex_axis(:,:,:,i)
+
+            !     write (varname, '(A,I0)') 'liutex_axis', i
+            !     call s_write_variable_to_formatted_database_file(varname, t_step)
+
+            !     varname(:) = ' '
+            ! end do
+
+            ! ! Vortex stretching term 
+            ! do i = 1, 3
+            !     q_sf = vort_stretch(:,:,:,i)
+
+            !     write (varname, '(A,I0)') 'vort_stretch', i
+            !     call s_write_variable_to_formatted_database_file(varname, t_step)
+
+            !     varname(:) = ' '
+            ! end do
+
+            ! ! Projection of vortex stretching term on Liutex axis
+            ! q_sf = vort_stretch_proj
+
+            ! write (varname, '(A)') 'vort_stretch_proj'
+            ! call s_write_variable_to_formatted_database_file(varname, t_step)
+
+            ! varname(:) = ' '
+
+            ! q_sf = vort_stretch_res
+
+            ! write (varname, '(A)') 'vort_stretch_res'
+            ! call s_write_variable_to_formatted_database_file(varname, t_step)
+
+            ! varname(:) = ' '
+
+            ! !
+            ! q_sf = A_rr
+            ! write (varname, '(A)') 'A_rr'
+            ! call s_write_variable_to_formatted_database_file(varname, t_step)
+            ! varname(:) = ' '
+
+            ! q_sf = A_ps
+            ! write (varname, '(A)') 'A_ps'
+            ! call s_write_variable_to_formatted_database_file(varname, t_step)
+            ! varname(:) = ' '
+
+            ! q_sf = A_ns
+            ! write (varname, '(A)') 'A_ns'
+            ! call s_write_variable_to_formatted_database_file(varname, t_step)
+            ! varname(:) = ' '
+
+            ! q_sf = A_sr
+            ! write (varname, '(A)') 'A_sr'
+            ! call s_write_variable_to_formatted_database_file(varname, t_step)
+            ! varname(:) = ' '
+
 
             ! QSV detection
             do k = -offset_z%beg, p + offset_z%end
