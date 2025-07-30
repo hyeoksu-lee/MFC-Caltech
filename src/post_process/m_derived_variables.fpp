@@ -566,7 +566,8 @@ contains
         !!  @param q_prim_vf Primitive variables
         !!  @param liutex_mag Liutex magnitude
         !!  @param liutex_axis Liutex axis
-    pure subroutine s_derive_liutex(q_prim_vf, liutex_mag, liutex_axis, omega)
+    impure subroutine s_derive_liutex(q_prim_vf, liutex_mag, liutex_axis, omega, vort_stretch, vort_stretch_proj, vort_stretch_res, &
+                                    A_rr, A_ps, A_ns, A_sr, liutex_mag_filtered)
         type(scalar_field), &
             dimension(sys_size), &
             intent(in) :: q_prim_vf
@@ -575,7 +576,7 @@ contains
             dimension(-offset_x%beg:m + offset_x%end, &
                       -offset_y%beg:n + offset_y%end, &
                       -offset_z%beg:p + offset_z%end), &
-            intent(out) :: liutex_mag !< Liutex magnitude
+            intent(out) :: liutex_mag, liutex_mag_filtered !< Liutex magnitude
 
         real(wp), &
             dimension(-offset_x%beg:m + offset_x%end, &
@@ -587,9 +588,31 @@ contains
             dimension(-offset_x%beg:m + offset_x%end, &
                       -offset_y%beg:n + offset_y%end, &
                       -offset_z%beg:p + offset_z%end, 3), &
-            intent(out) :: omega !< Vorticity
+            intent(out) :: omega, vort_stretch !< Vorticity
+
+        real(wp), &
+            dimension(-offset_x%beg:m + offset_x%end, &
+                      -offset_y%beg:n + offset_y%end, &
+                      -offset_z%beg:p + offset_z%end), &
+            intent(out) :: vort_stretch_proj, vort_stretch_res
+
+        real(wp), &
+            dimension(-offset_x%beg:m + offset_x%end, &
+                      -offset_y%beg:n + offset_y%end, &
+                      -offset_z%beg:p + offset_z%end), &
+            intent(out) :: A_rr, A_ps, A_ns, A_sr
+
+        real(wp), &
+            dimension(-offset_x%beg:m + offset_x%end, &
+                      -offset_y%beg:n + offset_y%end, &
+                      -offset_z%beg:p + offset_z%end) &
+            :: u_filtered, v_filtered, w_filtered
 
         real(wp), dimension(3, 3) :: vgt, vgti !< velocity gradient tensor
+
+        real(wp), dimension(3, 3) :: A_S, A_W
+        real(wp), dimension(3) :: vort_ps
+        real(wp) :: S2, W2
 
         real(wp), dimension(3) :: lr, li !< eigenvalues
         real(wp), dimension(3, 3) :: zr, zi !< eigenvectors
@@ -600,7 +623,7 @@ contains
         real(wp) :: lci !< imaginary part of complex eigenvalue
         real(wp) :: alpha
 
-        integer :: j, k, l, r, i !< Generic loop iterators
+        integer :: j, k, l, r, i, il, jq, kr !< Generic loop iterators
         integer :: idx
         integer :: ierr
 
@@ -631,11 +654,30 @@ contains
                                 q_prim_vf(mom_idx%beg + i - 1)%sf(j, k, r + l)
                         end do
                     end do
-
+                    
                     ! Compute vorticity
                     omega(j, k, l, 1) = vgt(3,2) - vgt(2,3)
                     omega(j, k, l, 2) = vgt(1,3) - vgt(3,1)
                     omega(j, k, l, 3) = vgt(2,1) - vgt(1,2)
+
+                    ! Compute vortex stretching term
+                    do r = 1, 3
+                        vort_stretch(j, k, l, r) = omega(j, k, l, 1)*vgt(r,1) &
+                                                 + omega(j, k, l, 2)*vgt(r,2) &
+                                                 + omega(j, k, l, 3)*vgt(r,3)
+                    end do
+
+                    !
+                    A_S = 0.5_wp*(vgt + transpose(vgt))
+                    A_W = 0.5_wp*(vgt - transpose(vgt))
+                    S2 = 0._wp
+                    W2 = 0._wp
+                    do i = 1, 3
+                        do r = 1, 3
+                            S2 = S2 + A_S(i, r)**2._wp
+                            W2 = W2 + A_W(i, r)**2._wp
+                        end do
+                    end do
 
                     ! Compute eigenvalues (l = lr + i*li) and eigenvectors (z = zr + i*zi)
                     call cg(3, 3, vgt, vgti, lr, li, zr, zi, fv1, fv2, fv3, ierr)
@@ -643,7 +685,7 @@ contains
                     ! Find real eigenvector
                     idx = 1
                     do r = 2, 3
-                        if (abs(li(r)) .lt. abs(li(idx))) then
+                        if (abs(li(r)) < abs(li(idx))) then
                             idx = r
                         end if
                     end do
@@ -653,8 +695,10 @@ contains
                     eigvec_mag = sqrt(eigvec(1)**2._wp &
                                     + eigvec(2)**2._wp &
                                     + eigvec(3)**2._wp)
-                    if (eigvec_mag /= 0._wp) then
+                    if (eigvec_mag > sgm_eps) then
                         eigvec = eigvec / eigvec_mag
+                    else
+                        eigvec = 0._wp
                     end if
 
                     ! Compute vorticity projected on the eigenvector
@@ -681,15 +725,191 @@ contains
                     end if
 
                     ! Compute Liutex axis
-                    liutex_axis(j, k, l, 1) = eigvec(1)
-                    liutex_axis(j, k, l, 2) = eigvec(2)
-                    liutex_axis(j, k, l, 3) = eigvec(3)
+                    if (liutex_mag(j, k, l) > 0.01) then
+                        liutex_axis(j, k, l, :) = eigvec(:)
+                    else
+                        liutex_axis(j, k, l, :) = 0._wp
+                    end if
+                    
+                    ! Compute projection of vortex stretching term on Liutex axis
+                    vort_stretch_proj(j, k, l) = &
+                        abs(liutex_axis(j, k, l, 1)*vort_stretch(j, k, l, 1) + &
+                            liutex_axis(j, k, l, 2)*vort_stretch(j, k, l, 2) + &
+                            liutex_axis(j, k, l, 3)*vort_stretch(j, k, l, 3))
+
+                    vort_stretch_res(j, k, l) = &
+                        sqrt((vort_stretch(j, k, l, 1) - liutex_axis(j, k, l, 1)*vort_stretch_proj(j, k, l))**2._wp + &
+                             (vort_stretch(j, k, l, 2) - liutex_axis(j, k, l, 2)*vort_stretch_proj(j, k, l))**2._wp + &
+                             (vort_stretch(j, k, l, 3) - liutex_axis(j, k, l, 3)*vort_stretch_proj(j, k, l))**2._wp)
+
+                    ! Strength
+                    vort_ps(1) = omega(j, k, l, 1) - liutex_mag(j, k, l)*liutex_axis(j, k, l, 1)
+                    vort_ps(2) = omega(j, k, l, 2) - liutex_mag(j, k, l)*liutex_axis(j, k, l, 2)
+                    vort_ps(3) = omega(j, k, l, 3) - liutex_mag(j, k, l)*liutex_axis(j, k, l, 3)
+                    A_rr(j, k, l) = 0.5_wp * liutex_mag(j, k, l)**2._wp
+                    A_ps(j, k, l) = vort_ps(1)**2._wp + vort_ps(2)**2._wp + vort_ps(3)**2._wp
+                    A_ns(j, k, l) = S2 - 0.5_wp*A_ps(j, k, l)
+                    A_sr(j, k, l) = W2 - 0.5_wp*A_ps(j, k, l) - 0.5_wp*A_rr(j, k, l)
+                end do
+            end do
+        end do
+
+        ! Filtered vairables
+        print *, "filering begins ..."
+        call apply_gaussian_filter(q_prim_vf(mom_idx%beg    )%sf(:, :, :), u_filtered)
+        print *, "u_filtered done"
+        call apply_gaussian_filter(q_prim_vf(mom_idx%beg + 1)%sf(:, :, :), v_filtered)
+        print *, "v_filtered done"
+        call apply_gaussian_filter(q_prim_vf(mom_idx%beg + 2)%sf(:, :, :), w_filtered)
+        print *, "w_filtered done"
+
+        do l = -offset_z%beg, p + offset_z%end
+            do k = -offset_y%beg, n + offset_y%end
+                do j = -offset_x%beg, m + offset_x%end
+
+                    ! Get velocity gradient tensor (VGT)
+                    vgt(:, :) = 0._wp   ! real part of VGT
+                    vgti(:, :) = 0._wp  ! imaginary part of VGT is essentially zero
+                    
+                    do r = -fd_number, fd_number
+                        do i = 1, 3
+                            ! d()/dx
+                            vgt(i, 1) = &
+                                vgt(i, 1) + &
+                                fd_coeff_x(r, j)* &
+                                u_filtered(r + j, k, l)
+                            ! d()/dy
+                            vgt(i, 2) = &
+                                vgt(i, 2) + &
+                                fd_coeff_y(r, k)* &
+                                v_filtered(j, r + k, l)
+                            ! d()/dz
+                            vgt(i, 3) = &
+                                vgt(i, 3) + &
+                                fd_coeff_z(r, l)* &
+                                w_filtered(j, k, r + l)
+                        end do
+                    end do
+                    
+                    ! Compute vorticity
+                    omega(j, k, l, 1) = vgt(3,2) - vgt(2,3)
+                    omega(j, k, l, 2) = vgt(1,3) - vgt(3,1)
+                    omega(j, k, l, 3) = vgt(2,1) - vgt(1,2)
+
+                    ! Compute eigenvalues (l = lr + i*li) and eigenvectors (z = zr + i*zi)
+                    call cg(3, 3, vgt, vgti, lr, li, zr, zi, fv1, fv2, fv3, ierr)
+
+                    ! Find real eigenvector
+                    idx = 1
+                    do r = 2, 3
+                        if (abs(li(r)) < abs(li(idx))) then
+                            idx = r
+                        end if
+                    end do
+                    eigvec = zr(:,idx)
+
+                    ! Normalize real eigenvector if it is effectively non-zero
+                    eigvec_mag = sqrt(eigvec(1)**2._wp &
+                                    + eigvec(2)**2._wp &
+                                    + eigvec(3)**2._wp)
+                    if (eigvec_mag > sgm_eps) then
+                        eigvec = eigvec / eigvec_mag
+                    else
+                        eigvec = 0._wp
+                    end if
+
+                    ! Compute vorticity projected on the eigenvector
+                    omega_proj = omega(j, k, l, 1)*eigvec(1) &
+                               + omega(j, k, l, 2)*eigvec(2) &
+                               + omega(j, k, l, 3)*eigvec(3)
+
+                    ! As eigenvector can have +/- signs, we can choose the sign
+                    ! so that omega_proj is positive
+                    if (omega_proj < 0._wp) then
+                        eigvec = -eigvec
+                        omega_proj = -omega_proj
+                    end if
+
+                    ! Find imaginary part of complex eigenvalue
+                    lci = li(mod(idx, 3) + 1)
+
+                    ! Compute Liutex magnitude
+                    alpha = omega_proj**2._wp - 4._wp*lci**2._wp ! (2*alpha)^2 
+                    if (alpha .gt. 0._wp) then
+                        liutex_mag_filtered(j, k, l) = omega_proj - sqrt(alpha)
+                    else
+                        liutex_mag_filtered(j, k, l) = omega_proj
+                    end if
 
                 end do
             end do
         end do
 
     end subroutine s_derive_liutex
+
+    impure subroutine apply_gaussian_filter(field, field_filtered)
+        real(wp), parameter :: sigma = 2._wp  ! Gaussian filter width
+        integer, parameter :: kernel_size = 21  ! Kernel size (odd number)
+        integer, parameter :: pad_size = (kernel_size - 1)/2
+
+        real(wp), &
+            dimension(-offset_x%beg:m + offset_x%end, &
+                      -offset_y%beg:n + offset_y%end, &
+                      -offset_z%beg:p + offset_z%end), &
+            intent(in) :: field
+
+        real(wp), &
+            dimension(-offset_x%beg:m + offset_x%end, &
+                      -offset_y%beg:n + offset_y%end, &
+                      -offset_z%beg:p + offset_z%end), &
+            intent(out) :: field_filtered
+
+        real(wp), dimension(-pad_size:pad_size) :: kernel_x, kernel_y, kernel_z
+        integer :: i, j, k, l, q, r, il, jq, kr
+        real(wp) :: sum, norm, dist_x, dist_y, dist_z
+
+        norm = 1._wp / (sigma * sqrt(2._wp * pi))
+        field_filtered = 0._wp
+        do k = -offset_z%beg + pad_size, p + offset_z%end - pad_size
+            do j = -offset_y%beg + pad_size, n + offset_y%end - pad_size
+                do i = -offset_x%beg + pad_size, m + offset_x%end - pad_size
+
+                    ! Compute kernel
+                    do l = -pad_size, pad_size
+                        dist_x = x_cc(i + l) - x_cc(i)
+                        dist_y = y_cc(j + l) - y_cc(j)
+                        dist_z = z_cc(k + l) - z_cc(k)
+                        kernel_x(l) = norm * exp(-0.5_wp * (dist_x / sigma)**2._wp)
+                        kernel_y(l) = norm * exp(-0.5_wp * (dist_y / sigma)**2._wp)
+                        kernel_z(l) = norm * exp(-0.5_wp * (dist_z / sigma)**2._wp)
+                    end do
+                    ! Normalize kernel
+                    kernel_x = kernel_x / sum(kernel_x)
+                    kernel_y = kernel_y / sum(kernel_y)
+                    kernel_z = kernel_z / sum(kernel_z)
+
+                    field_filtered(i, j, k) = 0._wp
+                    do r = -pad_size, pad_size
+                        do q = -pad_size, pad_size
+                            do l = -pad_size, pad_size
+                                il = i + l
+                                jq = j + q
+                                kr = k + r
+                                ! Apply periodic BC in x and z, clamp in y
+                                if (il < 1) il = il + m
+                                if (il > m) il = il - m
+                                if (kr < 1) kr = kr + p
+                                if (kr > p) kr = kr - p
+                                if (jq >= 1 .and. jq <= n) then
+                                    field_filtered(i, j, k) = field_filtered(i, j, k) + field(il, jq, kr) * (kernel_x(l) * kernel_y(q) * kernel_z(r))
+                                end if
+                            end do
+                        end do
+                    end do
+                end do
+            end do
+        end do
+    end subroutine apply_gaussian_filter
 
     !>  This subroutine gets as inputs the conservative variables
         !!      and density. From those inputs, it proceeds to calculate
