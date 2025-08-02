@@ -409,7 +409,7 @@ module m_global_parameters
     logical :: adv_n        !< Solve the number density equation and compute alpha from number density
     logical :: adap_dt      !< Adaptive step size control
     real(wp) :: adap_dt_tol !< Tolerance to control adaptive step size
-    integer :: adap_dt_max_iters 
+    integer :: adap_dt_max_iters !< Maximum number of iterations
     $:GPU_DECLARE(create='[adv_n,adap_dt,adap_dt_tol,adap_dt_max_iters]')
 
     integer :: bubble_model !< Gilmore or Keller--Miksis bubble model
@@ -434,26 +434,6 @@ module m_global_parameters
     real(wp), dimension(:), allocatable :: R0     !< Bubble sizes
     $:GPU_DECLARE(create='[weight,R0]')
 
-<<<<<<< HEAD
-=======
-    logical :: bubbles_euler      !< Bubbles euler on/off
-    logical :: polytropic   !< Polytropic  switch
-    logical :: polydisperse !< Polydisperse bubbles
-    $:GPU_DECLARE(create='[bubbles_euler,polytropic,polydisperse]')
-
-    logical :: adv_n        !< Solve the number density equation and compute alpha from number density
-    logical :: adap_dt      !< Adaptive step size control
-    real(wp) :: adap_dt_tol !< Tolerance to control adaptive step size
-    integer :: adap_dt_max_iters !< Maximum number of iterations
-    $:GPU_DECLARE(create='[adv_n,adap_dt,adap_dt_tol,adap_dt_max_iters]')
-
-    integer :: bubble_model !< Gilmore or Keller--Miksis bubble model
-    integer :: thermal      !< Thermal behavior. 1 = adiabatic, 2 = isotherm, 3 = transfer
-    $:GPU_DECLARE(create='[bubble_model,thermal]')
-
-    real(wp), allocatable, dimension(:, :, :) :: ptil  !< Pressure modification
-
->>>>>>> fb664c21ace87f5065d9e6a7187f0b2ad82f2961
     real(wp) :: poly_sigma  !< log normal sigma for polydisperse PDF
     $:GPU_DECLARE(create='[poly_sigma]')
 
@@ -1290,13 +1270,8 @@ contains
             $:GPU_UPDATE(device='[muscl_order, muscl_lim]')
         #:endif
 
-<<<<<<< HEAD
         $:GPU_ENTER_DATA(copyin='[nb,Eu,Ca,Web,Re_inv,weight,R0, &
             & V0,bubbles_euler,polytropic,polydisperse,qbmm, &
-=======
-        $:GPU_ENTER_DATA(copyin='[nb,R0ref,Ca,Web,Re_inv,weight,R0, &
-            & bubbles_euler,polytropic,polydisperse,qbmm, &
->>>>>>> fb664c21ace87f5065d9e6a7187f0b2ad82f2961
             & ptil,bubble_model,thermal,poly_sigma]')
         $:GPU_ENTER_DATA(copyin='[R_n,R_v,phi_vn,phi_nv,Pe_c,Tw,pv, &
             & M_n,M_v,k_n,k_v,pb0,mass_n0,mass_v0,Pe_T, &

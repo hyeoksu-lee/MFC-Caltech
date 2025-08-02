@@ -216,15 +216,9 @@ module m_global_parameters
     !> @name Bubble modeling
     !> @{
     integer :: nb
-<<<<<<< HEAD
     real(wp) :: Eu, Ca, Web, Re_inv
-    real(wp), dimension(:), allocatable :: weight, R0, V0
-    logical :: bub_ss, bub_visc
-=======
-    real(wp) :: R0ref
-    real(wp) :: Ca, Web, Re_inv
     real(wp), dimension(:), allocatable :: weight, R0
->>>>>>> fb664c21ace87f5065d9e6a7187f0b2ad82f2961
+    logical :: bub_ss, bub_visc
     logical :: bubbles_euler
     logical :: qbmm      !< Quadrature moment method
     integer :: nmom  !< Number of carried moments

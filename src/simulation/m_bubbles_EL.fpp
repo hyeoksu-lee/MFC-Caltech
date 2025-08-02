@@ -343,11 +343,8 @@ contains
         call s_transcoeff(1._wp, PeT, Re_trans, Im_trans)
         gas_betaT(bub_id) = Re_trans*(heatflag)*kparticle
 
-<<<<<<< HEAD
-        PeG = bub_R0(bub_id)**2._wp*omegaN*Pe_c
-=======
-        PeG = bub_R0(bub_id)**2._wp*omegaN_local/lag_params%diffcoefvap
->>>>>>> fb664c21ace87f5065d9e6a7187f0b2ad82f2961
+        PeG = bub_R0(bub_id)**2._wp*omegaN_local*Pe_c
+
         call s_transcoeff(1._wp, PeG, Re_trans, Im_trans)
         gas_betaC(bub_id) = Re_trans*(massflag)/Pe_c
 

@@ -278,14 +278,8 @@ module m_global_parameters
     !> @{
     type(bubbles_ref_scales) :: bub_refs 
     integer :: nb
-<<<<<<< HEAD
     real(wp) :: Eu, Ca, Web, Re_inv
-    real(wp), dimension(:), allocatable :: weight, R0, V0
-=======
-    real(wp) :: R0ref
-    real(wp) :: Ca, Web, Re_inv
     real(wp), dimension(:), allocatable :: weight, R0
->>>>>>> fb664c21ace87f5065d9e6a7187f0b2ad82f2961
     logical :: bubbles_euler
     logical :: qbmm
     logical :: polytropic
