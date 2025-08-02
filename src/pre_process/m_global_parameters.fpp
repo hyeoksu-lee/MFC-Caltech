@@ -81,13 +81,16 @@ module m_global_parameters
     integer :: model_eqns            !< Multicomponent flow model
     logical :: relax                 !< activate phase change
     integer :: relax_model           !< Relax Model
-    real(wp) :: palpha_eps    !< trigger parameter for the p relaxation procedure, phase change model
-    real(wp) :: ptgalpha_eps  !< trigger parameter for the pTg relaxation procedure, phase change model
+    real(wp) :: palpha_eps           !< trigger parameter for the p relaxation procedure, phase change model
+    real(wp) :: ptgalpha_eps         !< trigger parameter for the pTg relaxation procedure, phase change model
     integer :: num_fluids            !< Number of different fluids present in the flow
     logical :: mpp_lim               !< Alpha limiter
     integer :: sys_size              !< Number of unknowns in the system of equations
-    integer :: weno_polyn     !< Degree of the WENO polynomials (polyn)
+    integer :: recon_type            !< Reconstruction Type
+    integer :: weno_polyn            !< Degree of the WENO polynomials (polyn)
+    integer :: muscl_polyn           !< Degree of the MUSCL polynomials (polyn)
     integer :: weno_order            !< Order of accuracy for the WENO reconstruction
+    integer :: muscl_order           !< Order of accuracy for the MUSCL reconstruction
     logical :: hypoelasticity        !< activate hypoelasticity
     logical :: hyperelasticity       !< activate hyperelasticity
     logical :: elasticity            !< elasticity modeling, true for hyper or hypo
@@ -189,8 +192,6 @@ module m_global_parameters
 
 #endif
 
-    integer, private :: ierr
-
     ! Initial Condition Parameters
     integer :: num_patches     !< Number of patches composing initial condition
 
@@ -215,9 +216,15 @@ module m_global_parameters
     !> @name Bubble modeling
     !> @{
     integer :: nb
+<<<<<<< HEAD
     real(wp) :: Eu, Ca, Web, Re_inv
     real(wp), dimension(:), allocatable :: weight, R0, V0
     logical :: bub_ss, bub_visc
+=======
+    real(wp) :: R0ref
+    real(wp) :: Ca, Web, Re_inv
+    real(wp), dimension(:), allocatable :: weight, R0
+>>>>>>> fb664c21ace87f5065d9e6a7187f0b2ad82f2961
     logical :: bubbles_euler
     logical :: qbmm      !< Quadrature moment method
     integer :: nmom  !< Number of carried moments
@@ -345,9 +352,11 @@ contains
         palpha_eps = dflt_real
         ptgalpha_eps = dflt_real
         num_fluids = dflt_int
+        recon_type = WENO_TYPE
         weno_order = dflt_int
         igr = .false.
         igr_order = dflt_int
+        muscl_order = dflt_int
 
         hypoelasticity = .false.
         hyperelasticity = .false.
@@ -574,7 +583,11 @@ contains
 
         integer :: i, j, fac
 
-        weno_polyn = (weno_order - 1)/2
+        if (recon_type == WENO_TYPE) then
+            weno_polyn = (weno_order - 1)/2
+        elseif (recon_type == MUSCL_TYPE) then
+            muscl_polyn = muscl_order
+        end if
 
         ! Determining the layout of the state vectors and overall size of
         ! the system of equations, given the dimensionality and choice of
@@ -651,7 +664,7 @@ contains
                     sys_size = n_idx
                 end if
 
-                allocate (weight(nb), R0(nb), V0(nb))
+                allocate (weight(nb), R0(nb))
                 allocate (bub_idx%rs(nb), bub_idx%vs(nb))
                 allocate (bub_idx%ps(nb), bub_idx%ms(nb))
 
@@ -692,11 +705,7 @@ contains
                 if (nb == 1) then
                     weight(:) = 1._wp
                     R0(:) = 1._wp
-                    V0(:) = 1._wp
-                else if (nb > 1) then
-                    V0(:) = 1._wp
-                    !R0 and weight initialized in s_simpson
-                else
+                else if (nb < 1) then
                     stop 'Invalid value of nb'
                 end if
             end if
@@ -750,7 +759,7 @@ contains
 
                 allocate (bub_idx%rs(nb), bub_idx%vs(nb))
                 allocate (bub_idx%ps(nb), bub_idx%ms(nb))
-                allocate (weight(nb), R0(nb), V0(nb))
+                allocate (weight(nb), R0(nb))
 
                 do i = 1, nb
                     if (.not. polytropic) then
@@ -771,10 +780,7 @@ contains
                 if (nb == 1) then
                     weight(:) = 1._wp
                     R0(:) = 1._wp
-                    V0(:) = 1._wp
-                else if (nb > 1) then
-                    V0(:) = 1._wp
-                else
+                else if (nb < 1) then
                     stop 'Invalid value of nb'
                 end if
             end if
@@ -857,7 +863,7 @@ contains
         chemxb = species_idx%beg
         chemxe = species_idx%end
 
-        call s_configure_coordinate_bounds(weno_polyn, buff_size, &
+        call s_configure_coordinate_bounds(recon_type, weno_polyn, muscl_polyn, buff_size, &
                                            idwint, idwbuff, viscous, &
                                            bubbles_lagrange, m, n, p, &
                                            num_dims, igr)
@@ -913,6 +919,10 @@ contains
     end subroutine s_initialize_global_parameters_module
 
     impure subroutine s_initialize_parallel_io
+
+#ifdef MFC_MPI
+        integer :: ierr !< Generic flag used to identify and report MPI errors
+#endif
 
         num_dims = 1 + min(1, n) + min(1, p)
 

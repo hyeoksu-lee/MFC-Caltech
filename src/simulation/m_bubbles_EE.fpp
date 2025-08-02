@@ -92,11 +92,11 @@ contains
 
     end subroutine s_comp_alpha_from_n
 
-    pure subroutine s_compute_bubbles_EE_rhs(idir, q_prim_vf, divu)
+    pure subroutine s_compute_bubbles_EE_rhs(idir, q_prim_vf, divu_in)
 
         integer, intent(in) :: idir
         type(scalar_field), dimension(sys_size), intent(in) :: q_prim_vf
-        type(scalar_field), intent(inout) :: divu !< matrix for div(u)
+        type(scalar_field), intent(inout) :: divu_in !< matrix for div(u)
 
         integer :: j, k, l
 
@@ -107,8 +107,8 @@ contains
                 do l = 0, p
                     do k = 0, n
                         do j = 0, m
-                            divu%sf(j, k, l) = 0._wp
-                            divu%sf(j, k, l) = &
+                            divu_in%sf(j, k, l) = 0._wp
+                            divu_in%sf(j, k, l) = &
                                 5.e-1_wp/dx(j)*(q_prim_vf(contxe + idir)%sf(j + 1, k, l) - &
                                                 q_prim_vf(contxe + idir)%sf(j - 1, k, l))
 
@@ -123,9 +123,9 @@ contains
             do l = 0, p
                 do k = 0, n
                     do j = 0, m
-                        divu%sf(j, k, l) = divu%sf(j, k, l) + &
-                                           5.e-1_wp/dy(k)*(q_prim_vf(contxe + idir)%sf(j, k + 1, l) - &
-                                                           q_prim_vf(contxe + idir)%sf(j, k - 1, l))
+                        divu_in%sf(j, k, l) = divu_in%sf(j, k, l) + &
+                                              5.e-1_wp/dy(k)*(q_prim_vf(contxe + idir)%sf(j, k + 1, l) - &
+                                                              q_prim_vf(contxe + idir)%sf(j, k - 1, l))
 
                     end do
                 end do
@@ -137,9 +137,9 @@ contains
             do l = 0, p
                 do k = 0, n
                     do j = 0, m
-                        divu%sf(j, k, l) = divu%sf(j, k, l) + &
-                                           5.e-1_wp/dz(l)*(q_prim_vf(contxe + idir)%sf(j, k, l + 1) - &
-                                                           q_prim_vf(contxe + idir)%sf(j, k, l - 1))
+                        divu_in%sf(j, k, l) = divu_in%sf(j, k, l) + &
+                                              5.e-1_wp/dz(l)*(q_prim_vf(contxe + idir)%sf(j, k, l + 1) - &
+                                                              q_prim_vf(contxe + idir)%sf(j, k, l - 1))
 
                     end do
                 end do
@@ -153,10 +153,11 @@ contains
         !!      that are needed for the bubble modeling
         !!  @param q_prim_vf Primitive variables
         !!  @param q_cons_vf Conservative variables
-    impure subroutine s_compute_bubble_EE_source(q_cons_vf, q_prim_vf, rhs_vf)
+    impure subroutine s_compute_bubble_EE_source(q_cons_vf, q_prim_vf, rhs_vf, divu_in)
         type(scalar_field), dimension(sys_size), intent(inout) :: q_cons_vf
         type(scalar_field), dimension(sys_size), intent(in) :: q_prim_vf
         type(scalar_field), dimension(sys_size), intent(inout) :: rhs_vf
+        type(scalar_field), intent(in) :: divu_in !< matrix for div(u)
 
         real(wp) :: rddot
         real(wp) :: pb_local, mv_local, vflux, pbdot
@@ -293,7 +294,11 @@ contains
 
                             call s_advance_step(myRho, myP, myR, myV, R0(q), &
                                                 pb_local, pbdot, alf, n_tait, B_tait, &
+<<<<<<< HEAD
                                                 bub_adv_src(j, k, l), divu%sf(j, k, l), &
+=======
+                                                bub_adv_src(j, k, l), divu_in%sf(j, k, l), &
+>>>>>>> fb664c21ace87f5065d9e6a7187f0b2ad82f2961
                                                 dmBub_id, dmMass_v, dmMass_n, dmBeta_c, &
                                                 dmBeta_t, dmCson, adap_dt_stop)
 
@@ -303,7 +308,11 @@ contains
                         else
                             rddot = f_rddot(myRho, myP, myR, myV, R0(q), &
                                             pb_local, pbdot, alf, n_tait, B_tait, &
+<<<<<<< HEAD
                                             bub_adv_src(j, k, l), divu%sf(j, k, l), &
+=======
+                                            bub_adv_src(j, k, l), divu_in%sf(j, k, l), &
+>>>>>>> fb664c21ace87f5065d9e6a7187f0b2ad82f2961
                                             dmCson)
                             bub_v_src(j, k, l, q) = nbub*rddot
                             bub_r_src(j, k, l, q) = q_cons_vf(vs(q))%sf(j, k, l)

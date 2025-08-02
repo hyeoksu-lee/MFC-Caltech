@@ -23,9 +23,6 @@ module m_mpi_proxy
 
     implicit none
 
-    integer, private :: ierr !<
-    !! Generic flag used to identify and report MPI errors
-
 contains
     !> Since only processor with rank 0 is in charge of reading
             !!       and checking the consistency of the user provided inputs,
@@ -38,6 +35,8 @@ contains
 
         ! Generic loop iterator
         integer :: i
+        ! Generic flag used to identify and report MPI errors
+        integer :: ierr
 
         ! Logistics
         call MPI_BCAST(case_dir, len(case_dir), MPI_CHARACTER, 0, MPI_COMM_WORLD, ierr)
@@ -47,7 +46,7 @@ contains
             & 'weno_order', 'precision', 'perturb_flow_fluid', &
             & 'perturb_sph_fluid', 'num_patches', 'thermal', 'nb', 'dist_type',&
             & 'relax_model', 'num_ibs', 'n_start', 'elliptic_smoothing_iters', &
-            & 'num_bc_patches', 'mixlayer_perturb_nk' ]
+            & 'num_bc_patches', 'mixlayer_perturb_nk', 'recon_type', 'muscl_order']
             call MPI_BCAST(${VAR}$, 1, MPI_INTEGER, 0, MPI_COMM_WORLD, ierr)
         #:endfor
 
@@ -155,4 +154,3 @@ contains
     end subroutine s_mpi_bcast_user_inputs
 
 end module m_mpi_proxy
-

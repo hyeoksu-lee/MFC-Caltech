@@ -113,9 +113,13 @@ module m_global_parameters
     logical :: prim_vars_wrt
 
     #:if MFC_CASE_OPTIMIZATION
+        integer, parameter :: recon_type = ${recon_type}$ !< Reconstruction type
         integer, parameter :: weno_polyn = ${weno_polyn}$ !< Degree of the WENO polynomials (polyn)
+        integer, parameter :: muscl_polyn = ${muscl_polyn}$ !< Degree of the MUSCL polynomials (polyn)
         integer, parameter :: weno_order = ${weno_order}$ !< Order of the WENO reconstruction
+        integer, parameter :: muscl_order = ${muscl_order}$ !< Order of the MUSCL order
         integer, parameter :: weno_num_stencils = ${weno_num_stencils}$ !< Number of stencils for WENO reconstruction (only different from weno_polyn for TENO(>5))
+        integer, parameter :: muscl_lim = ${muscl_lim}$ !< MUSCL Limiter
         integer, parameter :: num_fluids = ${num_fluids}$           !< number of fluids in the simulation
         logical, parameter :: wenojs = (${wenojs}$ /= 0)            !< WENO-JS (default)
         logical, parameter :: mapped_weno = (${mapped_weno}$ /= 0)  !< WENO-M (WENO with mapping of nonlinear weights)
@@ -130,9 +134,13 @@ module m_global_parameters
         logical, parameter :: igr_pres_lim = (${igr_pres_lim}$ /= 0)!< Limit to positive pressures for IGR
         logical, parameter :: viscous = (${viscous}$ /= 0)          !< Viscous effects
     #:else
+        integer :: recon_type     !< Reconstruction Type
         integer :: weno_polyn     !< Degree of the WENO polynomials (polyn)
+        integer :: muscl_polyn    !< Degree of the MUSCL polynomials (polyn)i
         integer :: weno_order     !< Order of the WENO reconstruction
+        integer :: muscl_order    !< Order of the MUSCL reconstruction
         integer :: weno_num_stencils    !< Number of stencils for WENO reconstruction (only different from weno_polyn for TENO(>5))
+        integer :: muscl_lim      !< MUSCL Limiter
         integer :: num_fluids     !< number of fluids in the simulation
         logical :: wenojs         !< WENO-JS (default)
         logical :: mapped_weno    !< WENO-M (WENO with mapping of nonlinear weights)
@@ -162,10 +170,12 @@ module m_global_parameters
     logical :: mixture_err     !< Mixture properties correction
     logical :: hypoelasticity  !< hypoelasticity modeling
     logical :: hyperelasticity !< hyperelasticity modeling
+    logical :: int_comp        !< THINC interface compression
+    real(wp) :: ic_eps         !< THINC Epsilon to compress on surface cells
+    real(wp) :: ic_beta        !< THINC Sharpness Parameter
     integer :: hyper_model     !< hyperelasticity solver algorithm
     logical :: elasticity      !< elasticity modeling, true for hyper or hypo
     logical, parameter :: chemistry = .${chemistry}$. !< Chemistry modeling
-    logical :: cu_tensor
     logical :: shear_stress  !< Shear stresses
     logical :: bulk_stress   !< Bulk stresses
     logical :: cont_damage   !< Continuum damage modeling
@@ -193,6 +203,7 @@ module m_global_parameters
         $:GPU_DECLARE(create='[weno_num_stencils,num_fluids,wenojs]')
         $:GPU_DECLARE(create='[mapped_weno, wenoz,teno,wenoz_q,mhd,relativity]')
         $:GPU_DECLARE(create='[igr_iter_solver,igr_order,viscous,igr_pres_lim,igr]')
+        $:GPU_DECLARE(create='[recon_type, muscl_order, muscl_polyn, muscl_lim]')
     #:endif
 
     $:GPU_DECLARE(create='[mpp_lim,model_eqns,mixture_err,alt_soundspeed]')
@@ -243,8 +254,6 @@ module m_global_parameters
     character(LEN=name_len) :: mpiiofs
     integer :: mpi_info_int
     !> @}
-
-    integer, private :: ierr
 
     !> @name Annotations of the structure of the state and flux vectors in terms of the
     !! size and the configuration of the system of equations to which they belong
@@ -423,9 +432,28 @@ module m_global_parameters
 
     real(wp), dimension(:), allocatable :: weight !< Simpson quadrature weights
     real(wp), dimension(:), allocatable :: R0     !< Bubble sizes
-    real(wp), dimension(:), allocatable :: V0     !< Bubble velocities
-    $:GPU_DECLARE(create='[weight,R0,V0]')
+    $:GPU_DECLARE(create='[weight,R0]')
 
+<<<<<<< HEAD
+=======
+    logical :: bubbles_euler      !< Bubbles euler on/off
+    logical :: polytropic   !< Polytropic  switch
+    logical :: polydisperse !< Polydisperse bubbles
+    $:GPU_DECLARE(create='[bubbles_euler,polytropic,polydisperse]')
+
+    logical :: adv_n        !< Solve the number density equation and compute alpha from number density
+    logical :: adap_dt      !< Adaptive step size control
+    real(wp) :: adap_dt_tol !< Tolerance to control adaptive step size
+    integer :: adap_dt_max_iters !< Maximum number of iterations
+    $:GPU_DECLARE(create='[adv_n,adap_dt,adap_dt_tol,adap_dt_max_iters]')
+
+    integer :: bubble_model !< Gilmore or Keller--Miksis bubble model
+    integer :: thermal      !< Thermal behavior. 1 = adiabatic, 2 = isotherm, 3 = transfer
+    $:GPU_DECLARE(create='[bubble_model,thermal]')
+
+    real(wp), allocatable, dimension(:, :, :) :: ptil  !< Pressure modification
+
+>>>>>>> fb664c21ace87f5065d9e6a7187f0b2ad82f2961
     real(wp) :: poly_sigma  !< log normal sigma for polydisperse PDF
     $:GPU_DECLARE(create='[poly_sigma]')
 
@@ -511,7 +539,7 @@ module m_global_parameters
     real(wp) :: mytime       !< Current simulation time
     real(wp) :: finaltime    !< Final simulation time
 
-    logical :: weno_flat, riemann_flat, rdma_mpi
+    logical :: rdma_mpi
 
     real(wp) :: Bx0 !< Constant magnetic field in the x-direction (1D)
     logical :: powell !< Powell‐correction for div B = 0
@@ -586,12 +614,13 @@ contains
         ptgalpha_eps = dflt_real
         hypoelasticity = .false.
         hyperelasticity = .false.
+        int_comp = .false.
+        ic_eps = dflt_ic_eps
+        ic_beta = dflt_ic_beta
         elasticity = .false.
         hyper_model = dflt_int
         b_size = dflt_int
         tensor_size = dflt_int
-        weno_flat = .true.
-        riemann_flat = .true.
         rdma_mpi = .false.
         shear_stress = .false.
         bulk_stress = .false.
@@ -678,7 +707,10 @@ contains
 
         #:if not MFC_CASE_OPTIMIZATION
             nb = 1
+            recon_type = WENO_TYPE
             weno_order = dflt_int
+            muscl_order = dflt_int
+            muscl_lim = dflt_int
             num_fluids = dflt_int
         #:endif
 
@@ -709,9 +741,6 @@ contains
         ! Surface tension
         sigma = dflt_real
         surface_tension = .false.
-
-        ! Cuda aware MPI
-        cu_tensor = .false.
 
         bodyForces = .false.
         bf_x = .false.; bf_y = .false.; bf_z = .false.
@@ -820,13 +849,17 @@ contains
 
         #:if not MFC_CASE_OPTIMIZATION
             ! Determining the degree of the WENO polynomials
-            weno_polyn = (weno_order - 1)/2
-            if (teno) then
-                weno_num_stencils = weno_order - 3
-            else
-                weno_num_stencils = weno_polyn
+            if (recon_type == WENO_TYPE) then
+                weno_polyn = (weno_order - 1)/2
+                if (teno) then
+                    weno_num_stencils = weno_order - 3
+                else
+                    weno_num_stencils = weno_polyn
+                end if
+            elseif (recon_type == MUSCL_TYPE) then
+                muscl_polyn = muscl_order
             end if
-            $:GPU_UPDATE(device='[weno_polyn]')
+            $:GPU_UPDATE(device='[weno_polyn, muscl_polyn]')
             $:GPU_UPDATE(device='[weno_num_stencils]')
             $:GPU_UPDATE(device='[nb]')
             $:GPU_UPDATE(device='[num_dims,num_vels,num_fluids]')
@@ -914,7 +947,7 @@ contains
                         sys_size = n_idx
                     end if
 
-                    @:ALLOCATE(weight(nb), R0(nb), V0(nb))
+                    @:ALLOCATE(weight(nb), R0(nb))
                     @:ALLOCATE(bub_idx%rs(nb), bub_idx%vs(nb))
                     @:ALLOCATE(bub_idx%ps(nb), bub_idx%ms(nb))
 
@@ -955,11 +988,7 @@ contains
                     if (nb == 1) then
                         weight(:) = 1._wp
                         R0(:) = 1._wp
-                        V0(:) = 1._wp
-                    else if (nb > 1) then
-                        V0(:) = 1._wp
-                        !R0 and weight initialized in s_simpson
-                    else
+                    else if (nb < 1) then
                         stop 'Invalid value of nb'
                     end if
                 end if
@@ -1008,7 +1037,7 @@ contains
 
                     @:ALLOCATE(bub_idx%rs(nb), bub_idx%vs(nb))
                     @:ALLOCATE(bub_idx%ps(nb), bub_idx%ms(nb))
-                    @:ALLOCATE(weight(nb), R0(nb), V0(nb))
+                    @:ALLOCATE(weight(nb), R0(nb))
 
                     do i = 1, nb
                         if (polytropic) then
@@ -1028,10 +1057,7 @@ contains
                     if (nb == 1) then
                         weight(:) = 1._wp
                         R0(:) = 1._wp
-                        V0(:) = 1._wp
-                    else if (nb > 1) then
-                        V0(:) = 1._wp
-                    else
+                    else if (nb < 1) then
                         stop 'Invalid value of nb'
                     end if
                 end if
@@ -1194,7 +1220,7 @@ contains
             fd_number = max(1, fd_order/2)
         end if
 
-        call s_configure_coordinate_bounds(weno_polyn, buff_size, &
+        call s_configure_coordinate_bounds(recon_type, weno_polyn, muscl_polyn, buff_size, &
                                            idwint, idwbuff, viscous, &
                                            bubbles_lagrange, m, n, p, &
                                            num_dims, igr)
@@ -1261,10 +1287,16 @@ contains
             $:GPU_UPDATE(device='[wenojs,mapped_weno,wenoz,teno]')
             $:GPU_UPDATE(device='[wenoz_q]')
             $:GPU_UPDATE(device='[mhd, relativity]')
+            $:GPU_UPDATE(device='[muscl_order, muscl_lim]')
         #:endif
 
+<<<<<<< HEAD
         $:GPU_ENTER_DATA(copyin='[nb,Eu,Ca,Web,Re_inv,weight,R0, &
             & V0,bubbles_euler,polytropic,polydisperse,qbmm, &
+=======
+        $:GPU_ENTER_DATA(copyin='[nb,R0ref,Ca,Web,Re_inv,weight,R0, &
+            & bubbles_euler,polytropic,polydisperse,qbmm, &
+>>>>>>> fb664c21ace87f5065d9e6a7187f0b2ad82f2961
             & ptil,bubble_model,thermal,poly_sigma]')
         $:GPU_ENTER_DATA(copyin='[R_n,R_v,phi_vn,phi_nv,Pe_c,Tw,pv, &
             & M_n,M_v,k_n,k_v,pb0,mass_n0,mass_v0,Pe_T, &
@@ -1293,6 +1325,10 @@ contains
 
     !> Initializes parallel infrastructure
     impure subroutine s_initialize_parallel_io
+
+#ifdef MFC_MPI
+        integer :: ierr !< Generic flag used to identify and report MPI errors
+#endif
 
         #:if not MFC_CASE_OPTIMIZATION
             num_dims = 1 + min(1, n) + min(1, p)

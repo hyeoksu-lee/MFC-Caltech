@@ -32,6 +32,9 @@ module m_start_up
     use m_weno                 !< Weighted and essentially non-oscillatory (WENO)
                                !! schemes for spatial reconstruction of variables
 
+    use m_muscl                !< Monotonic Upstream-centered (MUSCL)
+                               !! schemes for convservation laws 
+
     use m_riemann_solvers      !< Exact and approximate Riemann problem solvers
 
     use m_cbc                  !< Characteristic boundary conditions (CBC)
@@ -146,9 +149,8 @@ contains
         ! Namelist of the global parameters which may be specified by user
         namelist /user_inputs/ case_dir, run_time_info, m, n, p, dt, &
             t_step_start, t_step_stop, t_step_save, t_step_print, &
-            model_eqns, mpp_lim, time_stepper, weno_eps, weno_flat, &
-            riemann_flat, rdma_mpi, cu_tensor, &
-            teno_CT, mp_weno, weno_avg, &
+            model_eqns, mpp_lim, time_stepper, weno_eps, &
+            rdma_mpi, teno_CT, mp_weno, weno_avg, &
             riemann_solver, low_Mach, wave_speeds, avg_state, &
             bc_x, bc_y, bc_z, &
             x_a, y_a, z_a, x_b, y_b, z_b, &
@@ -165,6 +167,7 @@ contains
             nb, mapped_weno, wenoz, teno, wenoz_q, weno_order, &
             num_fluids, mhd, relativity, igr_order, viscous, &
             igr_iter_solver, igr, igr_pres_lim, &
+            recon_type, muscl_order, muscl_lim, &
 #:endif
             acoustic_source, acoustic, num_source, &
             polytropic, thermal, &
@@ -182,8 +185,8 @@ contains
             hyperelasticity, num_bc_patches, Bx0, powell, &
             cont_damage, tau_star, cont_damage_s, alpha_bar, &
             alf_factor, num_igr_iters, &
-            num_igr_warm_start_iters
-
+            num_igr_warm_start_iters, &
+            int_comp, ic_eps, ic_beta 
         ! Checking that an input file has been provided by the user. If it
         ! has, then the input file is read in, otherwise, simulation exits.
         inquire (FILE=trim(file_path), EXIST=file_exist)
@@ -1300,7 +1303,11 @@ contains
         if (igr) then
             call s_initialize_igr_module()
         else
-            call s_initialize_weno_module()
+            if (recon_type == WENO_TYPE) then
+                call s_initialize_weno_module()
+            elseif (recon_type == MUSCL_TYPE) then
+                call s_initialize_muscl_module()
+            end if
             call s_initialize_cbc_module()
             call s_initialize_riemann_solvers_module()
         end if
@@ -1400,7 +1407,11 @@ contains
         if (chemistry) then
             $:GPU_UPDATE(device='[q_T_sf%sf]')
         end if
+<<<<<<< HEAD
         $:GPU_UPDATE(device='[nb,Eu,Ca,Web,Re_inv,weight,R0,V0, &
+=======
+        $:GPU_UPDATE(device='[nb,R0ref,Ca,Web,Re_inv,weight,R0, &
+>>>>>>> fb664c21ace87f5065d9e6a7187f0b2ad82f2961
             & bubbles_euler,polytropic,polydisperse,qbmm, &
             & ptil,bubble_model,thermal,poly_sigma,adv_n,adap_dt, &
             & adap_dt_tol,adap_dt_max_iters,n_idx,pi_fac,low_Mach]')
@@ -1448,7 +1459,11 @@ contains
         else
             call s_finalize_cbc_module()
             call s_finalize_riemann_solvers_module()
-            call s_finalize_weno_module()
+            if (recon_type == WENO_TYPE) then
+                call s_finalize_weno_module()
+            elseif (recon_type == MUSCL_TYPE) then
+                call s_finalize_muscl_module()
+            end if
         end if
         call s_finalize_variables_conversion_module()
         if (grid_geometry == 3) call s_finalize_fftw_module

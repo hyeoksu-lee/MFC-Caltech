@@ -29,6 +29,10 @@ module m_rhs
 
     use m_weno                 !< Weighted and essentially non-oscillatory (WENO)
                                !! schemes for spatial reconstruction of variables
+
+    use m_muscl                !< Monotonic Upstream-centered (MUSCL)
+                               !! schemes for conservation laws
+
     use m_riemann_solvers      !< Exact and approximate Riemann problem solvers
 
     use m_cbc                  !< Characteristic boundary conditions (CBC)
@@ -614,15 +618,15 @@ contains
 
     end subroutine s_initialize_rhs_module
 
-    impure subroutine s_compute_rhs(q_cons_vf, q_T_sf, q_prim_vf, bc_type, rhs_vf, pb, rhs_pb, mv, rhs_mv, t_step, time_avg, stage)
+    impure subroutine s_compute_rhs(q_cons_vf, q_T_sf, q_prim_vf, bc_type, rhs_vf, pb_in, rhs_pb, mv_in, rhs_mv, t_step, time_avg, stage)
 
         type(scalar_field), dimension(sys_size), intent(inout) :: q_cons_vf
         type(scalar_field), intent(inout) :: q_T_sf
         type(scalar_field), dimension(sys_size), intent(inout) :: q_prim_vf
         type(integer_field), dimension(1:num_dims, -1:1), intent(in) :: bc_type
         type(scalar_field), dimension(sys_size), intent(inout) :: rhs_vf
-        real(wp), dimension(idwbuff(1)%beg:, idwbuff(2)%beg:, idwbuff(3)%beg:, 1:, 1:), intent(inout) :: pb, rhs_pb
-        real(wp), dimension(idwbuff(1)%beg:, idwbuff(2)%beg:, idwbuff(3)%beg:, 1:, 1:), intent(inout) :: mv, rhs_mv
+        real(wp), dimension(idwbuff(1)%beg:, idwbuff(2)%beg:, idwbuff(3)%beg:, 1:, 1:), intent(inout) :: pb_in, rhs_pb
+        real(wp), dimension(idwbuff(1)%beg:, idwbuff(2)%beg:, idwbuff(3)%beg:, 1:, 1:), intent(inout) :: mv_in, rhs_mv
         integer, intent(in) :: t_step
         real(wp), intent(inout) :: time_avg
         integer, intent(in) :: stage
@@ -672,7 +676,7 @@ contains
 
         if (igr) then
             call nvtxStartRange("RHS-COMMUNICATION")
-            call s_populate_variables_buffers(bc_type, q_cons_vf, pb, mv)
+            call s_populate_variables_buffers(bc_type, q_cons_vf, pb_in, mv_in)
             call nvtxEndRange
         else
             call nvtxStartRange("RHS-CONVERT")
@@ -684,7 +688,7 @@ contains
             call nvtxEndRange
 
             call nvtxStartRange("RHS-COMMUNICATION")
-            call s_populate_variables_buffers(bc_type, q_prim_qp%vf, pb, mv)
+            call s_populate_variables_buffers(bc_type, q_prim_qp%vf, pb_in, mv_in)
             call nvtxEndRange
         end if
 
@@ -719,7 +723,7 @@ contains
             if (t_step == t_step_stop) return
         end if
 
-        if (qbmm) call s_mom_inv(q_cons_qp%vf, q_prim_qp%vf, mom_sp, mom_3d, pb, rhs_pb, mv, rhs_mv, idwbuff(1), idwbuff(2), idwbuff(3))
+        if (qbmm) call s_mom_inv(q_cons_qp%vf, q_prim_qp%vf, mom_sp, mom_3d, pb_in, rhs_pb, mv_in, rhs_mv, idwbuff(1), idwbuff(2), idwbuff(3))
 
         if (viscous .and. .not. igr) then
             call nvtxStartRange("RHS-VISCOUS")
@@ -737,7 +741,7 @@ contains
 
         if (surface_tension) then
             call nvtxStartRange("RHS-SURFACE-TENSION")
-            call s_get_capilary(q_prim_qp%vf, bc_type)
+            call s_get_capillary(q_prim_qp%vf, bc_type)
             call nvtxEndRange
         end if
 
@@ -913,7 +917,7 @@ contains
                                             q_prim_qp%vf, &
                                             rhs_vf, &
                                             flux_n(id)%vf, &
-                                            pb, &
+                                            pb_in, &
                                             rhs_pb)
                     call nvtxEndRange
                 end if
@@ -960,7 +964,8 @@ contains
             call s_compute_bubble_EE_source( &
                 q_cons_qp%vf(1:sys_size), &
                 q_prim_qp%vf(1:sys_size), &
-                rhs_vf)
+                rhs_vf, &
+                divu)
             call nvtxEndRange
         end if
 
@@ -1489,13 +1494,13 @@ contains
 
     end subroutine s_compute_advection_source_term
 
-    subroutine s_compute_additional_physics_rhs(idir, q_prim_vf, rhs_vf, flux_src_n, &
+    subroutine s_compute_additional_physics_rhs(idir, q_prim_vf, rhs_vf, flux_src_n_in, &
                                                 dq_prim_dx_vf, dq_prim_dy_vf, dq_prim_dz_vf)
 
         integer, intent(in) :: idir
         type(scalar_field), dimension(sys_size), intent(in) :: q_prim_vf
         type(scalar_field), dimension(sys_size), intent(inout) :: rhs_vf
-        type(scalar_field), dimension(sys_size), intent(in) :: flux_src_n
+        type(scalar_field), dimension(sys_size), intent(in) :: flux_src_n_in
         type(scalar_field), dimension(sys_size), intent(in) :: dq_prim_dx_vf, dq_prim_dy_vf, dq_prim_dz_vf
 
         integer :: i, j, k, l
@@ -1510,8 +1515,8 @@ contains
                             rhs_vf(c_idx)%sf(j, k, l) = &
                                 rhs_vf(c_idx)%sf(j, k, l) + 1._wp/dx(j)* &
                                 q_prim_vf(c_idx)%sf(j, k, l)* &
-                                (flux_src_n(advxb)%sf(j, k, l) - &
-                                 flux_src_n(advxb)%sf(j - 1, k, l))
+                                (flux_src_n_in(advxb)%sf(j, k, l) - &
+                                 flux_src_n_in(advxb)%sf(j - 1, k, l))
                         end do
                     end do
                 end do
@@ -1525,8 +1530,8 @@ contains
                         do i = momxb, E_idx
                             rhs_vf(i)%sf(j, k, l) = &
                                 rhs_vf(i)%sf(j, k, l) + 1._wp/dx(j)* &
-                                (flux_src_n(i)%sf(j - 1, k, l) &
-                                 - flux_src_n(i)%sf(j, k, l))
+                                (flux_src_n_in(i)%sf(j - 1, k, l) &
+                                 - flux_src_n_in(i)%sf(j, k, l))
                         end do
                     end do
                 end do
@@ -1542,8 +1547,8 @@ contains
                             rhs_vf(c_idx)%sf(j, k, l) = &
                                 rhs_vf(c_idx)%sf(j, k, l) + 1._wp/dy(k)* &
                                 q_prim_vf(c_idx)%sf(j, k, l)* &
-                                (flux_src_n(advxb)%sf(j, k, l) - &
-                                 flux_src_n(advxb)%sf(j, k - 1, l))
+                                (flux_src_n_in(advxb)%sf(j, k, l) - &
+                                 flux_src_n_in(advxb)%sf(j, k - 1, l))
                         end do
                     end do
                 end do
@@ -1590,8 +1595,8 @@ contains
                             do i = momxb, E_idx
                                 rhs_vf(i)%sf(j, k, l) = &
                                     rhs_vf(i)%sf(j, k, l) + 1._wp/dy(k)* &
-                                    (flux_src_n(i)%sf(j, k - 1, l) &
-                                     - flux_src_n(i)%sf(j, k, l))
+                                    (flux_src_n_in(i)%sf(j, k - 1, l) &
+                                     - flux_src_n_in(i)%sf(j, k, l))
                             end do
                         end do
                     end do
@@ -1606,8 +1611,8 @@ contains
                             do i = momxb, E_idx
                                 rhs_vf(i)%sf(j, k, l) = &
                                     rhs_vf(i)%sf(j, k, l) + 1._wp/dy(k)* &
-                                    (flux_src_n(i)%sf(j, k - 1, l) &
-                                     - flux_src_n(i)%sf(j, k, l))
+                                    (flux_src_n_in(i)%sf(j, k - 1, l) &
+                                     - flux_src_n_in(i)%sf(j, k, l))
                             end do
                         end do
                     end do
@@ -1627,8 +1632,8 @@ contains
                                 do i = momxb, E_idx
                                     rhs_vf(i)%sf(j, k, l) = &
                                         rhs_vf(i)%sf(j, k, l) - 5.e-1_wp/y_cc(k)* &
-                                        (flux_src_n(i)%sf(j, k - 1, l) &
-                                         + flux_src_n(i)%sf(j, k, l))
+                                        (flux_src_n_in(i)%sf(j, k - 1, l) &
+                                         + flux_src_n_in(i)%sf(j, k, l))
                                 end do
                             end do
                         end do
@@ -1657,8 +1662,8 @@ contains
                                 do i = momxb, E_idx
                                     rhs_vf(i)%sf(j, k, l) = &
                                         rhs_vf(i)%sf(j, k, l) - 5.e-1_wp/y_cc(k)* &
-                                        (flux_src_n(i)%sf(j, k - 1, l) &
-                                         + flux_src_n(i)%sf(j, k, l))
+                                        (flux_src_n_in(i)%sf(j, k - 1, l) &
+                                         + flux_src_n_in(i)%sf(j, k, l))
                                 end do
                             end do
                         end do
@@ -1677,8 +1682,8 @@ contains
                             rhs_vf(c_idx)%sf(j, k, l) = &
                                 rhs_vf(c_idx)%sf(j, k, l) + 1._wp/dz(l)* &
                                 q_prim_vf(c_idx)%sf(j, k, l)* &
-                                (flux_src_n(advxb)%sf(j, k, l) - &
-                                 flux_src_n(advxb)%sf(j, k, l - 1))
+                                (flux_src_n_in(advxb)%sf(j, k, l) - &
+                                 flux_src_n_in(advxb)%sf(j, k, l - 1))
                         end do
                     end do
                 end do
@@ -1692,8 +1697,8 @@ contains
                         do i = momxb, E_idx
                             rhs_vf(i)%sf(j, k, l) = &
                                 rhs_vf(i)%sf(j, k, l) + 1._wp/dz(l)* &
-                                (flux_src_n(i)%sf(j, k, l - 1) &
-                                 - flux_src_n(i)%sf(j, k, l))
+                                (flux_src_n_in(i)%sf(j, k, l - 1) &
+                                 - flux_src_n_in(i)%sf(j, k, l))
                         end do
                     end do
                 end do
@@ -1706,13 +1711,13 @@ contains
                         do j = 0, m
                             rhs_vf(momxb + 1)%sf(j, k, l) = &
                                 rhs_vf(momxb + 1)%sf(j, k, l) + 5.e-1_wp* &
-                                (flux_src_n(momxe)%sf(j, k, l - 1) &
-                                 + flux_src_n(momxe)%sf(j, k, l))
+                                (flux_src_n_in(momxe)%sf(j, k, l - 1) &
+                                 + flux_src_n_in(momxe)%sf(j, k, l))
 
                             rhs_vf(momxe)%sf(j, k, l) = &
                                 rhs_vf(momxe)%sf(j, k, l) - 5.e-1_wp* &
-                                (flux_src_n(momxb + 1)%sf(j, k, l - 1) &
-                                 + flux_src_n(momxb + 1)%sf(j, k, l))
+                                (flux_src_n_in(momxb + 1)%sf(j, k, l - 1) &
+                                 + flux_src_n_in(momxb + 1)%sf(j, k, l))
                         end do
                     end do
                 end do
@@ -1746,48 +1751,50 @@ contains
         real(wp), dimension(idwbuff(1)%beg:, idwbuff(2)%beg:, idwbuff(3)%beg:, 1:), intent(inout) :: vR_x, vR_y, vR_z
         integer, intent(in) :: norm_dir
 
-        integer :: weno_dir !< Coordinate direction of the WENO reconstruction
+        integer :: recon_dir !< Coordinate direction of the reconstruction
 
-        ! Reconstruction in s1-direction
+        integer :: i, j, k, l
 
-        if (norm_dir == 1) then
-            is1 = idwbuff(1); is2 = idwbuff(2); is3 = idwbuff(3)
-            weno_dir = 1; is1%beg = is1%beg + weno_polyn
-            is1%end = is1%end - weno_polyn
+        #:for SCHEME, TYPE in [('weno','WENO_TYPE'), ('muscl','MUSCL_TYPE')]
+            if (recon_type == ${TYPE}$) then
+                ! Reconstruction in s1-direction
+                if (norm_dir == 1) then
+                    is1 = idwbuff(1); is2 = idwbuff(2); is3 = idwbuff(3)
+                    recon_dir = 1; is1%beg = is1%beg + ${SCHEME}$_polyn
+                    is1%end = is1%end - ${SCHEME}$_polyn
 
-        elseif (norm_dir == 2) then
-            is1 = idwbuff(2); is2 = idwbuff(1); is3 = idwbuff(3)
-            weno_dir = 2; is1%beg = is1%beg + weno_polyn
-            is1%end = is1%end - weno_polyn
+                elseif (norm_dir == 2) then
+                    is1 = idwbuff(2); is2 = idwbuff(1); is3 = idwbuff(3)
+                    recon_dir = 2; is1%beg = is1%beg + ${SCHEME}$_polyn
+                    is1%end = is1%end - ${SCHEME}$_polyn
 
-        else
-            is1 = idwbuff(3); is2 = idwbuff(2); is3 = idwbuff(1)
-            weno_dir = 3; is1%beg = is1%beg + weno_polyn
-            is1%end = is1%end - weno_polyn
+                else
+                    is1 = idwbuff(3); is2 = idwbuff(2); is3 = idwbuff(1)
+                    recon_dir = 3; is1%beg = is1%beg + ${SCHEME}$_polyn
+                    is1%end = is1%end - ${SCHEME}$_polyn
+                end if
 
-        end if
+                if (n > 0) then
+                    if (p > 0) then
+                        call s_${SCHEME}$ (v_vf(iv%beg:iv%end), &
+                                           vL_x(:, :, :, iv%beg:iv%end), vL_y(:, :, :, iv%beg:iv%end), vL_z(:, :, :, iv%beg:iv%end), vR_x(:, :, :, iv%beg:iv%end), vR_y(:, :, :, iv%beg:iv%end), vR_z(:, :, :, iv%beg:iv%end), &
+                                           recon_dir, &
+                                           is1, is2, is3)
+                    else
+                        call s_${SCHEME}$ (v_vf(iv%beg:iv%end), &
+                                           vL_x(:, :, :, iv%beg:iv%end), vL_y(:, :, :, iv%beg:iv%end), vL_z(:, :, :, :), vR_x(:, :, :, iv%beg:iv%end), vR_y(:, :, :, iv%beg:iv%end), vR_z(:, :, :, :), &
+                                           recon_dir, &
+                                           is1, is2, is3)
+                    end if
+                else
 
-        if (n > 0) then
-            if (p > 0) then
-
-                call s_weno(v_vf(iv%beg:iv%end), &
-                            vL_x(:, :, :, iv%beg:iv%end), vL_y(:, :, :, iv%beg:iv%end), vL_z(:, :, :, iv%beg:iv%end), vR_x(:, :, :, iv%beg:iv%end), vR_y(:, :, :, iv%beg:iv%end), vR_z(:, :, :, iv%beg:iv%end), &
-                            weno_dir, &
-                            is1, is2, is3)
-            else
-                call s_weno(v_vf(iv%beg:iv%end), &
-                            vL_x(:, :, :, iv%beg:iv%end), vL_y(:, :, :, iv%beg:iv%end), vL_z(:, :, :, :), vR_x(:, :, :, iv%beg:iv%end), vR_y(:, :, :, iv%beg:iv%end), vR_z(:, :, :, :), &
-                            weno_dir, &
-                            is1, is2, is3)
+                    call s_${SCHEME}$ (v_vf(iv%beg:iv%end), &
+                                       vL_x(:, :, :, iv%beg:iv%end), vL_y(:, :, :, :), vL_z(:, :, :, :), vR_x(:, :, :, iv%beg:iv%end), vR_y(:, :, :, :), vR_z(:, :, :, :), &
+                                       recon_dir, &
+                                       is1, is2, is3)
+                end if
             end if
-        else
-
-            call s_weno(v_vf(iv%beg:iv%end), &
-                        vL_x(:, :, :, iv%beg:iv%end), vL_y(:, :, :, :), vL_z(:, :, :, :), vR_x(:, :, :, iv%beg:iv%end), vR_y(:, :, :, :), vR_z(:, :, :, :), &
-                        weno_dir, &
-                        is1, is2, is3)
-        end if
-
+        #:endfor
     end subroutine s_reconstruct_cell_boundary_values
 
     subroutine s_reconstruct_cell_boundary_values_first_order(v_vf, vL_x, vL_y, vL_z, vR_x, vR_y, vR_z, &
@@ -1803,62 +1810,66 @@ contains
         integer :: i, j, k, l
         ! Reconstruction in s1-direction
 
-        if (norm_dir == 1) then
-            is1 = idwbuff(1); is2 = idwbuff(2); is3 = idwbuff(3)
-            recon_dir = 1; is1%beg = is1%beg + weno_polyn
-            is1%end = is1%end - weno_polyn
+        #:for SCHEME, TYPE in [('weno','WENO_TYPE'), ('muscl', 'MUSCL_TYPE')]
+            if (recon_type == ${TYPE}$) then
+                if (norm_dir == 1) then
+                    is1 = idwbuff(1); is2 = idwbuff(2); is3 = idwbuff(3)
+                    recon_dir = 1; is1%beg = is1%beg + ${SCHEME}$_polyn
+                    is1%end = is1%end - ${SCHEME}$_polyn
 
-        elseif (norm_dir == 2) then
-            is1 = idwbuff(2); is2 = idwbuff(1); is3 = idwbuff(3)
-            recon_dir = 2; is1%beg = is1%beg + weno_polyn
-            is1%end = is1%end - weno_polyn
+                elseif (norm_dir == 2) then
+                    is1 = idwbuff(2); is2 = idwbuff(1); is3 = idwbuff(3)
+                    recon_dir = 2; is1%beg = is1%beg + ${SCHEME}$_polyn
+                    is1%end = is1%end - ${SCHEME}$_polyn
 
-        else
-            is1 = idwbuff(3); is2 = idwbuff(2); is3 = idwbuff(1)
-            recon_dir = 3; is1%beg = is1%beg + weno_polyn
-            is1%end = is1%end - weno_polyn
+                else
+                    is1 = idwbuff(3); is2 = idwbuff(2); is3 = idwbuff(1)
+                    recon_dir = 3; is1%beg = is1%beg + ${SCHEME}$_polyn
+                    is1%end = is1%end - ${SCHEME}$_polyn
 
-        end if
+                end if
 
-        $:GPU_UPDATE(device='[is1,is2,is3,iv]')
+                $:GPU_UPDATE(device='[is1,is2,is3,iv]')
 
-        if (recon_dir == 1) then
-            $:GPU_PARALLEL_LOOP(collapse=4)
-            do i = iv%beg, iv%end
-                do l = is3%beg, is3%end
-                    do k = is2%beg, is2%end
-                        do j = is1%beg, is1%end
-                            vL_x(j, k, l, i) = v_vf(i)%sf(j, k, l)
-                            vR_x(j, k, l, i) = v_vf(i)%sf(j, k, l)
+                if (recon_dir == 1) then
+                    $:GPU_PARALLEL_LOOP(collapse=4)
+                    do i = iv%beg, iv%end
+                        do l = is3%beg, is3%end
+                            do k = is2%beg, is2%end
+                                do j = is1%beg, is1%end
+                                    vL_x(j, k, l, i) = v_vf(i)%sf(j, k, l)
+                                    vR_x(j, k, l, i) = v_vf(i)%sf(j, k, l)
+                                end do
+                            end do
                         end do
                     end do
-                end do
-            end do
-        else if (recon_dir == 2) then
-            $:GPU_PARALLEL_LOOP(collapse=4)
-            do i = iv%beg, iv%end
-                do l = is3%beg, is3%end
-                    do k = is2%beg, is2%end
-                        do j = is1%beg, is1%end
-                            vL_y(j, k, l, i) = v_vf(i)%sf(k, j, l)
-                            vR_y(j, k, l, i) = v_vf(i)%sf(k, j, l)
+                else if (recon_dir == 2) then
+                    $:GPU_PARALLEL_LOOP(collapse=4)
+                    do i = iv%beg, iv%end
+                        do l = is3%beg, is3%end
+                            do k = is2%beg, is2%end
+                                do j = is1%beg, is1%end
+                                    vL_y(j, k, l, i) = v_vf(i)%sf(k, j, l)
+                                    vR_y(j, k, l, i) = v_vf(i)%sf(k, j, l)
+                                end do
+                            end do
                         end do
                     end do
-                end do
-            end do
-        else if (recon_dir == 3) then
-            $:GPU_PARALLEL_LOOP(collapse=4)
-            do i = iv%beg, iv%end
-                do l = is3%beg, is3%end
-                    do k = is2%beg, is2%end
-                        do j = is1%beg, is1%end
-                            vL_z(j, k, l, i) = v_vf(i)%sf(l, k, j)
-                            vR_z(j, k, l, i) = v_vf(i)%sf(l, k, j)
+                else if (recon_dir == 3) then
+                    $:GPU_PARALLEL_LOOP(collapse=4)
+                    do i = iv%beg, iv%end
+                        do l = is3%beg, is3%end
+                            do k = is2%beg, is2%end
+                                do j = is1%beg, is1%end
+                                    vL_z(j, k, l, i) = v_vf(i)%sf(l, k, j)
+                                    vR_z(j, k, l, i) = v_vf(i)%sf(l, k, j)
+                                end do
+                            end do
                         end do
                     end do
-                end do
-            end do
-        end if
+                end if
+            end if
+        #:endfor
 
     end subroutine s_reconstruct_cell_boundary_values_first_order
 

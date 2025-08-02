@@ -105,7 +105,9 @@ module m_global_parameters
     integer :: relax_model     !< Phase change relaxation model
     logical :: mpp_lim         !< Maximum volume fraction limiter
     integer :: sys_size        !< Number of unknowns in the system of equations
+    integer :: recon_type      !< Which type of reconstruction to use
     integer :: weno_order      !< Order of accuracy for the WENO reconstruction
+    integer :: muscl_order     !< Order of accuracy for the MUSCL reconstruction
     logical :: mixture_err     !< Mixture error limiter
     logical :: alt_soundspeed  !< Alternate sound speed
     logical :: mhd             !< Magnetohydrodynamics
@@ -197,8 +199,6 @@ module m_global_parameters
     integer :: mpi_info_int
     !> @}
 
-    integer, private :: ierr
-
     type(physical_parameters), dimension(num_fluids_max) :: fluid_pp !<
     !! Database of the physical parameters of each of the fluids that is present
     !! in the flow. These include the stiffened gas equation of state parameters,
@@ -278,8 +278,14 @@ module m_global_parameters
     !> @{
     type(bubbles_ref_scales) :: bub_refs 
     integer :: nb
+<<<<<<< HEAD
     real(wp) :: Eu, Ca, Web, Re_inv
     real(wp), dimension(:), allocatable :: weight, R0, V0
+=======
+    real(wp) :: R0ref
+    real(wp) :: Ca, Web, Re_inv
+    real(wp), dimension(:), allocatable :: weight, R0
+>>>>>>> fb664c21ace87f5065d9e6a7187f0b2ad82f2961
     logical :: bubbles_euler
     logical :: qbmm
     logical :: polytropic
@@ -357,7 +363,9 @@ contains
         ! Simulation algorithm parameters
         model_eqns = dflt_int
         num_fluids = dflt_int
+        recon_type = WENO_TYPE
         weno_order = dflt_int
+        muscl_order = dflt_int
         mixture_err = .false.
         alt_soundspeed = .false.
         relax = .false.
@@ -561,7 +569,7 @@ contains
 
                 allocate (bub_idx%rs(nb), bub_idx%vs(nb))
                 allocate (bub_idx%ps(nb), bub_idx%ms(nb))
-                allocate (weight(nb), R0(nb), V0(nb))
+                allocate (weight(nb), R0(nb))
 
                 if (qbmm) then
                     allocate (bub_idx%moms(nb, nmom))
@@ -593,11 +601,7 @@ contains
                 if (nb == 1) then
                     weight(:) = 1._wp
                     R0(:) = 1._wp
-                    V0(:) = 0._wp
-                else if (nb > 1) then
-                    !call s_simpson
-                    V0(:) = 0._wp
-                else
+                else if (nb < 1) then
                     stop 'Invalid value of nb'
                 end if
             end if
@@ -656,7 +660,7 @@ contains
 
                 allocate (bub_idx%rs(nb), bub_idx%vs(nb))
                 allocate (bub_idx%ps(nb), bub_idx%ms(nb))
-                allocate (weight(nb), R0(nb), V0(nb))
+                allocate (weight(nb), R0(nb))
 
                 do i = 1, nb
                     if (polytropic .neqv. .true.) then
@@ -677,10 +681,7 @@ contains
                 if (nb == 1) then
                     weight(:) = 1._wp
                     R0(:) = 1._wp
-                    V0(:) = 0._wp
-                else if (nb > 1) then
-                    V0(:) = 0._wp
-                else
+                else if (nb < 1) then
                     stop 'Invalid value of nb'
                 end if
             end if
@@ -893,6 +894,10 @@ contains
 
     !> Subroutine to initialize parallel infrastructure
     impure subroutine s_initialize_parallel_io
+
+#ifdef MFC_MPI
+        integer :: ierr !< Generic flag used to identify and report MPI errors
+#endif
 
         num_dims = 1 + min(1, n) + min(1, p)
 
