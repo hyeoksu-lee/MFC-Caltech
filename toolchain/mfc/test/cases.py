@@ -1,5 +1,5 @@
 # pylint: disable=too-many-lines
-import os, typing, itertools
+import os, typing, itertools, math
 
 from mfc   import common
 from .case import Nt, define_case_d, define_case_f, CaseGeneratorStack, TestCaseBuilder
@@ -494,10 +494,13 @@ def list_cases() -> typing.List[TestCaseBuilder]:
                 'fluid_pp(1)%ss' : 0.07275,'fluid_pp(1)%pv' : 2338.8,'fluid_pp(1)%gamma_v' : 1.33,
                 'fluid_pp(1)%M_v' : 18.02,'fluid_pp(1)%mu_v' : 8.816e-06,'fluid_pp(1)%k_v' : 0.019426,
                 'fluid_pp(2)%gamma_v' : 1.4,'fluid_pp(2)%M_v' : 28.97,'fluid_pp(2)%mu_v' : 1.8e-05,
-                'fluid_pp(2)%k_v' : 0.02556, 'patch_icpp(1)%alpha_rho(1)': 0.96, 'patch_icpp(1)%alpha(1)':
+                'fluid_pp(2)%k_v' : 0.02556,'fluid_pp(1)%D' : 0.242e-4, 'patch_icpp(1)%alpha_rho(1)': 0.96, 'patch_icpp(1)%alpha(1)':
                 4e-02, 'patch_icpp(2)%alpha_rho(1)': 0.96, 'patch_icpp(2)%alpha(1)': 4e-02,  'patch_icpp(3)%alpha_rho(1)': 0.96,
                 'patch_icpp(3)%alpha(1)': 4e-02, 'patch_icpp(1)%pres': 1.0, 'patch_icpp(2)%pres': 1.0,
-                'patch_icpp(3)%pres': 1.0, 'acoustic(1)%support': 1, 'acoustic(1)%wavelength': 0.25
+                'patch_icpp(3)%pres': 1.0, 'acoustic(1)%support': 1, 'acoustic(1)%wavelength': 0.25,
+                'bub_refs%rho0': 1000.0,'bub_refs%x0': 1e-5,'bub_refs%u0': math.sqrt(101325./1000.),
+                'bub_refs%p0': 101325.,'bub_refs%T0': 293.15,'bub_refs%Thost': 293.15,'bub_refs%R0ref': 1e-5,
+                'bub_refs%ub0': math.sqrt(101325./1000.),'bub_refs%p0eq': 101325.
             })
 
             stack.push('', {"acoustic_source": 'T'})
@@ -773,7 +776,9 @@ def list_cases() -> typing.List[TestCaseBuilder]:
                 'fluid_pp(2)%k_v' : 0.02556, 'patch_icpp(1)%alpha_rho(1)': 0.96, 'patch_icpp(1)%alpha(1)': 4e-02,
                 'patch_icpp(2)%alpha_rho(1)': 0.96, 'patch_icpp(2)%alpha(1)': 4e-02,  'patch_icpp(3)%alpha_rho(1)': 0.96,
                 'patch_icpp(3)%alpha(1)': 4e-02, 'patch_icpp(1)%pres': 1.0, 'patch_icpp(2)%pres': 1.0,
-                'patch_icpp(3)%pres': 1.0
+                'patch_icpp(3)%pres': 1.0, 'bub_refs%rho0': 1000.0,'bub_refs%x0': 1e-5,'bub_refs%u0': math.sqrt(101325./1000.),
+                'bub_refs%p0': 101325.,'bub_refs%T0': 293.15,'bub_refs%Thost': 293.15,'bub_refs%R0ref': 1e-5,
+                'bub_refs%ub0': math.sqrt(101325./1000.),'bub_refs%p0eq': 101325.
             })
 
             for polytropic in ['T', 'F']:
@@ -820,6 +825,7 @@ def list_cases() -> typing.List[TestCaseBuilder]:
                     'fluid_pp(2)%pi_inf': 0.0, 'fluid_pp(1)%mul0' : 0.001002, 'fluid_pp(1)%ss' : 0.07275,
                     'fluid_pp(1)%pv' : 2338.8,'fluid_pp(1)%gamma_v' : 1.33, 'fluid_pp(1)%M_v' : 18.02,
                     'fluid_pp(1)%mu_v' : 8.816e-06,'fluid_pp(1)%k_v' : 0.019426, 'fluid_pp(1)%cp_v' : 2.1e3,
+                    'fluid_pp(1)%D' : 0.250e-4,
                     'fluid_pp(2)%gamma_v' : 1.4,'fluid_pp(2)%M_v' : 28.97, 'fluid_pp(2)%mu_v' : 1.8e-05,
                     'fluid_pp(2)%k_v' : 0.02556, 'fluid_pp(2)%cp_v' : 1.e3, 'patch_icpp(1)%alpha_rho(1)': 0.96,
                     'patch_icpp(1)%alpha(1)': 4e-02, 'patch_icpp(1)%alpha_rho(2)': 0., 'patch_icpp(1)%alpha(2)': 0.,
@@ -828,7 +834,8 @@ def list_cases() -> typing.List[TestCaseBuilder]:
                     'patch_icpp(3)%alpha_rho(2)': 0., 'patch_icpp(3)%alpha(2)': 0.,'patch_icpp(1)%pres': 1.0,
                     'patch_icpp(2)%pres': 1.0, 'patch_icpp(3)%pres': 1.0, 'acoustic_source': 'T', 'acoustic(1)%loc(2)': 0.5,
                     'acoustic(1)%wavelength': 0.25, 'acoustic(1)%support': 3, 'acoustic(1)%height': 1e10,
-                    'acoustic(1)%mag': 2e+04, 't_step_start': 0, 't_step_stop': 50, 't_step_save': 50
+                    'acoustic(1)%mag': 2e+04, 't_step_start': 0, 't_step_stop': 50, 't_step_save': 50, 'bub_refs%rho0': 1000.0,
+                    'bub_refs%x0': 1.0, 'bub_refs%u0': 10.1, 'bub_refs%p0': 102010., 'bub_refs%T0': 298.0, 'bub_refs%Thost': 298.0                    
                 })
                 if couplingMethod==1:
                     stack.push('One-way Coupling',{'lag_params%solver_approach': 1})

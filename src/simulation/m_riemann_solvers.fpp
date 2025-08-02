@@ -1902,6 +1902,18 @@ contains
                                 pres_L = qL_prim_rs${XYZ}$_vf(j, k, l, E_idx)
                                 pres_R = qR_prim_rs${XYZ}$_vf(j + 1, k, l, E_idx)
 
+                                if (pres_R /= pres_R) then
+                                  print *, j - 1, q_prim_vf(E_idx)%sf(j - 1, k, l)
+                                  print *, j    , q_prim_vf(E_idx)%sf(j, k, l)
+                                  print *, j + 1, q_prim_vf(E_idx)%sf(j + 1 , k, l)
+                                  print *, j + 2, q_prim_vf(E_idx)%sf(j + 2, k, l)
+                                  print *, j + 3, q_prim_vf(E_idx)%sf(j + 3, k, l)
+                                  print *, j + 4, q_prim_vf(E_idx)%sf(j + 4, k, l)
+                                  print *, j + 5, q_prim_vf(E_idx)%sf(j + 5, k, l)
+                                  print *, pres_L, pres_R
+                                  call s_mpi_abort("pres_R is NaN")
+                                end if
+
                                 rho_L = 0._wp
                                 gamma_L = 0._wp
                                 pi_inf_L = 0._wp

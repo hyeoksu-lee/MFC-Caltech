@@ -190,9 +190,14 @@ print(
             # 'fluid_pp(2)%M_v'               : M_n,
             # 'fluid_pp(2)%mu_v'              : mu_n,
             # 'fluid_pp(2)%k_v'               : k_n,
-            # Non-polytropic gas compression model AND/OR Tait EOS
-            "pref": p0,
-            "rhoref": rho0,
+            # Reference scales
+            "bub_refs%rho0": rho0,
+            "bub_refs%x0": x0,
+            "bub_refs%u0": c0,
+            "bub_refs%p0": p0,
+            "bub_refs%R0ref": myr0,
+            "bub_refs%ub0": c0,
+            "bub_refs%p0eq": p0,
             # Bubbles
             "bubbles_euler": "T",
             # in user guide... 1 = gilbert 2 = keller-miksis
@@ -208,17 +213,7 @@ print(
             #'poly_sigma'            : 0.3,
             # only matters if polytropic = False (complicated model)
             "thermal": 3,
-            # only matters if polytropic = False (complicated model)
-            "R0ref": myr0,
             "nb": 1,
-            # cavitation number (has something to do with the ratio of gas to vapour in the bubble)
-            # this is usually near 1
-            # can set = 1 for testing purposes
-            "Ca": Ca,
-            # weber number (corresponds to surface tension)
-            "Web": We,
-            # inverse reynolds number (corresponds to viscosity)
-            "Re_inv": Re_inv,
             # Acoustic source
             "acoustic_source": "T",
             "num_source": 1,

@@ -12,7 +12,7 @@ module m_constants
     real(wp), parameter :: sgm_eps = 1.e-16_wp               !< Segmentation tolerance
     real(wp), parameter :: small_alf = 1.e-11_wp                !< Small alf tolerance
     real(wp), parameter :: pi = 3.141592653589793_wp !< Pi
-    real(wp), parameter :: verysmall = 1.e-12_wp              !< Very small number
+    real(wp), parameter :: verysmall = 1.e-11_wp              !< Very small number
 
     integer, parameter :: num_stcls_min = 5                       !< Minimum # of stencils
     integer, parameter :: path_len = 400                          !< Maximum path length
@@ -55,7 +55,7 @@ module m_constants
 
     ! Strang Splitting constants
     real(wp), parameter :: dflt_adap_dt_tol = 1.e-4_wp !< Default tolerance for adaptive step size
-    integer, parameter :: adap_dt_max_iters = 100 !< Maximum number of iterations
+    integer, parameter :: dflt_adap_dt_max_iters = 100 !< Maximum number of iterations
     ! Constants of the algorithm described by Heirer, E. Hairer S.P.Nørsett G. Wanner, Solving Ordinary Differential Equations I, Chapter II.4
     ! to choose the initial time step size for the adaptive time stepping routine
     real(wp), parameter :: threshold_first_guess = 1.e-5_wp

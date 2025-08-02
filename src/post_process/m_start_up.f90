@@ -82,8 +82,8 @@ contains
             omega_wrt, qm_wrt, schlieren_wrt, schlieren_alpha, &
             fd_order, mixture_err, alt_soundspeed, &
             flux_lim, flux_wrt, cyl_coord, &
-            parallel_io, rhoref, pref, bubbles_euler, qbmm, sigR, &
-            R0ref, nb, polytropic, thermal, Ca, Web, Re_inv, &
+            parallel_io, bubbles_euler, qbmm, sigR, &
+            nb, polytropic, thermal, bub_refs, &
             polydisperse, poly_sigma, file_per_process, relax, &
             relax_model, cf_wrt, sigma, adv_n, ib, num_ibs, &
             cfl_adap_dt, cfl_const_dt, t_save, t_stop, n_start, &
@@ -625,11 +625,12 @@ contains
             end do
         end if
 
-        ! Adding the bubble variables  to the formatted database file
+        ! Adding the bubble variables to the formatted database file
         if (bubbles_euler) then
             !nR
             do i = 1, nb
                 q_sf(:, :, :) = q_cons_vf(bub_idx%rs(i))%sf(x_beg:x_end, y_beg:y_end, z_beg:z_end)
+                if (bub_refs%rescale) q_sf = q_sf/(bub_refs%x0/bub_refs%R0ref)**2._wp
                 write (varname, '(A,I3.3)') 'nR', i
                 call s_write_variable_to_formatted_database_file(varname, t_step)
                 varname(:) = ' '
@@ -638,6 +639,7 @@ contains
             !nRdot
             do i = 1, nb
                 q_sf(:, :, :) = q_cons_vf(bub_idx%vs(i))%sf(x_beg:x_end, y_beg:y_end, z_beg:z_end)
+                if (bub_refs%rescale) q_sf = q_sf/(bub_refs%x0/bub_refs%R0ref)**3._wp*(bub_refs%u0/bub_refs%ub0)
                 write (varname, '(A,I3.3)') 'nV', i
                 call s_write_variable_to_formatted_database_file(varname, t_step)
                 varname(:) = ' '
@@ -646,6 +648,7 @@ contains
                 !nP
                 do i = 1, nb
                     q_sf(:, :, :) = q_cons_vf(bub_idx%ps(i))%sf(x_beg:x_end, y_beg:y_end, z_beg:z_end)
+                    if (bub_refs%rescale) q_sf = q_sf/(bub_refs%x0/bub_refs%R0ref)**3._wp*(bub_refs%p0/bub_refs%p0eq)
                     write (varname, '(A,I3.3)') 'nP', i
                     call s_write_variable_to_formatted_database_file(varname, t_step)
                     varname(:) = ' '
@@ -654,6 +657,7 @@ contains
                 !nM
                 do i = 1, nb
                     q_sf(:, :, :) = q_cons_vf(bub_idx%ms(i))%sf(x_beg:x_end, y_beg:y_end, z_beg:z_end)
+                    if (bub_refs%rescale) q_sf = q_sf/(bub_refs%x0/bub_refs%R0ref)**3._wp
                     write (varname, '(A,I3.3)') 'nM', i
                     call s_write_variable_to_formatted_database_file(varname, t_step)
                     varname(:) = ' '
@@ -663,6 +667,7 @@ contains
             ! number density
             if (adv_n) then
                 q_sf(:, :, :) = q_cons_vf(n_idx)%sf(x_beg:x_end, y_beg:y_end, z_beg:z_end)
+                if (bub_refs%rescale) q_sf = q_sf/(bub_refs%x0/bub_refs%R0ref)**3._wp
                 write (varname, '(A)') 'n'
                 call s_write_variable_to_formatted_database_file(varname, t_step)
                 varname(:) = ' '
@@ -697,11 +702,9 @@ contains
         ! Computation of parameters, allocation procedures, and/or any other tasks
         ! needed to properly setup the modules
         call s_initialize_global_parameters_module()
-        if (bubbles_euler .and. nb > 1) then
-            call s_simpson(weight, R0)
-        end if
-        if (bubbles_euler .and. .not. polytropic) then
-            call s_initialize_nonpoly()
+        ! Initialize EE/EL bubble models
+        if (bubbles_euler .or. bubbles_lagrange) then
+          call s_initialize_bubbles_model()
         end if
         if (num_procs > 1) then
             call s_initialize_mpi_proxy_module()

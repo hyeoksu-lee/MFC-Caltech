@@ -38,6 +38,7 @@ contains
         ! Run by all three stages
         call s_check_inputs_simulation_domain
         call s_check_inputs_model_eqns_and_num_fluids
+        call s_check_inputs_bubbles_general
         if (igr) then
             call s_check_inputs_igr
         else
@@ -110,13 +111,12 @@ contains
         @:PROHIBIT(bubbles_euler .and. nb < 1, "The Ensemble-Averaged Bubble Model requires nb >= 1")
         @:PROHIBIT(bubbles_euler .and. polydisperse .and. (nb == 1), "Polydisperse bubble dynamics requires nb > 1")
         @:PROHIBIT(bubbles_euler .and. polydisperse .and. (mod(nb, 2) == 0), "nb must be odd")
-        @:PROHIBIT(bubbles_euler .and. (.not. polytropic) .and. f_is_default(R0ref), "R0ref must be set if using bubbles_euler with polytropic = .false.")
         @:PROHIBIT(bubbles_euler .and. nb == dflt_int, "nb must be set if using bubbles_euler")
         @:PROHIBIT(bubbles_euler .and. thermal > 3)
         @:PROHIBIT(bubbles_euler .and. model_eqns == 3, "Bubble models untested with 6-equation model (model_eqns = 3)")
         @:PROHIBIT(bubbles_euler .and. model_eqns == 1, "Bubble models untested with pi-gamma model (model_eqns = 1)")
-        @:PROHIBIT(bubbles_euler .and. model_eqns == 4 .and. f_is_default(rhoref), "rhoref must be set if using bubbles_euler with model_eqns = 4")
-        @:PROHIBIT(bubbles_euler .and. model_eqns == 4 .and. f_is_default(pref), "pref must be set if using bubbles_euler with model_eqns = 4")
+        ! @:PROHIBIT(bubbles_euler .and. model_eqns == 4 .and. f_is_default(rhoref), "rhoref must be set if using bubbles_euler with model_eqns = 4")
+        ! @:PROHIBIT(bubbles_euler .and. model_eqns == 4 .and. f_is_default(pref), "pref must be set if using bubbles_euler with model_eqns = 4")
         @:PROHIBIT(bubbles_euler .and. model_eqns == 4 .and. num_fluids /= 1, "4-equation model (model_eqns = 4) is single-component and requires num_fluids = 1")
         @:PROHIBIT(bubbles_euler .and. cyl_coord, "Bubble models untested in cylindrical coordinates")
     end subroutine s_check_inputs_bubbles_euler
@@ -183,6 +183,35 @@ contains
     end subroutine s_check_inputs_ibm
 
 #endif
+
+    !> Checks constraints on the reference scale parameters for sub-grid bubble models.
+        !! Called by s_check_inputs_common for all three stages
+    impure subroutine s_check_inputs_bubbles_general
+        @:PROHIBIT((bubbles_euler .or. bubbles_lagrange) .and. f_is_default(bub_refs%rho0), &
+                    "bub_refs%rho0 must be set for sub-grid bubble models")
+        @:PROHIBIT((bubbles_euler .or. bubbles_lagrange) .and. f_is_default(bub_refs%x0), &
+                    "bub_refs%x0 must be set for sub-grid bubble models")
+        @:PROHIBIT((bubbles_euler .or. bubbles_lagrange) .and. &
+                    (f_is_default(bub_refs%u0) .and. f_is_default(bub_refs%p0)), &
+                    "At least one of bub_refs%u0 or bub_refs%p0 must be set for sub-grid bubble models")
+        @:PROHIBIT((bubbles_euler .or. bubbles_lagrange) .and. &
+                    (.not. f_is_default(bub_refs%u0) .and. .not. f_is_default(bub_refs%p0)) .and. &
+                    (abs(bub_refs%p0 - bub_refs%rho0*bub_refs%u0*bub_refs%u0)/bub_refs%p0 .gt. sgm_eps), & 
+                    "bub_refs%u0 and bub_refs%p0 are inconsistent")
+        @:PROHIBIT(bubbles_euler .and. &
+                    (f_is_default(bub_refs%ub0) .and. f_is_default(bub_refs%p0eq)), & 
+                    "At least one of bub_refs%ub0 or bub_refs%p0eq must be set for sub-grid bubble models")
+        @:PROHIBIT(bubbles_euler .and. &
+                    (.not. f_is_default(bub_refs%ub0) .and. .not. f_is_default(bub_refs%p0eq)) .and. &
+                    (abs(bub_refs%p0eq - bub_refs%rho0*bub_refs%ub0*bub_refs%ub0)/bub_refs%p0eq .gt. sgm_eps), & 
+                    "bub_refs%ub0 and bub_refs%p0eq are inconsistent")
+        @:PROHIBIT((bubbles_euler .or. bubbles_lagrange) .and. &
+                    (.not. f_is_default(bub_refs%T0) .and. f_is_default(bub_refs%Thost)), &
+                    "If bub_refs%T0 is set, bub_refs%Thost must be set for sub-grid bubble models")
+        @:PROHIBIT((bubbles_euler .or. bubbles_lagrange) .and. &
+                    (f_is_default(bub_refs%T0) .and. .not. f_is_default(bub_refs%Thost)), &
+                    "If bub_refs%Thost is set, bub_refs%T0 must be set for sub-grid bubble models")
+    end subroutine s_check_inputs_bubbles_general
 
     !> Checks constraints on dimensionality and the number of cells for the grid.
         !! Called by s_check_inputs_common for all three stages

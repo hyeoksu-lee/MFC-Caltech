@@ -155,9 +155,14 @@ print(
             "fluid_pp(2)%M_v": M_n,
             "fluid_pp(2)%mu_v": mu_n,
             "fluid_pp(2)%k_v": k_n,
-            # Non-polytropic gas compression model AND/OR Tait EOS
-            "pref": p0,
-            "rhoref": rho0,
+            # Reference scales
+            "bub_refs%rho0": rho0,
+            "bub_refs%x0": x0,
+            "bub_refs%u0": c0,
+            "bub_refs%p0": p0,
+            "bub_refs%R0ref": myr0,
+            "bub_refs%ub0": c0,
+            "bub_refs%p0eq": p0,
             # Bubbles
             "bubbles_euler": "T",
             "bubble_model": 3,
@@ -165,11 +170,7 @@ print(
             "polydisperse": "F",
             # 'poly_sigma'                   : 0.3,
             "thermal": 3,
-            "R0ref": myr0,
             "nb": 1,
-            "Ca": Ca,
-            "Web": We,
-            "Re_inv": Re_inv,
             # Acoustic source
             "acoustic_source": "T",
             "num_source": 1,

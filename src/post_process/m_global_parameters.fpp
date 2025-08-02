@@ -274,16 +274,11 @@ module m_global_parameters
     !! it is a measure of the half-size of the finite-difference stencil for the
     !! selected order of accuracy.
 
-    !> @name Reference parameters for Tait EOS
-    !> @{
-    real(wp) :: rhoref, pref
-    !> @}
-
     !> @name Bubble modeling variables and parameters
     !> @{
+    type(bubbles_ref_scales) :: bub_refs 
     integer :: nb
-    real(wp) :: R0ref
-    real(wp) :: Ca, Web, Re_inv
+    real(wp) :: Eu, Ca, Web, Re_inv
     real(wp), dimension(:), allocatable :: weight, R0, V0
     logical :: bubbles_euler
     logical :: qbmm
@@ -293,12 +288,13 @@ module m_global_parameters
     integer :: thermal  !< 1 = adiabatic, 2 = isotherm, 3 = transfer
     real(wp) :: R_n, R_v, phi_vn, phi_nv, Pe_c, Tw, G, pv, M_n, M_v
     real(wp), dimension(:), allocatable :: k_n, k_v, pb0, mass_n0, mass_v0, Pe_T
-    real(wp), dimension(:), allocatable :: Re_trans_T, Re_trans_c, Im_trans_T, Im_trans_c, omegaN
+    real(wp), dimension(:), allocatable :: Re_trans_T, Re_trans_c, Im_trans_T, Im_trans_c
     real(wp) :: mul0, ss, gamma_v, mu_v
     real(wp) :: gamma_m, gamma_n, mu_n
     real(wp) :: poly_sigma
     real(wp) :: sigR
     integer :: nmom
+    logical :: bub_ss, bub_visc
     !> @}
 
     !> @name surface tension coefficient
@@ -399,6 +395,7 @@ contains
             fluid_pp(i)%qv = 0._wp
             fluid_pp(i)%qvp = 0._wp
             fluid_pp(i)%G = dflt_real
+            fluid_pp(i)%D = dflt_real
         end do
 
         ! Formatted database file(s) structure parameters
@@ -438,14 +435,9 @@ contains
         fd_order = dflt_int
         avg_state = dflt_int
 
-        ! Tait EOS
-        rhoref = dflt_real
-        pref = dflt_real
-
         ! Bubble modeling
         bubbles_euler = .false.
         qbmm = .false.
-        R0ref = dflt_real
         nb = dflt_int
         polydisperse = .false.
         poly_sigma = dflt_real
@@ -453,6 +445,17 @@ contains
         sigma = dflt_real
         surface_tension = .false.
         adv_n = .false.
+
+        bub_refs%rho0 = dflt_real
+        bub_refs%x0 = dflt_real
+        bub_refs%u0 = dflt_real
+        bub_refs%p0 = dflt_real
+        bub_refs%T0 = dflt_real
+        bub_refs%Thost = dflt_real
+        bub_refs%R0ref = dflt_real
+        bub_refs%ub0 = dflt_real
+        bub_refs%p0eq = dflt_real
+        bub_refs%rescale = .false.
 
         ! Lagrangian bubbles modeling
         bubbles_lagrange = .false.
@@ -597,14 +600,6 @@ contains
                 else
                     stop 'Invalid value of nb'
                 end if
-
-                if (polytropic .neqv. .true.) then
-                    !call s_initialize_nonpoly
-                else
-                    rhoref = 1._wp
-                    pref = 1._wp
-                end if
-
             end if
 
             if (bubbles_lagrange) then
@@ -687,11 +682,6 @@ contains
                     V0(:) = 0._wp
                 else
                     stop 'Invalid value of nb'
-                end if
-
-                if (polytropic) then
-                    rhoref = 1._wp
-                    pref = 1._wp
                 end if
             end if
         end if

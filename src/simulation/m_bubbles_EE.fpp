@@ -159,12 +159,16 @@ contains
         type(scalar_field), dimension(sys_size), intent(inout) :: rhs_vf
 
         real(wp) :: rddot
-        real(wp) :: pb, mv, vflux, pbdot
+        real(wp) :: pb_local, mv_local, vflux, pbdot
         real(wp) :: n_tait, B_tait
         real(wp), dimension(nb) :: Rtmp, Vtmp
         real(wp) :: myR, myV, alf, myP, myRho, R2Vav, R3
         real(wp), dimension(num_fluids) :: myalpha, myalpha_rho
         real(wp) :: nbub !< Bubble number density
+
+        real(wp) :: fpbdot, fCp, fCpbw
+        real(wp) :: fRho, fR, fV, fR0, fC
+        real(wp) :: tmp1, tmp2, cdot_star, f_rddot_KM1
 
         integer :: i, j, k, l, q, ii !< Loop variables
 
@@ -268,18 +272,18 @@ contains
                         alf = q_prim_vf(alf_idx)%sf(j, k, l)
                         myR = q_prim_vf(rs(q))%sf(j, k, l)
                         myV = q_prim_vf(vs(q))%sf(j, k, l)
-
+                        
                         if (.not. polytropic) then
-                            pb = q_prim_vf(ps(q))%sf(j, k, l)
-                            mv = q_prim_vf(ms(q))%sf(j, k, l)
-                            call s_bwproperty(pb, q, chi_vw, k_mw, rho_mw)
-                            call s_vflux(myR, myV, pb, mv, q, vflux)
-                            pbdot = f_bpres_dot(vflux, myR, myV, pb, mv, q)
+                            pb_local = q_prim_vf(ps(q))%sf(j, k, l)
+                            mv_local = q_prim_vf(ms(q))%sf(j, k, l)
+                            call s_bwproperty(pb_local, q, chi_vw, k_mw, rho_mw)
+                            call s_vflux(myR, myV, pb_local, mv_local, q, vflux)
+                            pbdot = f_bpres_dot(vflux, myR, myV, pb_local, mv_local, q)
 
                             bub_p_src(j, k, l, q) = nbub*pbdot
                             bub_m_src(j, k, l, q) = nbub*vflux*4._wp*pi*(myR**2._wp)
                         else
-                            pb = 0._wp; mv = 0._wp; vflux = 0._wp; pbdot = 0._wp
+                            pb_local = 0._wp; mv_local = 0._wp; vflux = 0._wp; pbdot = 0._wp
                         end if
 
                         ! Adaptive time stepping
@@ -288,7 +292,7 @@ contains
                         if (adap_dt) then
 
                             call s_advance_step(myRho, myP, myR, myV, R0(q), &
-                                                pb, pbdot, alf, n_tait, B_tait, &
+                                                pb_local, pbdot, alf, n_tait, B_tait, &
                                                 bub_adv_src(j, k, l), divu%sf(j, k, l), &
                                                 dmBub_id, dmMass_v, dmMass_n, dmBeta_c, &
                                                 dmBeta_t, dmCson, adap_dt_stop)
@@ -298,7 +302,7 @@ contains
 
                         else
                             rddot = f_rddot(myRho, myP, myR, myV, R0(q), &
-                                            pb, pbdot, alf, n_tait, B_tait, &
+                                            pb_local, pbdot, alf, n_tait, B_tait, &
                                             bub_adv_src(j, k, l), divu%sf(j, k, l), &
                                             dmCson)
                             bub_v_src(j, k, l, q) = nbub*rddot

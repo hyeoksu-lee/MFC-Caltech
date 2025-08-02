@@ -27,9 +27,8 @@ k_n = 0.02556
 R0ref = 50.0e-06
 p0eq = 8236.0
 ub0 = math.sqrt(p0eq/rho0)
-
-x0 = R0ref
-p0 = p0eq
+x0 = 4*R0ref
+p0 = 3*p0eq
 u0 = math.sqrt(p0/rho0)
 
 # BUBBLES

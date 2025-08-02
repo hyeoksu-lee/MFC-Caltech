@@ -7,6 +7,7 @@ p0 = 101325.0
 rho0 = 1.0e03
 c0 = math.sqrt(p0 / rho0)
 patm = 1.0
+T0 = 293.15
 
 # water props
 n_tait = 7.1
@@ -14,6 +15,7 @@ B_tait = 306.0e06 / p0
 mul0 = 1.002e-03  # viscosity
 ss = 0.07275  # surface tension
 pv = 2.3388e03  # vapor pressure
+diffcoef = 0.242e-4
 
 gamma_v = 1.33
 M_v = 18.02
@@ -45,32 +47,22 @@ We = rho0 * (uu**2.0) * R0ref / ss
 Re_inv = mul0 / (rho0 * uu * R0ref)
 
 # IC setup
-vf0 = 0.04
+vf0 = 1e-5
 n0 = vf0 / (math.pi * 4.0e00 / 3.0e00)
 
-cact = 1475.0
+cact = math.sqrt(n_tait*(p0 + B_tait*p0)/rho0)
 t0 = x0 / c0
 
 nbubbles = 1
 myr0 = R0ref
 
-cfl = 0.1
-Nx = 400
+Nx = 100
 Ldomain = 20.0e-03
 L = Ldomain / x0
-dx = L / float(Nx)
-dt = cfl * dx * c0 / cact
-Lpulse = 0.3 * Ldomain
-Tpulse = Lpulse / cact
-Tfinal = 0.25 * 10.0 * Tpulse * c0 / x0
-Nt = int(Tfinal / dt)
-
-dt = dt * 0.1
-# print('dt: ',dt)
-
-Nfiles = 20.0
-Nout = int(math.ceil(Nt / Nfiles))
-Nt = int(Nout * Nfiles)
+Tfinal = 10.0
+Nt = 1000
+dt = Tfinal / Nt
+Nout = 50
 
 # Configuring case dictionary
 print(
@@ -88,9 +80,9 @@ print(
             "p": 0,
             "dt": dt,
             "t_step_start": 0,
-            "t_step_stop": 800,
+            "t_step_stop": Nt,
             # 't_step_stop'                  : 4,
-            "t_step_save": 80,
+            "t_step_save": Nout,
             # 't_step_save'                  : 1,
             # Simulation Algorithm Parameters
             "num_patches": 2,
@@ -116,7 +108,7 @@ print(
             "format": 1,
             "precision": 2,
             "prim_vars_wrt": "T",
-            "parallel_io": "T",
+            "parallel_io": "F",
             "fd_order": 1,
             #'schlieren_wrt'                :'T',
             "probe_wrt": "T",
@@ -155,6 +147,7 @@ print(
             "fluid_pp(1)%M_v": M_v,
             "fluid_pp(1)%mu_v": mu_v,
             "fluid_pp(1)%k_v": k_v,
+            "fluid_pp(1)%D": diffcoef,
             # Last fluid_pp is always reserved for bubble gas state
             # if applicable
             "fluid_pp(2)%gamma": 1.0 / (gamma_gas - 1.0),
@@ -163,26 +156,41 @@ print(
             "fluid_pp(2)%M_v": M_n,
             "fluid_pp(2)%mu_v": mu_n,
             "fluid_pp(2)%k_v": k_n,
-            # Non-polytropic gas compression model AND/OR Tait EOS
-            "pref": p0,
-            "rhoref": rho0,
+            # Reference scales
+            "bub_refs%rho0": rho0,
+            "bub_refs%x0": x0,
+            "bub_refs%u0": c0,
+            "bub_refs%p0": p0,
+            "bub_refs%T0": T0,
+            "bub_refs%Thost": T0,
+            "bub_refs%R0ref": myr0,
+            "bub_refs%ub0": c0,
+            "bub_refs%p0eq": p0,
             # Bubbles
             "bubbles_euler": "T",
             "bubble_model": 2,
+            "bub_ss": "T",
+            "bub_visc": "T",
             "polytropic": "F",
-            "polydisperse": "T",
+            "polydisperse": "F",
             "poly_sigma": 0.3,
             "thermal": 3,
-            "R0ref": myr0,
-            "nb": 3,
-            "Ca": Ca,
-            "Web": We,
-            "Re_inv": Re_inv,
+            "nb": 1,
             "qbmm": "T",
             "dist_type": 2,
             "sigR": 0.1,
             "sigV": 0.1,
             "rhoRV": 0.0,
+            # Acoustic source
+            "acoustic_source": "T",
+            "num_source": 1,
+            "acoustic(1)%support": 1,
+            "acoustic(1)%loc(1)": -0.25*L,
+            "acoustic(1)%npulse": 1,
+            "acoustic(1)%dir": 1.0,
+            "acoustic(1)%pulse": 1,
+            "acoustic(1)%mag": pa,
+            "acoustic(1)%wavelength": (1.0 / (300000.0)) * cact / x0,
         }
     )
 )

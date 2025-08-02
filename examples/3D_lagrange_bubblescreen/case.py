@@ -150,12 +150,11 @@ print(
             "lag_params%valmaxvoid": 0.9,
             "lag_params%write_bubbles": "F",
             "lag_params%write_bubbles_stats": "F",
-            "lag_params%c0": c0,
-            "lag_params%rho0": rho0,
-            "lag_params%T0": T0,
-            "lag_params%x0": x0,
-            "lag_params%diffcoefvap": diffVapor,
-            "lag_params%Thost": T_host,
+            "bub_refs%u0": c0,
+            "bub_refs%rho0": rho0,
+            "bub_refs%T0": T0,
+            "bub_refs%x0": x0,
+            "bub_refs%Thost": T_host,
             # Fluids Physical Parameters
             # Host medium
             "fluid_pp(1)%gamma": 1.0 / (gamma_host - 1.0),
@@ -168,6 +167,7 @@ print(
             "fluid_pp(1)%M_v": MW_v,
             "fluid_pp(1)%k_v": k_v,
             "fluid_pp(1)%cp_v": cp_v,
+            "fluid_pp(1)%D": diffVapor,
             # Bubble gas state
             "fluid_pp(2)%gamma": 1.0 / (gamma_g - 1.0),
             "fluid_pp(2)%pi_inf": 0.0e00,
