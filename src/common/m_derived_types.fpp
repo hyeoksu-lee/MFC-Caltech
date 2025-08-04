@@ -433,6 +433,7 @@ module m_derived_types
 
         !! Bubble reference scales 
         !! Density and temperature scales are assumed to be the same with those of primary scale
+        real(wp) :: rhob0       !< [kg/m3] Reference density
         real(wp) :: R0ref       !< [m] Reference bubble radius
         real(wp) :: ub0         !< [m/s] Characteristic bubble velocity
         real(wp) :: p0eq        !< [N/m2] Pressure at equilibrium

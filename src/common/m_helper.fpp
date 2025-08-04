@@ -144,6 +144,10 @@ contains
     !>
     impure subroutine s_initialize_bubble_refs()
 
+      if (.not. f_is_default(bub_refs%rho0) .and. f_is_default(bub_refs%rhob0)) then
+          bub_refs%rhob0 = bub_refs%rho0
+      end if
+
       if (.not. f_is_default(bub_refs%x0) .and. f_is_default(bub_refs%R0ref)) then
           bub_refs%R0ref = bub_refs%x0
       end if
@@ -166,7 +170,7 @@ contains
     !> 
     impure subroutine s_initialize_bubble_vars()
         integer :: id_bubbles, id_host
-        real(wp) :: rho0, u0, T0, x0, p0, p0eq, ub0, R0ref
+        real(wp) :: rho0, u0, T0, x0, p0, rhob0, p0eq, ub0, R0ref
 
         ! Specify host and bubble components
         if (bubbles_euler) then
@@ -187,6 +191,7 @@ contains
         p0 = bub_refs%p0
         u0 = bub_refs%u0
         T0 = bub_refs%T0
+        rhob0 = bub_refs%rhob0
         p0eq = bub_refs%p0eq
         R0ref = bub_refs%R0ref
         ub0 = bub_refs%ub0

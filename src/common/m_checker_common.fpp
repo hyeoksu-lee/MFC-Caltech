@@ -198,19 +198,13 @@ contains
         @:PROHIBIT((bubbles_euler .or. bubbles_lagrange) .and. f_is_default(bub_refs%x0), &
                     "bub_refs%x0 must be set for sub-grid bubble models")
         @:PROHIBIT((bubbles_euler .or. bubbles_lagrange) .and. &
-                    (f_is_default(bub_refs%u0) .and. f_is_default(bub_refs%p0)), &
-                    "At least one of bub_refs%u0 or bub_refs%p0 must be set for sub-grid bubble models")
-        @:PROHIBIT((bubbles_euler .or. bubbles_lagrange) .and. &
-                    (.not. f_is_default(bub_refs%u0) .and. .not. f_is_default(bub_refs%p0)) .and. &
-                    (abs(bub_refs%p0 - bub_refs%rho0*bub_refs%u0*bub_refs%u0)/bub_refs%p0 .gt. sgm_eps), & 
-                    "bub_refs%u0 and bub_refs%p0 are inconsistent")
+                    ((f_is_default(bub_refs%u0) .and. f_is_default(bub_refs%p0)) .or. &
+                    (.not. f_is_default(bub_refs%u0) .and. .not. f_is_default(bub_refs%p0))), &
+                    "Only one of bub_refs%u0 or bub_refs%p0 must be set for sub-grid bubble models")
         @:PROHIBIT(bubbles_euler .and. &
-                    (f_is_default(bub_refs%ub0) .and. f_is_default(bub_refs%p0eq)), & 
-                    "At least one of bub_refs%ub0 or bub_refs%p0eq must be set for sub-grid bubble models")
-        @:PROHIBIT(bubbles_euler .and. &
-                    (.not. f_is_default(bub_refs%ub0) .and. .not. f_is_default(bub_refs%p0eq)) .and. &
-                    (abs(bub_refs%p0eq - bub_refs%rho0*bub_refs%ub0*bub_refs%ub0)/bub_refs%p0eq .gt. sgm_eps), & 
-                    "bub_refs%ub0 and bub_refs%p0eq are inconsistent")
+                    ((f_is_default(bub_refs%ub0) .and. f_is_default(bub_refs%p0eq)) .or. & 
+                    (.not. f_is_default(bub_refs%ub0) .and. .not. f_is_default(bub_refs%p0eq))), & 
+                    "Only one of bub_refs%ub0 or bub_refs%p0eq must be set for sub-grid bubble models")
         @:PROHIBIT((bubbles_euler .or. bubbles_lagrange) .and. &
                     (.not. f_is_default(bub_refs%T0) .and. f_is_default(bub_refs%Thost)), &
                     "If bub_refs%T0 is set, bub_refs%Thost must be set for sub-grid bubble models")

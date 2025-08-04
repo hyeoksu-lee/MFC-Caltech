@@ -126,7 +126,7 @@ contains
 
         if (bubbles_euler .or. bubbles_lagrange) then
             call MPI_BCAST(bub_refs%rescale, 1, MPI_LOGICAL, 0, MPI_COMM_WORLD, ierr)
-            #:for VAR in [ 'rho0','x0', 'u0', 'p0', 'T0', 'Thost', 'R0ref', 'ub0', 'p0eq']
+            #:for VAR in [ 'rho0','x0', 'u0', 'p0', 'T0', 'Thost', 'rhob0', 'R0ref', 'ub0', 'p0eq']
                 call MPI_BCAST(bub_refs%${VAR}$, 1, mpi_p, 0, MPI_COMM_WORLD, ierr)
             #:endfor
         end if

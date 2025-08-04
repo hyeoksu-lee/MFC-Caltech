@@ -680,6 +680,7 @@ contains
         bub_refs%p0 = dflt_real
         bub_refs%T0 = dflt_real
         bub_refs%Thost = dflt_real
+        bub_refs%rhob0 = dflt_real
         bub_refs%R0ref = dflt_real
         bub_refs%ub0 = dflt_real
         bub_refs%p0eq = dflt_real
