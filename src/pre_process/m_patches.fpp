@@ -71,7 +71,7 @@ contains
         type(levelset_field), intent(inout) :: levelset !< Levelset determined by models
         type(levelset_norm_field), intent(inout) :: levelset_norm !< Levelset_norm determined by models
 
-        integer :: i
+        integer :: i, j
 
         !  3D Patch Geometries
         if (p > 0) then

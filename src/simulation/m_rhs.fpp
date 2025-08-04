@@ -691,27 +691,6 @@ contains
             call s_populate_variables_buffers(bc_type, q_prim_qp%vf, pb_in, mv_in)
             call nvtxEndRange
         end if
-
-        ! do j = 62, 64
-        !   print *, j, q_prim_qp%vf(1)%sf(j, 0, 0), &
-        !               q_prim_qp%vf(2)%sf(j, 0, 0)*2_wp, &
-        !               q_prim_qp%vf(3)%sf(j, 0, 0)*4_wp, &
-        !               q_prim_qp%vf(4)%sf(j, 0, 0)
-        !   print *, j, q_prim_qp%vf(5)%sf(j, 0, 0)/1e3_wp, &
-        !               q_prim_qp%vf(6)%sf(j, 0, 0)*1e1_wp, &
-        !               q_prim_qp%vf(7)%sf(j, 0, 0)*2_wp, &
-        !               q_prim_qp%vf(8)%sf(j, 0, 0)*1e2_wp, &
-        !               q_prim_qp%vf(9)%sf(j, 0, 0)*1e1_wp*2_wp, &
-        !               q_prim_qp%vf(10)%sf(j, 0, 0)*4_wp
-
-        !   ! print *, j, (q_prim_qp%vf(i)%sf(j, 0, 0), i = 1, 4)
-        !   ! print *, j, (q_prim_qp%vf(i)%sf(j, 0, 0), i = 5, 10)
-
-        !   !   print *, j, (q_prim_qp%vf(i)%sf(j, 0, 0), i = 11, 16)
-        !   !   print *, j, (q_prim_qp%vf(i)%sf(j, 0, 0), i = 17, 22)
-        !   print *, " "
-        ! end do
-        ! print *, " "
         
         call nvtxStartRange("RHS-ELASTIC")
         if (hyperelasticity) call s_hyperelastic_rmt_stress_update(q_cons_qp%vf, q_prim_qp%vf)

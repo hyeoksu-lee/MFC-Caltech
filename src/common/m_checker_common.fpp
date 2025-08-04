@@ -133,6 +133,8 @@ contains
         @:PROHIBIT(polydisperse .and. poly_sigma <= 0)
         @:PROHIBIT(qbmm .and. (.not. bubbles_euler), "QBMM requires the bubbles_euler flag to be set")
         @:PROHIBIT(qbmm .and. nnode /= 4)
+        @:PROHIBIT(qbmm .and. (.not. bub_ss))
+        @:PROHIBIT(qbmm .and. (.not. bub_visc))
     end subroutine s_check_inputs_qbmm_and_polydisperse
 
     !> Checks constraints on the adv_n flag.

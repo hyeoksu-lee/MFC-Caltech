@@ -479,17 +479,6 @@ contains
                                     end if
                                 end select
                                 
-                                if (rhs_pb(j,k,l,q,i) /= rhs_pb(j,k,l,q,i)) then
-                                  print *, idir, j, q, i, rhs_pb(j,k,l,q,i)
-                                  print *, nb_q, nR, nR2, R, R2, var
-                                  print *, nb_dot, nR_dot, nR2_dot
-                                  print *, flux_n_vf(bubxb + (i - 1)*nmom)%sf(j - 1, k, l),     flux_n_vf(bubxb + (i - 1)*nmom)%sf(j, k, l)
-                                  print *, flux_n_vf(bubxb + 1 + (i - 1)*nmom)%sf(j - 1, k, l), flux_n_vf(bubxb + 1 + (i - 1)*nmom)%sf(j, k, l)
-                                  print *, flux_n_vf(bubxb + 3 + (i - 1)*nmom)%sf(j - 1, k, l), flux_n_vf(bubxb + 3 + (i - 1)*nmom)%sf(j, k, l)
-                                  print *, pb(j, k, l, q, i), AX
-                                  call s_mpi_abort("rhs_pb is NaN at 1")
-                                end if
-
                                 if (q <= 2) then
                                     select case (idir)
                                     case (1)
@@ -540,15 +529,6 @@ contains
                                                                     (-2._wp*(nR/nb_q)*(nR_dot*nb_q - nR*nb_dot))*(pb(j, k, l, q, i))
                                         end if
                                     end select
-                                end if
-
-                                if (rhs_pb(j,k,l,q,i) /= rhs_pb(j,k,l,q,i)) then
-                                  print *, idir, j, q, i, rhs_pb(j,k,l,q,i)
-                                  print *, nb_q, nR, nR2, R, R2, var
-                                  print *, nb_dot, nR_dot, nR2_dot
-                                  print *, pb(j, k, l, q, i)
-                                  print *, AX
-                                  call s_mpi_abort("rhs_pb is NaN at 2")
                                 end if
 
                             end do
@@ -630,8 +610,8 @@ contains
                             coeffs(19, i1, i2) = -i2*2._wp*Re_inv/(rho*c*c)
                             coeffs(20, i1, i2) = i2*4._wp*pres*Re_inv/(rho*rho*c)
                             coeffs(21, i1, i2) = i2*4._wp*pres*Re_inv/(rho*rho*c*c)
-                            coeffs(22, i1, i2) = -i2*4._wp/(rho*rho*c)
-                            coeffs(23, i1, i2) = -i2*4._wp/(rho*rho*c*c)
+                            coeffs(22, i1, i2) = -i2*4._wp*Re_inv/(rho*rho*c)
+                            coeffs(23, i1, i2) = -i2*4._wp*Re_inv/(rho*rho*c*c)
                             coeffs(24, i1, i2) = i2*16._wp*Re_inv*Re_inv/(rho*rho*c)
                             if (bub_ss) then
                                 coeffs(25, i1, i2) = i2*8._wp*Re_inv/Web/(rho*rho*c)
@@ -655,7 +635,7 @@ contains
     end subroutine s_coeff_nonpoly
 
 !Coefficient array for polytropic model (pb for each R0 bin accounted for in wght_pb)
-    pure subroutine s_coeff(pres, rho, c, coeffs)
+    impure subroutine s_coeff(pres, rho, c, coeffs)
         $:GPU_ROUTINE(function_name='s_coeff',parallelism='[seq]', &
             & cray_inline=True)
 
@@ -701,8 +681,8 @@ contains
                             coeffs(19, i1, i2) = -i2*2._wp*Re_inv/(rho*c*c)
                             coeffs(20, i1, i2) = i2*4._wp*pres*Re_inv/(rho*rho*c)
                             coeffs(21, i1, i2) = i2*4._wp*pres*Re_inv/(rho*rho*c*c)
-                            coeffs(22, i1, i2) = -i2*4._wp/(rho*rho*c)
-                            coeffs(23, i1, i2) = -i2*4._wp/(rho*rho*c*c)
+                            coeffs(22, i1, i2) = -i2*4._wp*Re_inv/(rho*rho*c)
+                            coeffs(23, i1, i2) = -i2*4._wp*Re_inv/(rho*rho*c*c)
                             coeffs(24, i1, i2) = i2*16._wp*Re_inv*Re_inv/(rho*rho*c)
                             if (bub_ss) then
                                 coeffs(25, i1, i2) = i2*8._wp*Re_inv/Web/(rho*rho*c)

@@ -1369,8 +1369,8 @@ contains
                             !Initialize R3 averaging over R0 and R directions
                             R3tmp = 0._wp
                             do i = 1, nb
-                                R3tmp = R3tmp + weight(i)*0.5_wp*(Rtmp(i) + sigR)**3._wp
-                                R3tmp = R3tmp + weight(i)*0.5_wp*(Rtmp(i) - sigR)**3._wp
+                                R3tmp = R3tmp + weight(i)*0.5_wp*(Rtmp(i) + sigR*(bub_refs%R0ref/bub_refs%x0))**3._wp
+                                R3tmp = R3tmp + weight(i)*0.5_wp*(Rtmp(i) - sigR*(bub_refs%R0ref/bub_refs%x0))**3._wp
                             end do
                             !Initialize nb
                             nbub = 3._wp*q_prim_vf(alf_idx)%sf(j, k, l)/(4._wp*pi*R3tmp)
