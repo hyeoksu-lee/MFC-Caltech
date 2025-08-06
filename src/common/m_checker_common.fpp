@@ -206,11 +206,8 @@ contains
                     (.not. f_is_default(bub_refs%ub0) .and. .not. f_is_default(bub_refs%p0eq))), & 
                     "Only one of bub_refs%ub0 or bub_refs%p0eq must be set for sub-grid bubble models")
         @:PROHIBIT((bubbles_euler .or. bubbles_lagrange) .and. &
-                    (.not. f_is_default(bub_refs%T0) .and. f_is_default(bub_refs%Thost)), &
-                    "If bub_refs%T0 is set, bub_refs%Thost must be set for sub-grid bubble models")
-        @:PROHIBIT((bubbles_euler .or. bubbles_lagrange) .and. &
-                    (f_is_default(bub_refs%T0) .and. .not. f_is_default(bub_refs%Thost)), &
-                    "If bub_refs%Thost is set, bub_refs%T0 must be set for sub-grid bubble models")
+                    (.not. polytropic .and. f_is_default(bub_refs%T0)), &
+                    "For non-polytropic, bub_refs%T0 must be set.")
     end subroutine s_check_inputs_bubbles_general
 
     !> Checks constraints on dimensionality and the number of cells for the grid.
