@@ -263,8 +263,7 @@ contains
 
         if (polytropic) then
             f_cpbw_KM = Ca*((fR0/fR)**(3._wp*gam)) - Ca + Eu
-            if (bub_ss) f_cpbw_KM = f_cpbw_KM + &
-                                                     (2._wp/(Web*fR0))*((fR0/fR)**(3._wp*gam))
+            if (bub_ss) f_cpbw_KM = f_cpbw_KM + (2._wp/(Web*fR0))*((fR0/fR)**(3._wp*gam))
         else
             f_cpbw_KM = fpb
         end if
