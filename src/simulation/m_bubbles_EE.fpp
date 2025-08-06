@@ -312,7 +312,7 @@ contains
 
                         adap_dt_stop_max = max(adap_dt_stop_max, adap_dt_stop)
 
-                        if (alf < 1.e-11_wp) then
+                        if (alf < small_alf) then
                             bub_adv_src(j, k, l) = 0._wp
                             bub_r_src(j, k, l, q) = 0._wp
                             bub_v_src(j, k, l, q) = 0._wp
