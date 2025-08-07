@@ -47,7 +47,7 @@ We = rho0 * (uu**2.0) * R0ref / ss
 Re_inv = mul0 / (rho0 * uu * R0ref)
 
 # IC setup
-vf0 = 1e-5
+vf0 = 1e-4
 n0 = vf0 / (math.pi * 4.0e00 / 3.0e00)
 
 cact = math.sqrt(n_tait*(p0 + B_tait*p0)/rho0)
@@ -159,12 +159,11 @@ print(
             # Reference scales
             "bub_refs%rho0": rho0,
             "bub_refs%x0": x0,
-            "bub_refs%u0": c0,
             "bub_refs%p0": p0,
             "bub_refs%T0": T0,
             "bub_refs%Thost": T0,
+            "bub_refs%rhob0": rho0,
             "bub_refs%R0ref": myr0,
-            "bub_refs%ub0": c0,
             "bub_refs%p0eq": p0,
             # Bubbles
             "bubbles_euler": "T",
