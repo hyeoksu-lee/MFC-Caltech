@@ -411,7 +411,7 @@ contains
 
     end subroutine s_initialize_qbmm_module
 
-    impure subroutine s_compute_qbmm_rhs(idir, q_cons_vf, q_prim_vf, rhs_vf, flux_n_vf, pb, rhs_pb)
+    pure subroutine s_compute_qbmm_rhs(idir, q_cons_vf, q_prim_vf, rhs_vf, flux_n_vf, pb, rhs_pb)
 
         integer, intent(in) :: idir
         type(scalar_field), dimension(sys_size), intent(in) :: q_cons_vf, q_prim_vf
@@ -635,7 +635,7 @@ contains
     end subroutine s_coeff_nonpoly
 
 !Coefficient array for polytropic model (pb for each R0 bin accounted for in wght_pb)
-    impure subroutine s_coeff(pres, rho, c, coeffs)
+    pure subroutine s_coeff(pres, rho, c, coeffs)
         $:GPU_ROUTINE(function_name='s_coeff',parallelism='[seq]', &
             & cray_inline=True)
 
@@ -830,7 +830,10 @@ contains
                             momsp(4)%sf(id1, id2, id3) = 1._wp
                         else
                             if (polytropic) then
-                                momsp(4)%sf(id1, id2, id3) = f_quad(abscX, abscY, wght_pb, 3._wp*(1._wp - gam), 0._wp, 3._wp*gam) + pv*f_quad(abscX, abscY, wght, 3._wp, 0._wp, 0._wp) - 4._wp*Re_inv*f_quad(abscX, abscY, wght, 2._wp, 1._wp, 0._wp) - (2._wp/Web)*f_quad(abscX, abscY, wght, 2._wp, 0._wp, 0._wp)
+                                momsp(4)%sf(id1, id2, id3) = f_quad(abscX, abscY, wght_pb, 3._wp*(1._wp - gam), 0._wp, 3._wp*gam) &
+                                                        + pv*f_quad(abscX, abscY, wght, 3._wp, 0._wp, 0._wp) &
+                                              - 4._wp*Re_inv*f_quad(abscX, abscY, wght, 2._wp, 1._wp, 0._wp) &
+                                               - (2._wp/Web)*f_quad(abscX, abscY, wght, 2._wp, 0._wp, 0._wp)
                             else
                                 momsp(4)%sf(id1, id2, id3) = f_quad(abscX, abscY, wght_pb, 3._wp, 0._wp, 0._wp) - 4._wp*Re_inv*f_quad(abscX, abscY, wght, 2._wp, 1._wp, 0._wp) - (2._wp/Web)*f_quad(abscX, abscY, wght, 2._wp, 0._wp, 0._wp)
                             end if

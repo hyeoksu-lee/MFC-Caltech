@@ -65,7 +65,7 @@ COMMON = {
     'muscl_order': ParamType.INT,
 }
 
-for var in [ 'u0', 'rho0', 'T0', 'x0', 'p0', 'Thost', 'rhob0', 'p0eq', 'ub0', 'R0ref' ]:
+for var in [ 'u0', 'rho0', 'T0', 'x0', 'p0', 'Tw', 'rhol0', 'p0eq', 'ub0', 'R0ref' ]:
     COMMON[f'bub_refs%{var}'] = ParamType.REAL
 
 PRE_PROCESS = COMMON.copy()

@@ -516,7 +516,7 @@ def list_cases() -> typing.List[TestCaseBuilder]:
                 'patch_icpp(3)%alpha(1)': 4e-02, 'patch_icpp(1)%pres': 1.0, 'patch_icpp(2)%pres': 1.0,
                 'patch_icpp(3)%pres': 1.0, 'acoustic(1)%support': 1, 'acoustic(1)%wavelength': 0.25,
                 'bub_refs%rho0': 1000.0,'bub_refs%x0': 1e-5,'bub_refs%u0': math.sqrt(101325./1000.),
-                'bub_refs%p0': 101325.,'bub_refs%T0': 293.15,'bub_refs%Thost': 293.15,'bub_refs%R0ref': 1e-5,
+                'bub_refs%p0': 101325.,'bub_refs%T0': 293.15,'bub_refs%Tw': 293.15,'bub_refs%R0ref': 1e-5,
                 'bub_refs%ub0': math.sqrt(101325./1000.),'bub_refs%p0eq': 101325.
             })
 
@@ -794,7 +794,7 @@ def list_cases() -> typing.List[TestCaseBuilder]:
                 'patch_icpp(2)%alpha_rho(1)': 0.96, 'patch_icpp(2)%alpha(1)': 4e-02,  'patch_icpp(3)%alpha_rho(1)': 0.96,
                 'patch_icpp(3)%alpha(1)': 4e-02, 'patch_icpp(1)%pres': 1.0, 'patch_icpp(2)%pres': 1.0,
                 'patch_icpp(3)%pres': 1.0, 'bub_refs%rho0': 1000.0,'bub_refs%x0': 1e-5,'bub_refs%u0': math.sqrt(101325./1000.),
-                'bub_refs%p0': 101325.,'bub_refs%T0': 293.15,'bub_refs%Thost': 293.15,'bub_refs%R0ref': 1e-5,
+                'bub_refs%p0': 101325.,'bub_refs%T0': 293.15,'bub_refs%Tw': 293.15,'bub_refs%R0ref': 1e-5,
                 'bub_refs%ub0': math.sqrt(101325./1000.),'bub_refs%p0eq': 101325.
             })
 
@@ -852,7 +852,7 @@ def list_cases() -> typing.List[TestCaseBuilder]:
                     'patch_icpp(2)%pres': 1.0, 'patch_icpp(3)%pres': 1.0, 'acoustic_source': 'T', 'acoustic(1)%loc(2)': 0.5,
                     'acoustic(1)%wavelength': 0.25, 'acoustic(1)%support': 3, 'acoustic(1)%height': 1e10,
                     'acoustic(1)%mag': 2e+04, 't_step_start': 0, 't_step_stop': 50, 't_step_save': 50, 'bub_refs%rho0': 1000.0,
-                    'bub_refs%x0': 1.0, 'bub_refs%u0': 10.1, 'bub_refs%p0': 102010., 'bub_refs%T0': 298.0, 'bub_refs%Thost': 298.0                    
+                    'bub_refs%x0': 1.0, 'bub_refs%u0': 10.1, 'bub_refs%p0': 102010., 'bub_refs%T0': 298.0, 'bub_refs%Tw': 298.0                    
                 })
                 if couplingMethod==1:
                     stack.push('One-way Coupling',{'lag_params%solver_approach': 1})

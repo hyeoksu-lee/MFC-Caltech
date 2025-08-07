@@ -131,7 +131,7 @@ contains
         end if
 
         if (bubbles_euler .or. bubbles_lagrange) then
-            #:for VAR in [ 'rho0','x0', 'u0', 'p0', 'T0', 'Thost', 'rhob0', 'R0ref', 'ub0', 'p0eq']
+            #:for VAR in [ 'rho0','x0', 'u0', 'p0', 'T0', 'Tw', 'rhol0', 'R0ref', 'ub0', 'p0eq']
                 call MPI_BCAST(bub_refs%${VAR}$, 1, mpi_p, 0, MPI_COMM_WORLD, ierr)
             #:endfor
         end if

@@ -2053,8 +2053,8 @@ contains
                                         PbwR3Lbar = mom_sp_rs${XYZ}$_vf(j, k, l, 4)
                                         PbwR3Rbar = mom_sp_rs${XYZ}$_vf(j + 1, k, l, 4)
 
-                                        R3Lbar = mom_sp_rs${XYZ}$_vf(j, k, l, 1)
-                                        R3Rbar = mom_sp_rs${XYZ}$_vf(j + 1, k, l, 1)
+                                        R3Lbar = mom_sp_rs${XYZ}$_vf(j, k, l, 1) + 1e-40_wp
+                                        R3Rbar = mom_sp_rs${XYZ}$_vf(j + 1, k, l, 1) + 1e-40_wp
 
                                         R3V2Lbar = mom_sp_rs${XYZ}$_vf(j, k, l, 3)
                                         R3V2Rbar = mom_sp_rs${XYZ}$_vf(j + 1, k, l, 3)
@@ -2082,23 +2082,22 @@ contains
                                         end do
                                     end if
 
-                                    if (qL_prim_rs${XYZ}$_vf(j, k, l, E_idx + num_fluids) < small_alf .or. R3Lbar < sgm_eps) then
+                                    if (qL_prim_rs${XYZ}$_vf(j, k, l, E_idx + num_fluids) < small_alf .or. R3Lbar < small_alf) then
                                         ptilde_L = qL_prim_rs${XYZ}$_vf(j, k, l, E_idx + num_fluids)*pres_L
+                                        ptilde_L = 0._wp
                                     else
                                         ptilde_L = qL_prim_rs${XYZ}$_vf(j, k, l, E_idx + num_fluids)*(pres_L - PbwR3Lbar/R3Lbar - &
                                                                                                       rho_L*R3V2Lbar/R3Lbar)
                                     end if
 
-                                    if (qR_prim_rs${XYZ}$_vf(j + 1, k, l, E_idx + num_fluids) < small_alf .or. R3Rbar < sgm_eps) then
-                                        ptilde_R = qR_prim_rs${XYZ}$_vf(j + 1, k, l, E_idx + num_fluids)*pres_R
+                                    if (qR_prim_rs${XYZ}$_vf(j + 1, k, l, E_idx + num_fluids) < small_alf .or. R3Rbar < small_alf) then
+                                        ptilde_R = 0._wp
                                     else
                                         ptilde_R = qR_prim_rs${XYZ}$_vf(j + 1, k, l, E_idx + num_fluids)*(pres_R - PbwR3Rbar/R3Rbar - &
                                                                                                           rho_R*R3V2Rbar/R3Rbar)
                                     end if
 
                                     if ((.not. f_approx_equal(ptilde_L, ptilde_L)) .or. (.not. f_approx_equal(ptilde_R, ptilde_R))) then
-                                      print *, j, qL_prim_rs${XYZ}$_vf(j, k, l, E_idx + num_fluids), pres_L, PbwR3Lbar, R3Lbar, rho_L, R3V2Lbar
-                                      print *, j, qR_prim_rs${XYZ}$_vf(j, k, l, E_idx + num_fluids), pres_R, PbwR3Rbar, R3Rbar, rho_R, R3V2Rbar
                                       call s_mpi_abort("ptilde_L or ptilde_R is NaN")
                                     end if
 

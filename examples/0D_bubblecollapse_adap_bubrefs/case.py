@@ -2,26 +2,28 @@
 import math
 import json
 
-# FLUID PROPERTIES
-# Water
+# water props
 n_tait = 7.1
 B_tait = 306.0e06
-rho0 = 1.0e03
-mul0 = 1.002e-03
-ss = 0.07275
-pv = 2.3388e03
+rho_w = 1000
+mul0 = 1.002e-03  # viscosity
+ss = 0.07275  # surface tension
+pv = 2.3388e03  # vapor pressure
 
-# Vapor
 gamma_v = 1.33
 M_v = 18.02
 mu_v = 0.8816e-05
 k_v = 0.019426
+diffcoef = 0.242e-4
 
-# Air
+# air props
 gamma_n = 1.4
 M_n = 28.97
 mu_n = 1.8e-05
 k_n = 0.02556
+
+# air props
+gamma_gas = gamma_n
 
 # REFERENCE VALUES
 R0ref = 50.0e-06

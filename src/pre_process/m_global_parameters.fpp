@@ -483,7 +483,7 @@ contains
         bub_refs%u0 = dflt_real
         bub_refs%p0 = dflt_real
         bub_refs%T0 = dflt_real
-        bub_refs%Thost = dflt_real
+        bub_refs%Tw = dflt_real
         bub_refs%R0ref = dflt_real
         bub_refs%ub0 = dflt_real
         bub_refs%p0eq = dflt_real
@@ -778,13 +778,6 @@ contains
                         bub_idx%ms(i) = bub_idx%ps(i) + 1
                     end if
                 end do
-
-                if (nb == 1) then
-                    weight(:) = 1._wp
-                    R0(:) = 1._wp
-                else if (nb < 1) then
-                    stop 'Invalid value of nb'
-                end if
             end if
         end if
 

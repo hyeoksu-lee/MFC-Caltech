@@ -683,8 +683,8 @@ contains
         bub_refs%u0 = dflt_real
         bub_refs%p0 = dflt_real
         bub_refs%T0 = dflt_real
-        bub_refs%Thost = dflt_real
-        bub_refs%rhob0 = dflt_real
+        bub_refs%Tw = dflt_real
+        bub_refs%rhol0 = dflt_real
         bub_refs%R0ref = dflt_real
         bub_refs%ub0 = dflt_real
         bub_refs%p0eq = dflt_real
@@ -975,13 +975,6 @@ contains
                             end if
                         end do
                     end if
-
-                    if (nb == 1) then
-                        weight(:) = 1._wp
-                        R0(:) = 1._wp
-                    else if (nb < 1) then
-                        stop 'Invalid value of nb'
-                    end if
                 end if
 
                 if (mhd) then
@@ -1045,12 +1038,6 @@ contains
                             bub_idx%ms(i) = bub_idx%ps(i) + 1
                         end if
                     end do
-                    if (nb == 1) then
-                        weight(:) = 1._wp
-                        R0(:) = 1._wp
-                    else if (nb < 1) then
-                        stop 'Invalid value of nb'
-                    end if
                 end if
             end if
 
@@ -1289,7 +1276,7 @@ contains
             & ptil,bubble_model,thermal,poly_sigma]')
         $:GPU_ENTER_DATA(copyin='[R_n,R_v,phi_vn,phi_nv,Pe_c,Tw,pv, &
             & M_n,M_v,k_n,k_v,pb0,mass_n0,mass_v0,Pe_T, &
-            & Re_trans_T,Re_trans_c,Im_trans_T,Im_trans_c,omegaN, &
+            & Re_trans_T,Re_trans_c,Im_trans_T,Im_trans_c, &
             & mul0,ss,gamma_v,mu_v,gamma_m,gamma_n,mu_n,gam]')
         $:GPU_ENTER_DATA(copyin='[dir_idx,dir_flg,dir_idx_tau]')
 

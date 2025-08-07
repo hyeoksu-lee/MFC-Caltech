@@ -161,8 +161,8 @@ print(
             "bub_refs%x0": x0,
             "bub_refs%p0": p0,
             "bub_refs%T0": T0,
-            "bub_refs%Thost": T0,
-            "bub_refs%rhob0": rho0,
+            "bub_refs%Tw": T0,
+            "bub_refs%rhol0": rho0,
             "bub_refs%R0ref": myr0,
             "bub_refs%p0eq": p0,
             # Bubbles

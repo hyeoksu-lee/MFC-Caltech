@@ -125,6 +125,11 @@ contains
           ! Compute quadrature weights and nodes for polydisperse simulations
           if (nb > 1) then
               call s_simpson(weight, R0)
+          else if (nb == 1) then
+              R0 = 1._wp
+              weight = 1._wp
+          else
+              stop 'Invalid value of nb'
           end if
           R0 = R0*(bub_refs%R0ref/bub_refs%x0)
 
@@ -146,8 +151,8 @@ contains
     !>
     impure subroutine s_initialize_bubble_refs()
 
-      if (.not. f_is_default(bub_refs%rho0) .and. f_is_default(bub_refs%rhob0)) then
-          bub_refs%rhob0 = bub_refs%rho0
+      if (.not. f_is_default(bub_refs%rho0) .and. f_is_default(bub_refs%rhol0)) then
+          bub_refs%rhol0 = bub_refs%rho0
       end if
 
       if (.not. f_is_default(bub_refs%x0) .and. f_is_default(bub_refs%R0ref)) then
@@ -161,13 +166,13 @@ contains
       end if
 
       if (f_is_default(bub_refs%ub0)) then
-          bub_refs%ub0 = sqrt(bub_refs%p0eq/bub_refs%rhob0)
+          bub_refs%ub0 = sqrt(bub_refs%p0eq/bub_refs%rhol0)
       else if (f_is_default(bub_refs%p0eq)) then
-          bub_refs%p0eq = bub_refs%rhob0*bub_refs%ub0*bub_refs%ub0
+          bub_refs%p0eq = bub_refs%rhol0*bub_refs%ub0*bub_refs%ub0
       end if
 
-      if (.not. f_is_default(bub_refs%T0) .and. f_is_default(bub_refs%Thost)) then
-          bub_refs%Thost = bub_refs%T0
+      if (.not. f_is_default(bub_refs%T0) .and. f_is_default(bub_refs%Tw)) then
+          bub_refs%Tw = bub_refs%T0
       end if
 
     end subroutine s_initialize_bubble_refs
@@ -176,7 +181,7 @@ contains
     !> 
     impure subroutine s_initialize_bubble_vars()
         integer :: id_bubbles, id_host
-        real(wp) :: rho0, u0, T0, x0, p0, rhob0, p0eq, ub0, R0ref
+        real(wp) :: rho0, u0, T0, x0, p0, rhol0, p0eq, ub0, R0ref
 
         ! Specify host and bubble components
         if (bubbles_euler) then
@@ -197,7 +202,7 @@ contains
         p0 = bub_refs%p0
         u0 = bub_refs%u0
         T0 = bub_refs%T0
-        rhob0 = bub_refs%rhob0
+        rhol0 = bub_refs%rhol0
         p0eq = bub_refs%p0eq
         R0ref = bub_refs%R0ref
         ub0 = bub_refs%ub0
@@ -206,7 +211,7 @@ contains
         pv = fluid_pp(id_host)%pv / p0
         if (bub_ss) ss = fluid_pp(id_host)%ss
         if (bub_visc) mul0 = fluid_pp(id_host)%mul0
-        if (.not. polytropic) Tw = bub_refs%Thost/T0
+        if (.not. polytropic) Tw = bub_refs%Tw/T0
         if (bubbles_euler .and. (.not. polytropic)) then
           ! Viscosity
           mu_v = fluid_pp(id_host)%mu_v
@@ -314,7 +319,7 @@ contains
         Pe_T(:) = rho_m0*cp_m0(:)/k_m0(:)
         
         ! natural frequencies (Eq. B.1)
-        rhol0 = bub_refs%rhob0/bub_refs%rho0
+        rhol0 = bub_refs%rhol0/bub_refs%rho0
         omegaN(:) = sqrt(3._wp*k_poly*Ca + 2._wp*(3._wp*k_poly - 1._wp)/(Web*R0))/R0/sqrt(rhol0)
         do ir = 1, Nb
             call s_transcoeff(omegaN(ir)*R0(ir), Pe_T(ir)*R0(ir), &
