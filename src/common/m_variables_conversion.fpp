@@ -144,7 +144,7 @@ contains
             elseif ((model_eqns /= 4) .and. (bubbles_euler .neqv. .true.)) then
                 pres = (energy - dyn_p - pi_inf - qv)/gamma
             else if ((model_eqns /= 4) .and. bubbles_euler) then
-                pres = ((energy - dyn_p)/(1._wp - alf) - pi_inf - qv)/gamma
+                pres = ((energy - dyn_p)/(1._wp - alf)/gamma - pi_inf/gamma - qv/gamma)
             else
                 pres = (1._wp + pi_inf)* &
                        (energy/ &

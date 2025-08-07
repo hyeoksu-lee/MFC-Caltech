@@ -124,7 +124,7 @@ contains
           if (nb > 1) then
               call s_simpson(weight, R0)
           end if
-          R0 = R0*bub_refs%R0ref/bub_refs%x0
+          R0 = R0*(bub_refs%R0ref/bub_refs%x0)
 
         ! Restrictions on Lagrange bubbles
         else if (bubbles_lagrange) then
@@ -159,9 +159,13 @@ contains
       end if
 
       if (f_is_default(bub_refs%ub0)) then
-          bub_refs%ub0 = sqrt(bub_refs%p0eq/bub_refs%rho0)
+          bub_refs%ub0 = sqrt(bub_refs%p0eq/bub_refs%rhob0)
       else if (f_is_default(bub_refs%p0eq)) then
-          bub_refs%p0eq = bub_refs%rho0*bub_refs%ub0*bub_refs%ub0
+          bub_refs%p0eq = bub_refs%rhob0*bub_refs%ub0*bub_refs%ub0
+      end if
+
+      if (.not. f_is_default(bub_refs%T0) .and. f_is_default(bub_refs%Thost)) then
+          bub_refs%Thost = bub_refs%T0
       end if
 
     end subroutine s_initialize_bubble_refs
@@ -267,7 +271,7 @@ contains
     !> Initializes non-polydisperse bubble modeling
     impure subroutine s_initialize_nonpoly()
         integer :: ir
-        real(wp), dimension(nb) :: chi_vw0, cp_m0, k_m0, rho_m0, x_vw, omegaN
+        real(wp), dimension(nb) :: chi_vw0, cp_m0, k_m0, rho_m0, x_vw, omegaN, rhol0
 
         real(wp), parameter :: k_poly = 1._wp !<
             !! polytropic index used to compute isothermal natural frequency
@@ -303,12 +307,13 @@ contains
         ! mass of gas/vapor
         mass_n0(:) = (4._wp*pi/3._wp)*(pb0(:) - pv)/(R_n*Tw)*R0(:)**3
         mass_v0(:) = (4._wp*pi/3._wp)*pv/(R_v*Tw)*R0(:)**3
-
-        ! Peclet numbers (u0 = x0 = 1 as others are already nondimensionalized)
+        
+        ! Peclet numbers (u0 = x0 = 1, effectively, as others are already nondimensionalized using u0 and x0)
         Pe_T(:) = rho_m0*cp_m0(:)/k_m0(:)
         
         ! natural frequencies (Eq. B.1)
-        omegaN(:) = sqrt(3._wp*k_poly*Ca + 2._wp*(3._wp*k_poly - 1._wp)/(Web*R0))/R0
+        rhol0 = bub_refs%rhob0/bub_refs%rho0
+        omegaN(:) = sqrt(3._wp*k_poly*Ca + 2._wp*(3._wp*k_poly - 1._wp)/(Web*R0))/R0/sqrt(rhol0)
         do ir = 1, Nb
             call s_transcoeff(omegaN(ir)*R0(ir), Pe_T(ir)*R0(ir), &
                               Re_trans_T(ir), Im_trans_T(ir))
