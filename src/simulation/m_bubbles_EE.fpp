@@ -241,16 +241,16 @@ contains
                         n_tait = 0._wp
                         B_tait = 0._wp
 
-                        if (mpp_lim .and. (num_fluids > 2)) then
+                        if (mpp_lim .and. (num_fluids >= 2)) then
                             $:GPU_LOOP(parallelism='[seq]')
                             do ii = 1, num_fluids
                                 myRho = myRho + myalpha_rho(ii)
                                 n_tait = n_tait + myalpha(ii)*gammas(ii)
                                 B_tait = B_tait + myalpha(ii)*pi_infs(ii)
                             end do
-                        else if (num_fluids > 2) then
+                        else if (num_fluids >= 2) then
                             $:GPU_LOOP(parallelism='[seq]')
-                            do ii = 1, num_fluids - 1
+                            do ii = 1, num_fluids
                                 myRho = myRho + myalpha_rho(ii)
                                 n_tait = n_tait + myalpha(ii)*gammas(ii)
                                 B_tait = B_tait + myalpha(ii)*pi_infs(ii)
@@ -330,7 +330,7 @@ contains
                 do q = 0, n
                     do i = 0, m
                         rhs_vf(alf_idx)%sf(i, q, l) = rhs_vf(alf_idx)%sf(i, q, l) + bub_adv_src(i, q, l)
-                        if (num_fluids > 1) rhs_vf(advxb)%sf(i, q, l) = &
+                        if (num_fluids > 1 .and. .not. icsg) rhs_vf(advxb)%sf(i, q, l) = &
                             rhs_vf(advxb)%sf(i, q, l) - bub_adv_src(i, q, l)
                         $:GPU_LOOP(parallelism='[seq]')
                         do k = 1, nb

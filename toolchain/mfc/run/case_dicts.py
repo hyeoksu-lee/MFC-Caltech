@@ -66,6 +66,7 @@ COMMON = {
     'down_sample': ParamType.LOG,
     'recon_type': ParamType.INT,
     'muscl_order': ParamType.INT,
+    'icsg': ParamType.LOG,
 }
 
 PRE_PROCESS = COMMON.copy()
@@ -106,6 +107,8 @@ PRE_PROCESS.update({
     'elliptic_smoothing_iters': ParamType.INT,
     'viscous': ParamType.LOG,
     'bubbles_lagrange': ParamType.LOG,
+    'icsg_vf': ParamType.REAL,
+    'icsg_patch': ParamType.INT,
 })
 
 for ib_id in range(1, 10+1):

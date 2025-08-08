@@ -189,7 +189,7 @@ contains
             cont_damage, tau_star, cont_damage_s, alpha_bar, &
             alf_factor, num_igr_iters, down_sample, &
             num_igr_warm_start_iters, &
-            int_comp, ic_eps, ic_beta
+            int_comp, ic_eps, ic_beta, icsg
 
         ! Checking that an input file has been provided by the user. If it
         ! has, then the input file is read in, otherwise, simulation exits.

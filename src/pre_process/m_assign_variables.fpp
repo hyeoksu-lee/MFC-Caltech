@@ -439,6 +439,13 @@ contains
             end do
 
             if (adv_n) then
+                if (icsg) then
+                  if (icsg_patch == patch_id) then
+                    q_prim_vf(alf_idx)%sf(j, k, l) = icsg_vf
+                  else
+                    q_prim_vf(alf_idx)%sf(j, k, l) = small_alf
+                  end if
+                end if
                 ! Initialize number density
                 R3bar = 0._wp
                 do i = 1, nb
@@ -643,11 +650,17 @@ contains
                         q_prim_vf(bub_idx%ps(i))%sf(j, k, l) = patch_icpp(patch_id)%p0
                         q_prim_vf(bub_idx%ms(i))%sf(j, k, l) = patch_icpp(patch_id)%m0
                     end if
-
                 end if
             end do
 
             if (adv_n) then
+                if (icsg) then
+                  if (icsg_patch == patch_id) then
+                    q_prim_vf(alf_idx)%sf(j, k, l) = icsg_vf
+                  else
+                    q_prim_vf(alf_idx)%sf(j, k, l) = small_alf
+                  end if
+                end if
                 ! Initialize number density
                 R3bar = 0._wp
                 do i = 1, nb

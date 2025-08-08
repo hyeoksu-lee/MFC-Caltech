@@ -102,6 +102,7 @@ module m_global_parameters
 
     ! Simulation Algorithm Parameters
     integer :: model_eqns     !< Multicomponent flow model
+    logical :: icsg
     #:if MFC_CASE_OPTIMIZATION
         integer, parameter :: num_dims = ${num_dims}$       !< Number of spatial dimensions
         integer, parameter :: num_vels = ${num_vels}$       !< Number of velocity components (different from num_dims for mhd)
@@ -207,7 +208,7 @@ module m_global_parameters
         $:GPU_DECLARE(create='[recon_type, muscl_order, muscl_polyn, muscl_lim]')
     #:endif
 
-    $:GPU_DECLARE(create='[mpp_lim,model_eqns,mixture_err,alt_soundspeed]')
+    $:GPU_DECLARE(create='[mpp_lim,model_eqns,icsg,mixture_err,alt_soundspeed]')
     $:GPU_DECLARE(create='[avg_state,mp_weno,weno_eps,teno_CT,hypoelasticity]')
     $:GPU_DECLARE(create='[hyperelasticity,hyper_model,elasticity,low_Mach]')
     $:GPU_DECLARE(create='[shear_stress,bulk_stress,cont_damage]')
@@ -575,6 +576,7 @@ contains
 
         ! Simulation algorithm parameters
         model_eqns = dflt_int
+        icsg = .false.
         mpp_lim = .false.
         time_stepper = dflt_int
         weno_eps = dflt_real
@@ -902,7 +904,12 @@ contains
                 sys_size = adv_idx%end
 
                 if (bubbles_euler) then
+                  if (icsg) then
+                    alf_idx = adv_idx%end + 1
+                    sys_size = sys_size + 1
+                  else
                     alf_idx = adv_idx%end
+                  end if
                 else
                     alf_idx = 1
                 end if
@@ -924,8 +931,6 @@ contains
                         end if
                     end if
                     sys_size = bub_idx%end
-                    ! print*, 'alf idx', alf_idx
-                    ! print*, 'bub -idx beg end', bub_idx%beg, bub_idx%end
 
                     if (adv_n) then
                         n_idx = bub_idx%end + 1

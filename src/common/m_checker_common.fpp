@@ -139,9 +139,13 @@ contains
         !! Called by s_check_inputs_common for pre-processing and simulation
     impure subroutine s_check_inputs_adv_n
         @:PROHIBIT(adv_n .and. (.not. bubbles_euler))
-        @:PROHIBIT(adv_n .and. num_fluids /= 1)
         @:PROHIBIT(adv_n .and. qbmm)
     end subroutine s_check_inputs_adv_n
+
+    impure subroutine s_check_inputs_icsg
+        @:PROHIBIT(icsg .and. .not. adv_n)
+        @:PROHIBIT(icsg .and. num_fluids /= 2)
+    end subroutine s_check_inputs_icsg
 
     !> Checks constraints on the hypoelasticity parameters.
         !! Called by s_check_inputs_common for pre-processing and simulation

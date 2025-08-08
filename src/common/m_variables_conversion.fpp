@@ -143,8 +143,10 @@ contains
                 pres = (energy - dyn_p - pi_inf - qv - pres_mag)/gamma
             elseif ((model_eqns /= 4) .and. (bubbles_euler .neqv. .true.)) then
                 pres = (energy - dyn_p - pi_inf - qv)/gamma
-            else if ((model_eqns /= 4) .and. bubbles_euler) then
+            else if ((model_eqns /= 4) .and. bubbles_euler .and. .not. icsg) then
                 pres = ((energy - dyn_p)/(1._wp - alf) - pi_inf - qv)/gamma
+            else if ((model_eqns /= 4) .and. bubbles_euler .and. icsg) then
+                pres = ((energy - dyn_p) - pi_inf - qv)/gamma
             else
                 pres = (pref + pi_inf)* &
                        (energy/ &
@@ -291,21 +293,16 @@ contains
         else if ((model_eqns == 2) .and. bubbles_euler) then
             rho = 0._wp; gamma = 0._wp; pi_inf = 0._wp; qv = 0._wp
 
-            if (mpp_lim .and. (num_fluids > 2)) then
+            if (mpp_lim .and. (num_fluids >= 2)) then
                 do i = 1, num_fluids
                     rho = rho + q_vf(i)%sf(j, k, l)
                     gamma = gamma + q_vf(i + E_idx)%sf(j, k, l)*fluid_pp(i)%gamma
                     pi_inf = pi_inf + q_vf(i + E_idx)%sf(j, k, l)*fluid_pp(i)%pi_inf
                     qv = qv + q_vf(i)%sf(j, k, l)*fluid_pp(i)%qv
                 end do
-            else if (num_fluids == 2) then
-                rho = q_vf(1)%sf(j, k, l)
-                gamma = fluid_pp(1)%gamma
-                pi_inf = fluid_pp(1)%pi_inf
-                qv = fluid_pp(1)%qv
-            else if (num_fluids > 2) then
+            else if (num_fluids >= 2) then
                 !TODO: This may need fixing for hypo + bubbles_euler
-                do i = 1, num_fluids - 1 !leave out bubble part of mixture
+                do i = 1, num_fluids
                     rho = rho + q_vf(i)%sf(j, k, l)
                     gamma = gamma + q_vf(i + E_idx)%sf(j, k, l)*fluid_pp(i)%gamma
                     pi_inf = pi_inf + q_vf(i + E_idx)%sf(j, k, l)*fluid_pp(i)%pi_inf
@@ -1098,6 +1095,9 @@ contains
                             if (adv_n) then
                                 qK_prim_vf(n_idx)%sf(j, k, l) = qK_cons_vf(n_idx)%sf(j, k, l)
                                 nbub_sc = qK_prim_vf(n_idx)%sf(j, k, l)
+                                if (icsg) then
+                                  qK_prim_vf(alf_idx)%sf(j, k, l) = qK_cons_vf(alf_idx)%sf(j, k, l)
+                                end if
                             else
                                 call s_comp_n_from_cons(vftmp, nRtmp, nbub_sc, weight)
                             end if
@@ -1333,10 +1333,14 @@ contains
                             q_cons_vf(E_idx)%sf(j, k, l) = &
                                 gamma*q_prim_vf(E_idx)%sf(j, k, l) + dyn_pres + pi_inf &
                                 + qv
-                        else if ((model_eqns /= 4) .and. (bubbles_euler)) then
+                        else if ((model_eqns /= 4) .and. (bubbles_euler) .and. .not. icsg) then
                             ! \tilde{E} = dyn_pres + (1-\alf)(\Gamma p_l + \Pi_inf)
                             q_cons_vf(E_idx)%sf(j, k, l) = dyn_pres + &
                                                            (1._wp - q_prim_vf(alf_idx)%sf(j, k, l))* &
+                                                           (gamma*q_prim_vf(E_idx)%sf(j, k, l) + pi_inf)
+                        else if ((model_eqns /= 4) .and. (bubbles_euler) .and. icsg) then
+                            ! \tilde{E} = dyn_pres + (\Gamma p_l + \Pi_inf)
+                            q_cons_vf(E_idx)%sf(j, k, l) = dyn_pres + &
                                                            (gamma*q_prim_vf(E_idx)%sf(j, k, l) + pi_inf)
                         else
                             !Tait EOS, no conserved energy variable
@@ -1366,6 +1370,9 @@ contains
                             if (adv_n) then
                                 q_cons_vf(n_idx)%sf(j, k, l) = q_prim_vf(n_idx)%sf(j, k, l)
                                 nbub = q_prim_vf(n_idx)%sf(j, k, l)
+                                if (icsg) then
+                                    q_cons_vf(alf_idx)%sf(j, k, l) = q_prim_vf(alf_idx)%sf(j, k, l)
+                                end if
                             else
                                 call s_comp_n_from_prim(q_prim_vf(alf_idx)%sf(j, k, l), Rtmp, nbub, weight)
                             end if
@@ -1673,6 +1680,11 @@ contains
                 if (mpp_lim .and. (num_fluids > 1)) then
                     c = (1._wp/gamma + 1._wp)* &
                         (pres + pi_inf/(gamma + 1._wp))/rho
+                else if (icsg) then
+                    c = &
+                        (1._wp/gamma + 1._wp)* &
+                        (pres + pi_inf/(gamma + 1._wp))/ &
+                        (rho)
                 else
                     c = &
                         (1._wp/gamma + 1._wp)* &
