@@ -374,7 +374,6 @@ contains
                 print *, 'icfl', icfl_max_glb
                 call s_mpi_abort('ICFL is greater than 1.0. Exiting.')
             end if
-            print *, icfl_max_glb
 
             if (viscous) then
                 if (.not. f_approx_equal(vcfl_max_glb, vcfl_max_glb)) then

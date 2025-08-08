@@ -561,15 +561,15 @@ contains
         pi_inf_K = 0._wp
         qv_K = 0._wp
 
-        if (mpp_lim .and. (model_eqns == 2) .and. (num_fluids > 2)) then
+        if (mpp_lim .and. (model_eqns == 2) .and. (num_fluids >= 2)) then
             do i = 1, num_fluids
                 rho_K = rho_K + alpha_rho_K(i)
                 gamma_K = gamma_K + alpha_K(i)*gammas(i)
                 pi_inf_K = pi_inf_K + alpha_K(i)*pi_infs(i)
                 qv_K = qv_K + alpha_rho_K(i)*qvs(i)
             end do
-        else if ((model_eqns == 2) .and. (num_fluids > 2)) then
-            do i = 1, num_fluids - 1
+        else if ((model_eqns == 2) .and. (num_fluids >= 2)) then
+            do i = 1, num_fluids
                 rho_K = rho_K + alpha_rho_K(i)
                 gamma_K = gamma_K + alpha_K(i)*gammas(i)
                 pi_inf_K = pi_inf_K + alpha_K(i)*pi_infs(i)

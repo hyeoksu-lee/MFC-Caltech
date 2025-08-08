@@ -88,25 +88,23 @@ icsg_vf = 1e-5
 Ca = (p0 - pv)/p0
 Web = rho0*u0**2*x0/ss
 Re_inv = mul0/(rho0*u0*x0)
-
-c_l = math.sqrt(1.4 * 238558.0 / 1)
+Ma = 1.4
 
 ## Grid
-Ny = 299.0
-Nx = 1199.0
-dx = 0.25 / Nx  # 8.3e-6
+Nx = 1199
+Ny = 299
+dx = 24*D/(Nx + 1)
 
-time_end = 0.005  # 50us
-cfl = 0.25
-
-dt = cfl * dx / c_l  # 5.3E-9
-Nt = int(time_end / dt)  # 10000
+cfl = 0.1
+time_end = 0.005*(u0/x0)
+dt = cfl * (dx/x0) / (p2_vel1/u0*(1 + 1/Ma))
+Nt = int(time_end / dt)
 
 print(
     json.dumps(
         {
             # Logistics
-            "run_time_info": "F",
+            "run_time_info": "T",
             # Computational Domain Parameters
             "x_domain%beg": xbeg/x0,
             "x_domain%end": xend/x0,

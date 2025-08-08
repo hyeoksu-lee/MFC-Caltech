@@ -206,6 +206,12 @@ contains
                         idwbuff(2)%beg:idwbuff(2)%end, &
                         idwbuff(3)%beg:idwbuff(3)%end))
                     @:ACC_SETUP_SFs(q_prim_vf(n_idx))
+                    if (icsg) then
+                      @:ALLOCATE(q_prim_vf(alf_idx)%sf(idwbuff(1)%beg:idwbuff(1)%end, &
+                          idwbuff(2)%beg:idwbuff(2)%end, &
+                          idwbuff(3)%beg:idwbuff(3)%end))
+                      @:ACC_SETUP_SFs(q_prim_vf(alf_idx))
+                    end if
                 end if
             end if
 
@@ -781,7 +787,7 @@ contains
             call cpu_time(start)
             call nvtxStartRange("TIMESTEP")
         end if
-
+        
         call s_compute_rhs(q_cons_ts(1)%vf, q_T_sf, q_prim_vf, bc_type, rhs_vf, pb_ts(1)%sf, rhs_pb, mv_ts(1)%sf, rhs_mv, t_step, time_avg, 1)
 
         if (run_time_info) then
