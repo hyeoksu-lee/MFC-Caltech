@@ -443,7 +443,7 @@ contains
                   if (icsg_patch == patch_id) then
                     q_prim_vf(alf_idx)%sf(j, k, l) = icsg_vf
                   else
-                    q_prim_vf(alf_idx)%sf(j, k, l) = small_alf
+                    q_prim_vf(alf_idx)%sf(j, k, l) = 1e-10
                   end if
                 end if
                 ! Initialize number density
@@ -658,7 +658,7 @@ contains
                   if (icsg_patch == patch_id) then
                     q_prim_vf(alf_idx)%sf(j, k, l) = icsg_vf
                   else
-                    q_prim_vf(alf_idx)%sf(j, k, l) = small_alf
+                    q_prim_vf(alf_idx)%sf(j, k, l) = 1e-10
                   end if
                 end if
                 ! Initialize number density

@@ -461,7 +461,7 @@ contains
         !!  @param fbeta_t Heat transfer coefficient (EL)
         !!  @param fCson Speed of sound (EL)
         !!  @param adap_dt_stop Fail-safe exit if max iteration count reached
-    pure subroutine s_advance_step(fRho, fP, fR, fV, fR0, fpb, fpbdot, alf, &
+    impure subroutine s_advance_step(fRho, fP, fR, fV, fR0, fpb, fpbdot, alf, &
                                    fntait, fBtait, f_bub_adv_src, f_divu, &
                                    bub_id, fmass_v, fmass_n, fbeta_c, &
                                    fbeta_t, fCson, adap_dt_stop)
@@ -488,10 +488,10 @@ contains
 
         ! Advancing one step
         t_new = 0._wp
-        iter_count = 0
         adap_dt_stop = 0
 
         do
+            iter_count = 0
 
             if (t_new + h > 0.5_wp*dt) then
                 h = 0.5_wp*dt - t_new
@@ -509,6 +509,9 @@ contains
                                        bub_id, fmass_v, fmass_n, fbeta_c, &
                                        fbeta_t, fCson, h, &
                                        myR_tmp1, myV_tmp1, myPb_tmp1, myMv_tmp1)
+                ! write(99,*) " " 
+                ! write(99,*) "iter_count", iter_count, t_new
+                ! write(99,*) fP, fR, fR0, fV, myR_tmp1(4), myV_tmp1(4)
 
                 ! Advance one sub-step by advancing two half steps
                 call s_advance_substep(err(2), &
@@ -517,6 +520,8 @@ contains
                                        bub_id, fmass_v, fmass_n, fbeta_c, &
                                        fbeta_t, fCson, 0.5_wp*h, &
                                        myR_tmp2, myV_tmp2, myPb_tmp2, myMv_tmp2)
+
+                ! write(99,*) fP, fR, fR0, fV, myR_tmp2(4), myV_tmp2(4)
 
                 fR2 = myR_tmp2(4); fV2 = myV_tmp2(4)
                 fpb2 = myPb_tmp2(4); fmass_v2 = myMv_tmp2(4)
@@ -528,9 +533,13 @@ contains
                                        fbeta_t, fCson, 0.5_wp*h, &
                                        myR_tmp2, myV_tmp2, myPb_tmp2, myMv_tmp2)
 
+                ! write(99,*) fP, fR2, fR0, fV2, myR_tmp2(4), myV_tmp2(4)
+
                 err(4) = abs((myR_tmp1(4) - myR_tmp2(4))/myR_tmp1(4))
                 err(5) = abs((myV_tmp1(4) - myV_tmp2(4))/myV_tmp1(4))
                 if (abs(myV_tmp1(4)) < verysmall) err(5) = 0._wp
+
+                ! write(99,*) "err", err
 
                 ! Determine acceptance/rejection and update step size
                 !   Rule 1: err1, err2, err3 < tol
@@ -538,8 +547,8 @@ contains
                 !   Rule 3: abs((myR_tmp1(4) - myR_tmp2(4))/fR) < tol
                 !   Rule 4: abs((myV_tmp1(4) - myV_tmp2(4))/fV) < tol
                 if ((err(1) <= adap_dt_tol) .and. (err(2) <= adap_dt_tol) .and. &
-                    (err(3) <= adap_dt_tol) .and. (err(4) < adap_dt_tol) .and. &
-                    (err(5) < adap_dt_tol) .and. myR_tmp1(4) > 0._wp) then
+                    (err(3) <= adap_dt_tol) .and. (err(4) <= adap_dt_tol) .and. &
+                    (err(5) <= adap_dt_tol) .and. myR_tmp1(4) > 0._wp) then
 
                     ! Accepted. Finalize the sub-step
                     t_new = t_new + h
@@ -574,6 +583,8 @@ contains
         end do
 
         if (iter_count >= adap_dt_max_iters) adap_dt_stop = 1
+
+        ! write(99,*) "exit", iter_count, adap_dt_max_iters, adap_dt_stop
 
     end subroutine s_advance_step
 
