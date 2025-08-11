@@ -1295,7 +1295,7 @@ contains
         $:GPU_UPDATE(device='[dt,sys_size,buff_size,pref,rhoref, &
             & gamma_idx,pi_inf_idx,E_idx,alf_idx,stress_idx, &
             & mpp_lim,bubbles_euler,hypoelasticity,alt_soundspeed, &
-            & avg_state,num_fluids,model_eqns,num_dims,num_vels, &
+            & avg_state,num_fluids,model_eqns,icsg,num_dims,num_vels, &
             & mixture_err,grid_geometry,cyl_coord,mp_weno,weno_eps, &
             & teno_CT,hyperelasticity,hyper_model,elasticity,xi_idx, &
             & B_idx,low_Mach]')
