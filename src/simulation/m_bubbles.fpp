@@ -575,11 +575,7 @@ contains
 
         end do
 
-        if (iter_count >= adap_dt_max_iters) then 
-            adap_dt_stop = 1
-            print *, fRho, fP, fR, fV, fR0
-            call s_mpi_abort("adap_dt_stop_max == 1")
-        end if
+        if (iter_count >= adap_dt_max_iters) adap_dt_stop = 1
 
     end subroutine s_advance_step
 

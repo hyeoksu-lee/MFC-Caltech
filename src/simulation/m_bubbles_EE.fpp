@@ -217,10 +217,6 @@ contains
                         nbub = (3._wp/(4._wp*pi))*q_prim_vf(alf_idx)%sf(j, k, l)/R3
                     end if
 
-                    if (nbub /= nbub) then
-                        call s_mpi_abort("nbub is NaN")
-                    end if
-
                     if (.not. adap_dt) then
                         R2Vav = 0._wp
 

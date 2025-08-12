@@ -176,8 +176,8 @@ contains
         !!              on the grid using the primitive variables included with
         !!              the patch parameters. The subroutine is complete once the
         !!              primitive variables are converted to conservative ones.
-    impure subroutine s_generate_initial_condition     
-        integer :: i, j   
+    impure subroutine s_generate_initial_condition
+
         ! Converting the conservative variables to the primitive ones given
         ! preexisting initial condition data files were read in on start-up
         if (old_ic) then
