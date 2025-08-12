@@ -327,7 +327,7 @@ contains
 
             do i = adv_idx%beg, adv_idx%end - 1
                 q_prim_vf(i)%sf = q_prim_vf(i)%sf*(1._wp - q_prim_vf(alf_idx)%sf) &
-                                /alf_sum%sf
+                                  /alf_sum%sf
             end do
         end if
 
@@ -357,7 +357,7 @@ contains
 
             do i = adv_idx%beg, adv_idx%end - 1
                 q_prim_vf(i)%sf = q_prim_vf(i)%sf*(1._wp - q_prim_vf(alf_idx)%sf) &
-                                /alf_sum%sf
+                                  /alf_sum%sf
             end do
         end if
 
@@ -402,7 +402,7 @@ contains
 
             do i = adv_idx%beg, adv_idx%end - 1
                 q_prim_vf(i)%sf = q_prim_vf(i)%sf*(1._wp - q_prim_vf(alf_idx)%sf) &
-                                /alf_sum%sf
+                                  /alf_sum%sf
             end do
         end if
 
@@ -440,11 +440,11 @@ contains
 
             if (adv_n) then
                 if (icsg) then
-                  if (icsg_patch == patch_id) then
-                    q_prim_vf(alf_idx)%sf(j, k, l) = icsg_vf
-                  else
-                    q_prim_vf(alf_idx)%sf(j, k, l) = 1.e-10_wp
-                  end if
+                    if (icsg_patch == patch_id) then
+                        q_prim_vf(alf_idx)%sf(j, k, l) = icsg_vf
+                    else
+                        q_prim_vf(alf_idx)%sf(j, k, l) = 1.e-10_wp
+                    end if
                 end if
                 ! Initialize number density
                 R3bar = 0._wp
@@ -542,7 +542,7 @@ contains
 
             do i = adv_idx%beg, adv_idx%end - 1
                 q_prim_vf(i)%sf = q_prim_vf(i)%sf*(1._wp - q_prim_vf(alf_idx)%sf) &
-                                /alf_sum%sf
+                                  /alf_sum%sf
             end do
         end if
 
@@ -655,11 +655,11 @@ contains
 
             if (adv_n) then
                 if (icsg) then
-                  if (icsg_patch == patch_id) then
-                    q_prim_vf(alf_idx)%sf(j, k, l) = icsg_vf
-                  else
-                    q_prim_vf(alf_idx)%sf(j, k, l) = 1.e-10_wp
-                  end if
+                    if (icsg_patch == patch_id) then
+                        q_prim_vf(alf_idx)%sf(j, k, l) = icsg_vf
+                    else
+                        q_prim_vf(alf_idx)%sf(j, k, l) = 1.e-10_wp
+                    end if
                 end if
                 ! Initialize number density
                 R3bar = 0._wp
@@ -679,7 +679,7 @@ contains
 
             do i = adv_idx%beg, adv_idx%end - 1
                 q_prim_vf(i)%sf = q_prim_vf(i)%sf*(1._wp - q_prim_vf(alf_idx)%sf) &
-                                /alf_sum%sf
+                                  /alf_sum%sf
             end do
         end if
 

@@ -667,7 +667,7 @@ contains
                                 $:GPU_LOOP(parallelism='[seq]')
                                 do i = advxb, advxe - 1
                                     q_cons_qp%vf(i)%sf(j, k, l) = q_cons_qp%vf(i)%sf(j, k, l)*(1._wp - q_cons_qp%vf(alf_idx)%sf(j, k, l)) &
-                                                                /alf_sum%sf(j, k, l)
+                                                                  /alf_sum%sf(j, k, l)
                                 end do
                             end do
                         end do
@@ -694,7 +694,7 @@ contains
                         end do
                     end do
                 end if
-            end if            
+            end if
         end if
 
         if (igr) then

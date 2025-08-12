@@ -207,10 +207,10 @@ contains
                         idwbuff(3)%beg:idwbuff(3)%end))
                     @:ACC_SETUP_SFs(q_prim_vf(n_idx))
                     if (icsg) then
-                      @:ALLOCATE(q_prim_vf(alf_idx)%sf(idwbuff(1)%beg:idwbuff(1)%end, &
-                          idwbuff(2)%beg:idwbuff(2)%end, &
-                          idwbuff(3)%beg:idwbuff(3)%end))
-                      @:ACC_SETUP_SFs(q_prim_vf(alf_idx))
+                        @:ALLOCATE(q_prim_vf(alf_idx)%sf(idwbuff(1)%beg:idwbuff(1)%end, &
+                            idwbuff(2)%beg:idwbuff(2)%end, &
+                            idwbuff(3)%beg:idwbuff(3)%end))
+                        @:ACC_SETUP_SFs(q_prim_vf(alf_idx))
                     end if
                 end if
             end if
@@ -787,7 +787,7 @@ contains
             call cpu_time(start)
             call nvtxStartRange("TIMESTEP")
         end if
-        
+
         call s_compute_rhs(q_cons_ts(1)%vf, q_T_sf, q_prim_vf, bc_type, rhs_vf, pb_ts(1)%sf, rhs_pb, mv_ts(1)%sf, rhs_mv, t_step, time_avg, 1)
 
         if (run_time_info) then
@@ -837,27 +837,26 @@ contains
                             q_cons_ts(1)%vf(i)%sf(j, k, l) &
                             + dt*rhs_vf(i)%sf(j, k, l)
 
-
-                        if ( q_cons_ts(2)%vf(contxb)%sf(j, k, l) < 0._wp) then
-                          print *, proc_rank, i, j, k, l
-                          print *, rhs_vf(i)%sf(j, k, l)
-                          call s_mpi_abort("contxb is NaN at 1")
-                        else if ( q_cons_ts(2)%vf(contxe)%sf(j, k, l) < 0._wp) then
-                          print *, proc_rank, i, j, k, l
-                          print *, rhs_vf(i)%sf(j, k, l)
-                          call s_mpi_abort("contxe is NaN at 1")
-                        else if ( q_cons_ts(2)%vf(advxb)%sf(j, k, l) < 0._wp) then
+                        if (q_cons_ts(2)%vf(contxb)%sf(j, k, l) < 0._wp) then
+                            print *, proc_rank, i, j, k, l
+                            print *, rhs_vf(i)%sf(j, k, l)
+                            call s_mpi_abort("contxb is NaN at 1")
+                        else if (q_cons_ts(2)%vf(contxe)%sf(j, k, l) < 0._wp) then
+                            print *, proc_rank, i, j, k, l
+                            print *, rhs_vf(i)%sf(j, k, l)
+                            call s_mpi_abort("contxe is NaN at 1")
+                        else if (q_cons_ts(2)%vf(advxb)%sf(j, k, l) < 0._wp) then
                             print *, proc_rank, i, j, k, l
                             print *, rhs_vf(i)%sf(j, k, l)
                             call s_mpi_abort("advxb is NaN at 1")
-                        else if ( q_cons_ts(2)%vf(advxe)%sf(j, k, l) < 0._wp) then
+                        else if (q_cons_ts(2)%vf(advxe)%sf(j, k, l) < 0._wp) then
                             print *, proc_rank, i, j, k, l
                             print *, rhs_vf(i)%sf(j, k, l)
                             call s_mpi_abort("advxe is NaN at 1")
                         end if
 
                         if (bubbles_euler) then
-                            if ( q_cons_ts(2)%vf(n_idx)%sf(j, k, l) < 0._wp) then
+                            if (q_cons_ts(2)%vf(n_idx)%sf(j, k, l) < 0._wp) then
                                 print *, proc_rank, i, j, k, l
                                 print *, rhs_vf(i)%sf(j, k, l)
                                 call s_mpi_abort("n_idx is NaN at 1")
@@ -956,27 +955,26 @@ contains
                              + q_cons_ts(2)%vf(i)%sf(j, k, l) &
                              + dt*rhs_vf(i)%sf(j, k, l))/4._wp
 
-
-                        if ( q_cons_ts(2)%vf(contxb)%sf(j, k, l) < 0._wp) then
-                          print *, proc_rank, i, j, k, l
-                          print *, rhs_vf(i)%sf(j, k, l)
-                          call s_mpi_abort("contxb is NaN at 2")
-                        else if ( q_cons_ts(2)%vf(contxe)%sf(j, k, l) < 0._wp) then
-                          print *, proc_rank, i, j, k, l
-                          print *, rhs_vf(i)%sf(j, k, l)
-                          call s_mpi_abort("contxe is NaN at 2")
-                        else if ( q_cons_ts(2)%vf(advxb)%sf(j, k, l) < 0._wp) then
+                        if (q_cons_ts(2)%vf(contxb)%sf(j, k, l) < 0._wp) then
+                            print *, proc_rank, i, j, k, l
+                            print *, rhs_vf(i)%sf(j, k, l)
+                            call s_mpi_abort("contxb is NaN at 2")
+                        else if (q_cons_ts(2)%vf(contxe)%sf(j, k, l) < 0._wp) then
+                            print *, proc_rank, i, j, k, l
+                            print *, rhs_vf(i)%sf(j, k, l)
+                            call s_mpi_abort("contxe is NaN at 2")
+                        else if (q_cons_ts(2)%vf(advxb)%sf(j, k, l) < 0._wp) then
                             print *, proc_rank, i, j, k, l
                             print *, rhs_vf(i)%sf(j, k, l)
                             call s_mpi_abort("advxb is NaN at 2")
-                        else if ( q_cons_ts(2)%vf(advxe)%sf(j, k, l) < 0._wp) then
+                        else if (q_cons_ts(2)%vf(advxe)%sf(j, k, l) < 0._wp) then
                             print *, proc_rank, i, j, k, l
                             print *, rhs_vf(i)%sf(j, k, l)
                             call s_mpi_abort("advxe is NaN at 2")
                         end if
 
                         if (bubbles_euler) then
-                            if ( q_cons_ts(2)%vf(n_idx)%sf(j, k, l) < 0._wp) then
+                            if (q_cons_ts(2)%vf(n_idx)%sf(j, k, l) < 0._wp) then
                                 print *, proc_rank, i, j, k, l
                                 print *, rhs_vf(i)%sf(j, k, l)
                                 call s_mpi_abort("n_idx is NaN at 2")
@@ -1076,27 +1074,26 @@ contains
                              + 2._wp*q_cons_ts(2)%vf(i)%sf(j, k, l) &
                              + 2._wp*dt*rhs_vf(i)%sf(j, k, l))/3._wp
 
-
-                        if ( q_cons_ts(1)%vf(contxb)%sf(j, k, l) < 0._wp) then
-                          print *, proc_rank, i, j, k, l
-                          print *, rhs_vf(i)%sf(j, k, l)
-                          call s_mpi_abort("contxb is NaN at 3")
-                        else if ( q_cons_ts(1)%vf(contxe)%sf(j, k, l) < 0._wp) then
-                          print *, proc_rank, i, j, k, l
-                          print *, rhs_vf(i)%sf(j, k, l)
-                          call s_mpi_abort("contxe is NaN at 3")
-                        else if ( q_cons_ts(1)%vf(advxb)%sf(j, k, l) < 0._wp) then
+                        if (q_cons_ts(1)%vf(contxb)%sf(j, k, l) < 0._wp) then
+                            print *, proc_rank, i, j, k, l
+                            print *, rhs_vf(i)%sf(j, k, l)
+                            call s_mpi_abort("contxb is NaN at 3")
+                        else if (q_cons_ts(1)%vf(contxe)%sf(j, k, l) < 0._wp) then
+                            print *, proc_rank, i, j, k, l
+                            print *, rhs_vf(i)%sf(j, k, l)
+                            call s_mpi_abort("contxe is NaN at 3")
+                        else if (q_cons_ts(1)%vf(advxb)%sf(j, k, l) < 0._wp) then
                             print *, proc_rank, i, j, k, l
                             print *, rhs_vf(i)%sf(j, k, l)
                             call s_mpi_abort("advxb is NaN at 3")
-                        else if ( q_cons_ts(1)%vf(advxe)%sf(j, k, l) < 0._wp) then
+                        else if (q_cons_ts(1)%vf(advxe)%sf(j, k, l) < 0._wp) then
                             print *, proc_rank, i, j, k, l
                             print *, rhs_vf(i)%sf(j, k, l)
                             call s_mpi_abort("advxe is NaN at 3")
                         end if
 
                         if (bubbles_euler) then
-                            if ( q_cons_ts(1)%vf(n_idx)%sf(j, k, l) < 0._wp) then
+                            if (q_cons_ts(1)%vf(n_idx)%sf(j, k, l) < 0._wp) then
                                 print *, proc_rank, i, j, k, l
                                 print *, rhs_vf(i)%sf(j, k, l)
                                 call s_mpi_abort("n_idx is NaN at 3")
@@ -1181,8 +1178,6 @@ contains
             end if
 
         end if
-
-        if (proc_rank == 20) write(98,*) (q_cons_ts(1)%vf(i)%sf(31, 10, 0), i = 1, sys_size)
 
     end subroutine s_3rd_order_tvd_rk
 

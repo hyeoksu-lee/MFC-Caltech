@@ -81,7 +81,7 @@ module m_global_parameters
     integer :: model_eqns            !< Multicomponent flow model
     logical :: icsg
     real(wp) :: icsg_vf
-    integer ::icsg_patch
+    integer :: icsg_patch
     logical :: relax                 !< activate phase change
     integer :: relax_model           !< Relax Model
     real(wp) :: palpha_eps           !< trigger parameter for the p relaxation procedure, phase change model
@@ -634,12 +634,12 @@ contains
             sys_size = adv_idx%end
 
             if (bubbles_euler) then
-              if (icsg) then
-                alf_idx = adv_idx%end + 1
-                sys_size = sys_size + 1
-              else
-                alf_idx = adv_idx%end
-              end if
+                if (icsg) then
+                    alf_idx = adv_idx%end + 1
+                    sys_size = sys_size + 1
+                else
+                    alf_idx = adv_idx%end
+                end if
             else
                 alf_idx = 1
             end if

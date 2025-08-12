@@ -2602,7 +2602,7 @@ contains
                                     nbub_L = qL_prim_rs${XYZ}$_vf(j, k, l, bubxb)
                                     nbub_R = qR_prim_rs${XYZ}$_vf(j + 1, k, l, bubxb)
                                 end if
-                                                                
+
                                 @:compute_average_state()
 
                                 call s_compute_speed_of_sound(pres_L, rho_L, gamma_L, pi_inf_L, H_L, alpha_L, &

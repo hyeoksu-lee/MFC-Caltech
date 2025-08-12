@@ -542,12 +542,12 @@ contains
             sys_size = adv_idx%end
 
             if (bubbles_euler) then
-              if (icsg) then
-                alf_idx = adv_idx%end + 1
-                sys_size = sys_size + 1
-              else
-                alf_idx = adv_idx%end
-              end if
+                if (icsg) then
+                    alf_idx = adv_idx%end + 1
+                    sys_size = sys_size + 1
+                else
+                    alf_idx = adv_idx%end
+                end if
             else
                 alf_idx = 1
             end if

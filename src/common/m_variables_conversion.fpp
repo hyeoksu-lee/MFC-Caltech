@@ -300,9 +300,14 @@ contains
                     pi_inf = pi_inf + q_vf(i + E_idx)%sf(j, k, l)*fluid_pp(i)%pi_inf
                     qv = qv + q_vf(i)%sf(j, k, l)*fluid_pp(i)%qv
                 end do
+            else if (num_fluids == 2) then
+                rho = q_vf(1)%sf(j, k, l)
+                gamma = fluid_pp(1)%gamma
+                pi_inf = fluid_pp(1)%pi_inf
+                qv = fluid_pp(1)%qv
             else if (num_fluids > 2) then
                 !TODO: This may need fixing for hypo + bubbles_euler
-                do i = 1, num_fluids
+                do i = 1, num_fluids - 1 !leave out bubble part of mixture
                     rho = rho + q_vf(i)%sf(j, k, l)
                     gamma = gamma + q_vf(i + E_idx)%sf(j, k, l)*fluid_pp(i)%gamma
                     pi_inf = pi_inf + q_vf(i + E_idx)%sf(j, k, l)*fluid_pp(i)%pi_inf
@@ -569,7 +574,7 @@ contains
                 qv_K = qv_K + alpha_rho_K(i)*qvs(i)
             end do
         else if ((model_eqns == 2) .and. (num_fluids > 2)) then
-            do i = 1, num_fluids
+            do i = 1, num_fluids - 1
                 rho_K = rho_K + alpha_rho_K(i)
                 gamma_K = gamma_K + alpha_K(i)*gammas(i)
                 pi_inf_K = pi_inf_K + alpha_K(i)*pi_infs(i)
@@ -1096,7 +1101,7 @@ contains
                                 qK_prim_vf(n_idx)%sf(j, k, l) = qK_cons_vf(n_idx)%sf(j, k, l)
                                 nbub_sc = qK_prim_vf(n_idx)%sf(j, k, l)
                                 if (icsg) then
-                                  qK_prim_vf(alf_idx)%sf(j, k, l) = qK_cons_vf(alf_idx)%sf(j, k, l)
+                                    qK_prim_vf(alf_idx)%sf(j, k, l) = qK_cons_vf(alf_idx)%sf(j, k, l)
                                 end if
                             else
                                 call s_comp_n_from_cons(vftmp, nRtmp, nbub_sc, weight)

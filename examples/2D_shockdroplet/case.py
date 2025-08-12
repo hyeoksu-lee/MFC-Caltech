@@ -23,14 +23,14 @@ dx = 0.25 / Nx  # 8.3e-6
 time_end = 0.005  # 50us
 cfl = 0.25
 
-dt = cfl * dx / c_l # 5.3E-9
+dt = cfl * dx / c_l  # 5.3E-9
 Nt = int(time_end / dt)  # 10000
 
 print(
     json.dumps(
         {
             # Logistics
-            "run_time_info": "T",
+            "run_time_info": "F",
             # Computational Domain Parameters
             "x_domain%beg": -4 * D,
             "x_domain%end": 20 * D,
@@ -47,7 +47,7 @@ print(
             "dt": dt,
             "t_step_start": 0,
             "t_step_stop": Nt,
-            "t_step_save": math.ceil(Nt/100),
+            "t_step_save": Nt,  # math.ceil(Nt/100),
             # Simulation Algorithm Parameters
             "num_patches": 3,
             "model_eqns": 2,
