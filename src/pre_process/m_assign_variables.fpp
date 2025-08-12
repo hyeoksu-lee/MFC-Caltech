@@ -318,7 +318,7 @@ contains
             orig_prim_vf(i) = q_prim_vf(i)%sf(j, k, l)
         end do
 
-        if (mpp_lim .and. bubbles_euler) then
+        if (mpp_lim .and. bubbles_euler .and. .not. icsg) then
             !adjust volume fractions, according to modeled gas void fraction
             alf_sum%sf = 0._wp
             do i = adv_idx%beg, adv_idx%end - 1
@@ -327,7 +327,7 @@ contains
 
             do i = adv_idx%beg, adv_idx%end - 1
                 q_prim_vf(i)%sf = q_prim_vf(i)%sf*(1._wp - q_prim_vf(alf_idx)%sf) &
-                                  /alf_sum%sf
+                                /alf_sum%sf
             end do
         end if
 
@@ -348,7 +348,7 @@ contains
             end do
         end if
 
-        if (mpp_lim .and. bubbles_euler) then
+        if (mpp_lim .and. bubbles_euler .and. .not. icsg) then
             !adjust volume fractions, according to modeled gas void fraction
             alf_sum%sf = 0._wp
             do i = adv_idx%beg, adv_idx%end - 1
@@ -357,7 +357,7 @@ contains
 
             do i = adv_idx%beg, adv_idx%end - 1
                 q_prim_vf(i)%sf = q_prim_vf(i)%sf*(1._wp - q_prim_vf(alf_idx)%sf) &
-                                  /alf_sum%sf
+                                /alf_sum%sf
             end do
         end if
 
@@ -393,7 +393,7 @@ contains
             end do
         end if
 
-        if (mpp_lim .and. bubbles_euler) then
+        if (mpp_lim .and. bubbles_euler .and. .not. icsg) then
             !adjust volume fractions, according to modeled gas void fraction
             alf_sum%sf = 0._wp
             do i = adv_idx%beg, adv_idx%end - 1
@@ -402,7 +402,7 @@ contains
 
             do i = adv_idx%beg, adv_idx%end - 1
                 q_prim_vf(i)%sf = q_prim_vf(i)%sf*(1._wp - q_prim_vf(alf_idx)%sf) &
-                                  /alf_sum%sf
+                                /alf_sum%sf
             end do
         end if
 
@@ -443,7 +443,7 @@ contains
                   if (icsg_patch == patch_id) then
                     q_prim_vf(alf_idx)%sf(j, k, l) = icsg_vf
                   else
-                    q_prim_vf(alf_idx)%sf(j, k, l) = 1e-10
+                    q_prim_vf(alf_idx)%sf(j, k, l) = 1.e-10_wp
                   end if
                 end if
                 ! Initialize number density
@@ -533,7 +533,7 @@ contains
             end do
         end if
 
-        if (mpp_lim .and. bubbles_euler) then
+        if (mpp_lim .and. bubbles_euler .and. .not. icsg) then
             !adjust volume fractions, according to modeled gas void fraction
             alf_sum%sf = 0._wp
             do i = adv_idx%beg, adv_idx%end - 1
@@ -542,7 +542,7 @@ contains
 
             do i = adv_idx%beg, adv_idx%end - 1
                 q_prim_vf(i)%sf = q_prim_vf(i)%sf*(1._wp - q_prim_vf(alf_idx)%sf) &
-                                  /alf_sum%sf
+                                /alf_sum%sf
             end do
         end if
 
@@ -658,7 +658,7 @@ contains
                   if (icsg_patch == patch_id) then
                     q_prim_vf(alf_idx)%sf(j, k, l) = icsg_vf
                   else
-                    q_prim_vf(alf_idx)%sf(j, k, l) = 1e-10
+                    q_prim_vf(alf_idx)%sf(j, k, l) = 1.e-10_wp
                   end if
                 end if
                 ! Initialize number density
@@ -670,7 +670,7 @@ contains
             end if
         end if
 
-        if (mpp_lim .and. bubbles_euler) then
+        if (mpp_lim .and. bubbles_euler .and. .not. icsg) then
             !adjust volume fractions, according to modeled gas void fraction
             alf_sum%sf = 0._wp
             do i = adv_idx%beg, adv_idx%end - 1
@@ -679,7 +679,7 @@ contains
 
             do i = adv_idx%beg, adv_idx%end - 1
                 q_prim_vf(i)%sf = q_prim_vf(i)%sf*(1._wp - q_prim_vf(alf_idx)%sf) &
-                                  /alf_sum%sf
+                                /alf_sum%sf
             end do
         end if
 

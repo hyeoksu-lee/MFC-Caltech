@@ -198,11 +198,6 @@ contains
             do k = 0, n
                 do j = 0, m
 
-                    if (adap_dt_stop_max == 1) then
-                      write(99,*) j, k, l, adap_dt_stop_max
-                      call s_mpi_abort()
-                    end if
-
                     if (adv_n) then
                         nbub = q_prim_vf(n_idx)%sf(j, k, l)
                     else
@@ -220,6 +215,11 @@ contains
                         end do
 
                         nbub = (3._wp/(4._wp*pi))*q_prim_vf(alf_idx)%sf(j, k, l)/R3
+                    end if
+
+                    if (nbub /= nbub) then
+                        print *, nbub
+                        call s_mpi_abort("nbub is NaN")
                     end if
 
                     if (.not. adap_dt) then
@@ -297,6 +297,9 @@ contains
 
                         end if
                     end do
+                    if (icsg) then
+                        bub_adv_src(j, k, l) = 0._wp
+                    end if
                 end do
             end do
         end do

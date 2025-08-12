@@ -62,8 +62,10 @@ contains
             ! Keller-Miksis bubbles
             fCpinf = fP
             fCpbw = f_cpbw_KM(fR0, fR, fV, fpb)
-            if (bubbles_euler) then
+            if (bubbles_euler .and. .not. icsg) then
                 c_liquid = sqrt(fntait*(fP + fBtait)/(fRho*(1._wp - alf)))
+            else if (bubbles_euler .and. icsg) then
+                c_liquid = sqrt(fntait*(fP + fBtait)/fRho)
             else
                 c_liquid = fCson
             end if
@@ -509,9 +511,6 @@ contains
                                        bub_id, fmass_v, fmass_n, fbeta_c, &
                                        fbeta_t, fCson, h, &
                                        myR_tmp1, myV_tmp1, myPb_tmp1, myMv_tmp1)
-                ! write(99,*) " " 
-                ! write(99,*) "iter_count", iter_count, t_new
-                ! write(99,*) fP, fR, fR0, fV, myR_tmp1(4), myV_tmp1(4)
 
                 ! Advance one sub-step by advancing two half steps
                 call s_advance_substep(err(2), &
@@ -520,8 +519,6 @@ contains
                                        bub_id, fmass_v, fmass_n, fbeta_c, &
                                        fbeta_t, fCson, 0.5_wp*h, &
                                        myR_tmp2, myV_tmp2, myPb_tmp2, myMv_tmp2)
-
-                ! write(99,*) fP, fR, fR0, fV, myR_tmp2(4), myV_tmp2(4)
 
                 fR2 = myR_tmp2(4); fV2 = myV_tmp2(4)
                 fpb2 = myPb_tmp2(4); fmass_v2 = myMv_tmp2(4)
@@ -533,13 +530,9 @@ contains
                                        fbeta_t, fCson, 0.5_wp*h, &
                                        myR_tmp2, myV_tmp2, myPb_tmp2, myMv_tmp2)
 
-                ! write(99,*) fP, fR2, fR0, fV2, myR_tmp2(4), myV_tmp2(4)
-
                 err(4) = abs((myR_tmp1(4) - myR_tmp2(4))/myR_tmp1(4))
                 err(5) = abs((myV_tmp1(4) - myV_tmp2(4))/myV_tmp1(4))
                 if (abs(myV_tmp1(4)) < verysmall) err(5) = 0._wp
-
-                ! write(99,*) "err", err
 
                 ! Determine acceptance/rejection and update step size
                 !   Rule 1: err1, err2, err3 < tol
@@ -582,9 +575,11 @@ contains
 
         end do
 
-        if (iter_count >= adap_dt_max_iters) adap_dt_stop = 1
-
-        ! write(99,*) "exit", iter_count, adap_dt_max_iters, adap_dt_stop
+        if (iter_count >= adap_dt_max_iters) then 
+            adap_dt_stop = 1
+            print *, fRho, fP, fR, fV, fR0
+            call s_mpi_abort("adap_dt_stop_max == 1")
+        end if
 
     end subroutine s_advance_step
 

@@ -2343,7 +2343,7 @@ contains
                     end do
                 else if (model_eqns == 2 .and. icsg) then
 
-                                      ! 5-EQUATION MODEL WITH HLLC
+                    ! 5-EQUATION MODEL WITH HLLC
                     $:GPU_PARALLEL_LOOP(collapse=3, private='[vel_L, vel_R, &
                         & Re_L, Re_R, rho_avg, h_avg, gamma_avg, &
                         & alpha_L, alpha_R, s_L, s_R, s_S, &
@@ -2813,9 +2813,7 @@ contains
                                         *(vel_L(dir_idx(1)) + s_M*(xi_L - 1._wp)) &
                                         + xi_P*nbub_R &
                                         *(vel_R(dir_idx(1)) + s_P*(xi_R - 1._wp))
-                                    if (icsg) then
-                                      flux_rs${XYZ}$_vf(j, k, l, alf_idx) = 0._wp
-                                    end if
+                                    flux_rs${XYZ}$_vf(j, k, l, alf_idx) = 0._wp
                                 end if
 
                                 ! COLOR FUNCTION FLUX

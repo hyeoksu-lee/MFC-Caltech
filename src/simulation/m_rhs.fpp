@@ -597,7 +597,7 @@ contains
             end do
         end if
 
-        if (mpp_lim .and. bubbles_euler) then
+        if (mpp_lim .and. bubbles_euler .and. .not. icsg) then
             @:ALLOCATE(alf_sum%sf(idwbuff(1)%beg:idwbuff(1)%end, idwbuff(2)%beg:idwbuff(2)%end, idwbuff(3)%beg:idwbuff(3)%end))
         end if
         ! END: Allocation/Association of qK_cons_n and qK_prim_n
@@ -653,7 +653,7 @@ contains
 
             ! Converting Conservative to Primitive Variables
 
-            if (mpp_lim .and. bubbles_euler) then
+            if (mpp_lim .and. bubbles_euler .and. .not. icsg) then
                 $:GPU_PARALLEL_LOOP(collapse=3)
                 do l = idwbuff(3)%beg, idwbuff(3)%end
                     do k = idwbuff(2)%beg, idwbuff(2)%end
@@ -881,7 +881,7 @@ contains
                 end if
 
                 ! RHS additions for sub-grid bubbles_euler
-                if (bubbles_euler) then
+                if (bubbles_euler .and. bubble_model == 1) then
                     call nvtxStartRange("RHS-BUBBLES-COMPUTE")
                     call s_compute_bubbles_EE_rhs(id, q_prim_qp%vf, divu)
                     call nvtxEndRange
@@ -1029,7 +1029,7 @@ contains
                                                            pi_infs(2))/gammas(2)
                         alpha1(k_loop, l_loop, q_loop) = q_cons_vf%vf(advxb)%sf(k_loop, l_loop, q_loop)
 
-                        if (bubbles_euler) then
+                        if (bubbles_euler .and. .not. icsg) then
                             alpha2(k_loop, l_loop, q_loop) = q_cons_vf%vf(alf_idx - 1)%sf(k_loop, l_loop, q_loop)
                         else
                             alpha2(k_loop, l_loop, q_loop) = q_cons_vf%vf(advxe)%sf(k_loop, l_loop, q_loop)
@@ -1969,7 +1969,7 @@ contains
             end if
         end if
 
-        if (mpp_lim .and. bubbles_euler) then
+        if (mpp_lim .and. bubbles_euler .and. .not. icsg) then
             $:GPU_EXIT_DATA(delete='[alf_sum%sf]')
             deallocate (alf_sum%sf)
         end if

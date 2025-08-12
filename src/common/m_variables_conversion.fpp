@@ -93,7 +93,7 @@ contains
             call s_convert_mixture_to_mixture_variables(q_vf, i, j, k, &
                                                         rho, gamma, pi_inf, qv)
 
-        else if (bubbles_euler) then
+        else if (bubbles_euler .and. .not. icsg) then
             call s_convert_species_to_mixture_variables_bubbles(q_vf, i, j, k, &
                                                                 rho, gamma, pi_inf, qv, Re_K)
         else
@@ -906,7 +906,7 @@ contains
                         if (elasticity) then
                             call s_convert_species_to_mixture_variables_acc(rho_K, gamma_K, pi_inf_K, qv_K, alpha_K, &
                                                                             alpha_rho_K, Re_K, G_K, Gs)
-                        else if (bubbles_euler) then
+                        else if (bubbles_euler .and. .not. icsg) then
                             call s_convert_species_to_mixture_variables_bubbles_acc(rho_K, gamma_K, pi_inf_K, qv_K, &
                                                                                     alpha_K, alpha_rho_K, Re_K)
                         else
@@ -1531,7 +1531,7 @@ contains
                         call s_convert_species_to_mixture_variables_acc(rho_K, gamma_K, pi_inf_K, qv_K, &
                                                                         alpha_K, alpha_rho_K, Re_K, &
                                                                         G_K, Gs)
-                    else if (bubbles_euler) then
+                    else if (bubbles_euler .and. .not. icsg) then
                         call s_convert_species_to_mixture_variables_bubbles_acc(rho_K, gamma_K, &
                                                                                 pi_inf_K, qv_K, alpha_K, alpha_rho_K, Re_K)
                     else
@@ -1681,10 +1681,8 @@ contains
                     c = (1._wp/gamma + 1._wp)* &
                         (pres + pi_inf/(gamma + 1._wp))/rho
                 else if (icsg) then
-                    c = &
-                        (1._wp/gamma + 1._wp)* &
-                        (pres + pi_inf/(gamma + 1._wp))/ &
-                        (rho)
+                    c = (1._wp/gamma + 1._wp)* &
+                        (pres + pi_inf/(gamma + 1._wp))/rho
                 else
                     c = &
                         (1._wp/gamma + 1._wp)* &

@@ -789,6 +789,7 @@ contains
         end if
         
         call s_compute_rhs(q_cons_ts(1)%vf, q_T_sf, q_prim_vf, bc_type, rhs_vf, pb_ts(1)%sf, rhs_pb, mv_ts(1)%sf, rhs_mv, t_step, time_avg, 1)
+        if (proc_rank == 20) write(97,*) "1", (rhs_vf(i)%sf(34, 24, 0), i = 1, sys_size)
 
         if (run_time_info) then
             if (igr) then
@@ -899,6 +900,7 @@ contains
 
         ! Stage 2 of 3
         call s_compute_rhs(q_cons_ts(dest)%vf, q_T_sf, q_prim_vf, bc_type, rhs_vf, pb_ts(2)%sf, rhs_pb, mv_ts(2)%sf, rhs_mv, t_step, time_avg, 2)
+        if (proc_rank == 20) write(97,*) "2", (rhs_vf(i)%sf(34, 24, 0), i = 1, sys_size)
 
         if (bubbles_lagrange .and. .not. adap_dt) call s_update_lagrange_tdv_rk(stage=2)
 
@@ -992,6 +994,7 @@ contains
 
         ! Stage 3 of 3
         call s_compute_rhs(q_cons_ts(dest)%vf, q_T_sf, q_prim_vf, bc_type, rhs_vf, pb_ts(2)%sf, rhs_pb, mv_ts(2)%sf, rhs_mv, t_step, time_avg, 3)
+        if (proc_rank == 20) write(97,*) "3", (rhs_vf(i)%sf(34, 24, 0), i = 1, sys_size)
 
         if (bubbles_lagrange .and. .not. adap_dt) call s_update_lagrange_tdv_rk(stage=3)
 
@@ -1100,6 +1103,7 @@ contains
             end if
 
         end if
+
     end subroutine s_3rd_order_tvd_rk
 
     !> Strang splitting scheme with 3rd order TVD RK time-stepping algorithm for
@@ -1145,8 +1149,6 @@ contains
     impure subroutine s_adaptive_dt_bubble(stage)
 
         integer, intent(in) :: stage
-
-        type(vector_field) :: gm_alpha_qp
 
         call s_convert_conservative_to_primitive_variables( &
             q_cons_ts(1)%vf, &

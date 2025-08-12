@@ -123,12 +123,15 @@ contains
             dimension(sys_size), &
             intent(inout) :: q_cons_vf
 
+        integer :: i
 
         if (.not. parallel_io) then
             call s_read_serial_data_files(q_cons_vf)
         else
             call s_read_parallel_data_files(q_cons_vf)
         end if
+
+        if (proc_rank == 36) print *, (q_cons_vf(i)%sf(2, 0, 0), i = 1, sys_size)
 
     end subroutine s_read_data_files
 
@@ -1160,6 +1163,8 @@ contains
         ! Time-stepping loop controls
 
         t_step = t_step + 1
+
+        if (proc_rank == 20) write(98,*) (q_cons_ts(1)%vf(i)%sf(34, 24, 0), i = 1, sys_size)
 
     end subroutine s_perform_time_step
 
