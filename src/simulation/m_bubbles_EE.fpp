@@ -218,7 +218,6 @@ contains
                     end if
 
                     if (nbub /= nbub) then
-                        print *, nbub
                         call s_mpi_abort("nbub is NaN")
                     end if
 

@@ -789,7 +789,6 @@ contains
         end if
         
         call s_compute_rhs(q_cons_ts(1)%vf, q_T_sf, q_prim_vf, bc_type, rhs_vf, pb_ts(1)%sf, rhs_pb, mv_ts(1)%sf, rhs_mv, t_step, time_avg, 1)
-        if (proc_rank == 20) write(97,*) "1", (rhs_vf(i)%sf(34, 24, 0), i = 1, sys_size)
 
         if (run_time_info) then
             if (igr) then
@@ -837,6 +836,33 @@ contains
                         q_cons_ts(2)%vf(i)%sf(j, k, l) = &
                             q_cons_ts(1)%vf(i)%sf(j, k, l) &
                             + dt*rhs_vf(i)%sf(j, k, l)
+
+
+                        if ( q_cons_ts(2)%vf(contxb)%sf(j, k, l) < 0._wp) then
+                          print *, proc_rank, i, j, k, l
+                          print *, rhs_vf(i)%sf(j, k, l)
+                          call s_mpi_abort("contxb is NaN at 1")
+                        else if ( q_cons_ts(2)%vf(contxe)%sf(j, k, l) < 0._wp) then
+                          print *, proc_rank, i, j, k, l
+                          print *, rhs_vf(i)%sf(j, k, l)
+                          call s_mpi_abort("contxe is NaN at 1")
+                        else if ( q_cons_ts(2)%vf(advxb)%sf(j, k, l) < 0._wp) then
+                            print *, proc_rank, i, j, k, l
+                            print *, rhs_vf(i)%sf(j, k, l)
+                            call s_mpi_abort("advxb is NaN at 1")
+                        else if ( q_cons_ts(2)%vf(advxe)%sf(j, k, l) < 0._wp) then
+                            print *, proc_rank, i, j, k, l
+                            print *, rhs_vf(i)%sf(j, k, l)
+                            call s_mpi_abort("advxe is NaN at 1")
+                        end if
+
+                        if (bubbles_euler) then
+                            if ( q_cons_ts(2)%vf(n_idx)%sf(j, k, l) < 0._wp) then
+                                print *, proc_rank, i, j, k, l
+                                print *, rhs_vf(i)%sf(j, k, l)
+                                call s_mpi_abort("n_idx is NaN at 1")
+                            end if
+                        end if
                     end do
                 end do
             end do
@@ -844,30 +870,6 @@ contains
 
         dest = 2 ! result in q_cons_ts(2)%vf
 #endif
-
-        if (mpp_lim) then
-            $:GPU_PARALLEL_LOOP(collapse=4)
-            do i = contxb, contxe
-                do l = 0, p
-                    do k = 0, n
-                        do j = 0, m
-                            q_cons_ts(2)%vf(i)%sf(j, k, l) = &
-                                max(q_cons_ts(2)%vf(i)%sf(j, k, l), 0._wp)
-                        end do
-                    end do
-                end do
-            end do
-            do i = advxb, advxe
-                do l = 0, p
-                    do k = 0, n
-                        do j = 0, m
-                            q_cons_ts(2)%vf(i)%sf(j, k, l) = &
-                                max(q_cons_ts(2)%vf(i)%sf(j, k, l), 0._wp)
-                        end do
-                    end do
-                end do
-            end do
-        end if
 
         !Evolve pb and mv for non-polytropic qbmm
         if (qbmm .and. (.not. polytropic)) then
@@ -924,7 +926,6 @@ contains
 
         ! Stage 2 of 3
         call s_compute_rhs(q_cons_ts(dest)%vf, q_T_sf, q_prim_vf, bc_type, rhs_vf, pb_ts(2)%sf, rhs_pb, mv_ts(2)%sf, rhs_mv, t_step, time_avg, 2)
-        if (proc_rank == 20) write(97,*) "2", (rhs_vf(i)%sf(34, 24, 0), i = 1, sys_size)
 
         if (bubbles_lagrange .and. .not. adap_dt) call s_update_lagrange_tdv_rk(stage=2)
 
@@ -954,6 +955,33 @@ contains
                             (3._wp*q_cons_ts(1)%vf(i)%sf(j, k, l) &
                              + q_cons_ts(2)%vf(i)%sf(j, k, l) &
                              + dt*rhs_vf(i)%sf(j, k, l))/4._wp
+
+
+                        if ( q_cons_ts(2)%vf(contxb)%sf(j, k, l) < 0._wp) then
+                          print *, proc_rank, i, j, k, l
+                          print *, rhs_vf(i)%sf(j, k, l)
+                          call s_mpi_abort("contxb is NaN at 2")
+                        else if ( q_cons_ts(2)%vf(contxe)%sf(j, k, l) < 0._wp) then
+                          print *, proc_rank, i, j, k, l
+                          print *, rhs_vf(i)%sf(j, k, l)
+                          call s_mpi_abort("contxe is NaN at 2")
+                        else if ( q_cons_ts(2)%vf(advxb)%sf(j, k, l) < 0._wp) then
+                            print *, proc_rank, i, j, k, l
+                            print *, rhs_vf(i)%sf(j, k, l)
+                            call s_mpi_abort("advxb is NaN at 2")
+                        else if ( q_cons_ts(2)%vf(advxe)%sf(j, k, l) < 0._wp) then
+                            print *, proc_rank, i, j, k, l
+                            print *, rhs_vf(i)%sf(j, k, l)
+                            call s_mpi_abort("advxe is NaN at 2")
+                        end if
+
+                        if (bubbles_euler) then
+                            if ( q_cons_ts(2)%vf(n_idx)%sf(j, k, l) < 0._wp) then
+                                print *, proc_rank, i, j, k, l
+                                print *, rhs_vf(i)%sf(j, k, l)
+                                call s_mpi_abort("n_idx is NaN at 2")
+                            end if
+                        end if
                     end do
                 end do
             end do
@@ -961,30 +989,6 @@ contains
 
         dest = 2 ! Result in q_cons_ts(2)%vf
 #endif
-
-        if (mpp_lim) then
-            $:GPU_PARALLEL_LOOP(collapse=4)
-            do i = contxb, contxe
-                do l = 0, p
-                    do k = 0, n
-                        do j = 0, m
-                            q_cons_ts(2)%vf(i)%sf(j, k, l) = &
-                                max(q_cons_ts(2)%vf(i)%sf(j, k, l), 0._wp)
-                        end do
-                    end do
-                end do
-            end do
-            do i = advxb, advxe
-                do l = 0, p
-                    do k = 0, n
-                        do j = 0, m
-                            q_cons_ts(2)%vf(i)%sf(j, k, l) = &
-                                max(q_cons_ts(2)%vf(i)%sf(j, k, l), 0._wp)
-                        end do
-                    end do
-                end do
-            end do
-        end if
 
         if (qbmm .and. (.not. polytropic)) then
             $:GPU_PARALLEL_LOOP(collapse=5)
@@ -1042,7 +1046,6 @@ contains
 
         ! Stage 3 of 3
         call s_compute_rhs(q_cons_ts(dest)%vf, q_T_sf, q_prim_vf, bc_type, rhs_vf, pb_ts(2)%sf, rhs_pb, mv_ts(2)%sf, rhs_mv, t_step, time_avg, 3)
-        if (proc_rank == 20) write(97,*) "3", (rhs_vf(i)%sf(34, 24, 0), i = 1, sys_size)
 
         if (bubbles_lagrange .and. .not. adap_dt) call s_update_lagrange_tdv_rk(stage=3)
 
@@ -1072,6 +1075,33 @@ contains
                             (q_cons_ts(1)%vf(i)%sf(j, k, l) &
                              + 2._wp*q_cons_ts(2)%vf(i)%sf(j, k, l) &
                              + 2._wp*dt*rhs_vf(i)%sf(j, k, l))/3._wp
+
+
+                        if ( q_cons_ts(1)%vf(contxb)%sf(j, k, l) < 0._wp) then
+                          print *, proc_rank, i, j, k, l
+                          print *, rhs_vf(i)%sf(j, k, l)
+                          call s_mpi_abort("contxb is NaN at 3")
+                        else if ( q_cons_ts(1)%vf(contxe)%sf(j, k, l) < 0._wp) then
+                          print *, proc_rank, i, j, k, l
+                          print *, rhs_vf(i)%sf(j, k, l)
+                          call s_mpi_abort("contxe is NaN at 3")
+                        else if ( q_cons_ts(1)%vf(advxb)%sf(j, k, l) < 0._wp) then
+                            print *, proc_rank, i, j, k, l
+                            print *, rhs_vf(i)%sf(j, k, l)
+                            call s_mpi_abort("advxb is NaN at 3")
+                        else if ( q_cons_ts(1)%vf(advxe)%sf(j, k, l) < 0._wp) then
+                            print *, proc_rank, i, j, k, l
+                            print *, rhs_vf(i)%sf(j, k, l)
+                            call s_mpi_abort("advxe is NaN at 3")
+                        end if
+
+                        if (bubbles_euler) then
+                            if ( q_cons_ts(1)%vf(n_idx)%sf(j, k, l) < 0._wp) then
+                                print *, proc_rank, i, j, k, l
+                                print *, rhs_vf(i)%sf(j, k, l)
+                                call s_mpi_abort("n_idx is NaN at 3")
+                            end if
+                        end if
                     end do
                 end do
             end do
@@ -1079,30 +1109,6 @@ contains
 
         dest = 1 ! Result in q_cons_ts(2)%vf
 #endif
-
-        if (mpp_lim) then
-            $:GPU_PARALLEL_LOOP(collapse=4)
-            do i = contxb, contxe
-                do l = 0, p
-                    do k = 0, n
-                        do j = 0, m
-                            q_cons_ts(2)%vf(i)%sf(j, k, l) = &
-                                max(q_cons_ts(2)%vf(i)%sf(j, k, l), 0._wp)
-                        end do
-                    end do
-                end do
-            end do
-            do i = advxb, advxe
-                do l = 0, p
-                    do k = 0, n
-                        do j = 0, m
-                            q_cons_ts(2)%vf(i)%sf(j, k, l) = &
-                                max(q_cons_ts(2)%vf(i)%sf(j, k, l), 0._wp)
-                        end do
-                    end do
-                end do
-            end do
-        end if
 
         if (qbmm .and. (.not. polytropic)) then
             $:GPU_PARALLEL_LOOP(collapse=5)
@@ -1175,6 +1181,8 @@ contains
             end if
 
         end if
+
+        if (proc_rank == 20) write(98,*) (q_cons_ts(1)%vf(i)%sf(31, 10, 0), i = 1, sys_size)
 
     end subroutine s_3rd_order_tvd_rk
 

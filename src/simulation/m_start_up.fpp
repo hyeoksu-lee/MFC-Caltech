@@ -131,8 +131,6 @@ contains
             call s_read_parallel_data_files(q_cons_vf)
         end if
 
-        if (proc_rank == 36) print *, (q_cons_vf(i)%sf(2, 0, 0), i = 1, sys_size)
-
     end subroutine s_read_data_files
 
     !>  The purpose of this procedure is to first verify that an
