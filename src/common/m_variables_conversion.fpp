@@ -293,14 +293,14 @@ contains
         else if ((model_eqns == 2) .and. bubbles_euler) then
             rho = 0._wp; gamma = 0._wp; pi_inf = 0._wp; qv = 0._wp
 
-            if (mpp_lim .and. (num_fluids >= 2)) then
+            if (mpp_lim .and. (num_fluids > 2)) then
                 do i = 1, num_fluids
                     rho = rho + q_vf(i)%sf(j, k, l)
                     gamma = gamma + q_vf(i + E_idx)%sf(j, k, l)*fluid_pp(i)%gamma
                     pi_inf = pi_inf + q_vf(i + E_idx)%sf(j, k, l)*fluid_pp(i)%pi_inf
                     qv = qv + q_vf(i)%sf(j, k, l)*fluid_pp(i)%qv
                 end do
-            else if (num_fluids >= 2) then
+            else if (num_fluids > 2) then
                 !TODO: This may need fixing for hypo + bubbles_euler
                 do i = 1, num_fluids
                     rho = rho + q_vf(i)%sf(j, k, l)
@@ -561,14 +561,14 @@ contains
         pi_inf_K = 0._wp
         qv_K = 0._wp
 
-        if (mpp_lim .and. (model_eqns == 2) .and. (num_fluids >= 2)) then
+        if (mpp_lim .and. (model_eqns == 2) .and. (num_fluids > 2)) then
             do i = 1, num_fluids
                 rho_K = rho_K + alpha_rho_K(i)
                 gamma_K = gamma_K + alpha_K(i)*gammas(i)
                 pi_inf_K = pi_inf_K + alpha_K(i)*pi_infs(i)
                 qv_K = qv_K + alpha_rho_K(i)*qvs(i)
             end do
-        else if ((model_eqns == 2) .and. (num_fluids >= 2)) then
+        else if ((model_eqns == 2) .and. (num_fluids > 2)) then
             do i = 1, num_fluids
                 rho_K = rho_K + alpha_rho_K(i)
                 gamma_K = gamma_K + alpha_K(i)*gammas(i)

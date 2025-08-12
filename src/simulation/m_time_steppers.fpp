@@ -845,6 +845,30 @@ contains
         dest = 2 ! result in q_cons_ts(2)%vf
 #endif
 
+        if (mpp_lim) then
+            $:GPU_PARALLEL_LOOP(collapse=4)
+            do i = contxb, contxe
+                do l = 0, p
+                    do k = 0, n
+                        do j = 0, m
+                            q_cons_ts(2)%vf(i)%sf(j, k, l) = &
+                                max(q_cons_ts(2)%vf(i)%sf(j, k, l), 0._wp)
+                        end do
+                    end do
+                end do
+            end do
+            do i = advxb, advxe
+                do l = 0, p
+                    do k = 0, n
+                        do j = 0, m
+                            q_cons_ts(2)%vf(i)%sf(j, k, l) = &
+                                max(q_cons_ts(2)%vf(i)%sf(j, k, l), 0._wp)
+                        end do
+                    end do
+                end do
+            end do
+        end if
+
         !Evolve pb and mv for non-polytropic qbmm
         if (qbmm .and. (.not. polytropic)) then
             $:GPU_PARALLEL_LOOP(collapse=5)
@@ -937,6 +961,30 @@ contains
 
         dest = 2 ! Result in q_cons_ts(2)%vf
 #endif
+
+        if (mpp_lim) then
+            $:GPU_PARALLEL_LOOP(collapse=4)
+            do i = contxb, contxe
+                do l = 0, p
+                    do k = 0, n
+                        do j = 0, m
+                            q_cons_ts(2)%vf(i)%sf(j, k, l) = &
+                                max(q_cons_ts(2)%vf(i)%sf(j, k, l), 0._wp)
+                        end do
+                    end do
+                end do
+            end do
+            do i = advxb, advxe
+                do l = 0, p
+                    do k = 0, n
+                        do j = 0, m
+                            q_cons_ts(2)%vf(i)%sf(j, k, l) = &
+                                max(q_cons_ts(2)%vf(i)%sf(j, k, l), 0._wp)
+                        end do
+                    end do
+                end do
+            end do
+        end if
 
         if (qbmm .and. (.not. polytropic)) then
             $:GPU_PARALLEL_LOOP(collapse=5)
@@ -1031,6 +1079,30 @@ contains
 
         dest = 1 ! Result in q_cons_ts(2)%vf
 #endif
+
+        if (mpp_lim) then
+            $:GPU_PARALLEL_LOOP(collapse=4)
+            do i = contxb, contxe
+                do l = 0, p
+                    do k = 0, n
+                        do j = 0, m
+                            q_cons_ts(2)%vf(i)%sf(j, k, l) = &
+                                max(q_cons_ts(2)%vf(i)%sf(j, k, l), 0._wp)
+                        end do
+                    end do
+                end do
+            end do
+            do i = advxb, advxe
+                do l = 0, p
+                    do k = 0, n
+                        do j = 0, m
+                            q_cons_ts(2)%vf(i)%sf(j, k, l) = &
+                                max(q_cons_ts(2)%vf(i)%sf(j, k, l), 0._wp)
+                        end do
+                    end do
+                end do
+            end do
+        end if
 
         if (qbmm .and. (.not. polytropic)) then
             $:GPU_PARALLEL_LOOP(collapse=5)

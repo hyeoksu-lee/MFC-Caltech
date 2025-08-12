@@ -597,7 +597,7 @@ contains
             end do
         end if
 
-        if (mpp_lim .and. bubbles_euler .and. .not. icsg) then
+        if (mpp_lim .and. bubbles_euler) then
             @:ALLOCATE(alf_sum%sf(idwbuff(1)%beg:idwbuff(1)%end, idwbuff(2)%beg:idwbuff(2)%end, idwbuff(3)%beg:idwbuff(3)%end))
         end if
         ! END: Allocation/Association of qK_cons_n and qK_prim_n
@@ -653,25 +653,48 @@ contains
 
             ! Converting Conservative to Primitive Variables
 
-            if (mpp_lim .and. bubbles_euler .and. .not. icsg) then
-                $:GPU_PARALLEL_LOOP(collapse=3)
-                do l = idwbuff(3)%beg, idwbuff(3)%end
-                    do k = idwbuff(2)%beg, idwbuff(2)%end
-                        do j = idwbuff(1)%beg, idwbuff(1)%end
-                            alf_sum%sf(j, k, l) = 0._wp
-                            $:GPU_LOOP(parallelism='[seq]')
-                            do i = advxb, advxe - 1
-                                alf_sum%sf(j, k, l) = alf_sum%sf(j, k, l) + q_cons_qp%vf(i)%sf(j, k, l)
-                            end do
-                            $:GPU_LOOP(parallelism='[seq]')
-                            do i = advxb, advxe - 1
-                                q_cons_qp%vf(i)%sf(j, k, l) = q_cons_qp%vf(i)%sf(j, k, l)*(1._wp - q_cons_qp%vf(alf_idx)%sf(j, k, l)) &
-                                                              /alf_sum%sf(j, k, l)
+            if (mpp_lim .and. bubbles_euler) then
+                if (.not. icsg) then
+                    $:GPU_PARALLEL_LOOP(collapse=3)
+                    do l = idwbuff(3)%beg, idwbuff(3)%end
+                        do k = idwbuff(2)%beg, idwbuff(2)%end
+                            do j = idwbuff(1)%beg, idwbuff(1)%end
+                                alf_sum%sf(j, k, l) = 0._wp
+                                $:GPU_LOOP(parallelism='[seq]')
+                                do i = advxb, advxe - 1
+                                    alf_sum%sf(j, k, l) = alf_sum%sf(j, k, l) + q_cons_qp%vf(i)%sf(j, k, l)
+                                end do
+                                $:GPU_LOOP(parallelism='[seq]')
+                                do i = advxb, advxe - 1
+                                    q_cons_qp%vf(i)%sf(j, k, l) = q_cons_qp%vf(i)%sf(j, k, l)*(1._wp - q_cons_qp%vf(alf_idx)%sf(j, k, l)) &
+                                                                /alf_sum%sf(j, k, l)
+                                end do
                             end do
                         end do
                     end do
-                end do
-            end if
+                else
+                    $:GPU_PARALLEL_LOOP(collapse=3)
+                    do l = idwbuff(3)%beg, idwbuff(3)%end
+                        do k = idwbuff(2)%beg, idwbuff(2)%end
+                            do j = idwbuff(1)%beg, idwbuff(1)%end
+                                alf_sum%sf(j, k, l) = 0._wp
+                                $:GPU_LOOP(parallelism='[seq]')
+                                do i = 1, num_fluids
+                                    q_cons_qp%vf(i)%sf(j, k, l) = max(0._wp, q_cons_qp%vf(i)%sf(j, k, l))
+                                    q_cons_qp%vf(E_idx + i)%sf(j, k, l) = min(max(0._wp, q_cons_qp%vf(E_idx + i)%sf(j, k, l)), 1._wp)
+                                    alf_sum%sf(j, k, l) = alf_sum%sf(j, k, l) + q_cons_qp%vf(E_idx + i)%sf(j, k, l)
+                                end do
+
+                                $:GPU_LOOP(parallelism='[seq]')
+                                do i = advxb, advxe
+                                    q_cons_qp%vf(i)%sf(j, k, l) = q_cons_qp%vf(i)%sf(j, k, l)/max(alf_sum%sf(j, k, l), sgm_eps)
+                                end do
+
+                            end do
+                        end do
+                    end do
+                end if
+            end if            
         end if
 
         if (igr) then
@@ -1969,7 +1992,7 @@ contains
             end if
         end if
 
-        if (mpp_lim .and. bubbles_euler .and. .not. icsg) then
+        if (mpp_lim .and. bubbles_euler) then
             $:GPU_EXIT_DATA(delete='[alf_sum%sf]')
             deallocate (alf_sum%sf)
         end if
