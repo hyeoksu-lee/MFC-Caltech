@@ -526,6 +526,66 @@ contains
 
     end subroutine s_mpi_reduce_maxloc
 
+    impure subroutine s_mpi_reduce_sum(var_loc)
+
+        real(wp), intent(inout) :: var_loc
+
+#ifdef MFC_MPI
+
+        real(wp) :: var_glb  !<
+            !! Temporary storage variable that holds the reduced maximum value
+            !! and the rank of the processor with which the value is associated
+
+        ! Performing reduction procedure and eventually storing its result
+        ! into the variable that was initially inputted into the subroutine
+        call MPI_REDUCE(var_loc, var_glb, 1, mpi_p, &
+                        MPI_SUM, 0, MPI_COMM_WORLD, ierr)
+
+        call MPI_BCAST(var_glb, 1, mpi_p, &
+                       0, MPI_COMM_WORLD, ierr)
+
+        var_loc = var_glb
+
+#endif
+
+    end subroutine s_mpi_reduce_sum
+
+    !>  The following subroutine takes the first element of the
+        !!      2-element inputted variable and determines its maximum
+        !!      value on the entire computational domain. The result is
+        !!      stored back into the first element of the variable while
+        !!      the rank of the processor that is in charge of the sub-
+        !!      domain containing the maximum is stored into the second
+        !!      element of the variable.
+        !!  @param var_loc On input, this variable holds the local value and processor rank,
+        !!  which are to be reduced among all the processors in communicator.
+        !!  On output, this variable holds the maximum value, reduced amongst
+        !!  all of the local values, and the process rank to which the value
+        !!  belongs.
+    impure subroutine s_mpi_reduce_minloc(var_loc)
+
+        real(wp), dimension(2), intent(inout) :: var_loc
+
+#ifdef MFC_MPI
+
+        real(wp), dimension(2) :: var_glb  !<
+            !! Temporary storage variable that holds the reduced maximum value
+            !! and the rank of the processor with which the value is associated
+
+        ! Performing reduction procedure and eventually storing its result
+        ! into the variable that was initially inputted into the subroutine
+        call MPI_REDUCE(var_loc, var_glb, 1, mpi_2p, &
+                        MPI_MINLOC, 0, MPI_COMM_WORLD, ierr)
+
+        call MPI_BCAST(var_glb, 1, mpi_2p, &
+                       0, MPI_COMM_WORLD, ierr)
+
+        var_loc = var_glb
+
+#endif
+
+    end subroutine s_mpi_reduce_minloc
+
     !> The subroutine terminates the MPI execution environment.
         !! @param prnt error message to be printed
     impure subroutine s_mpi_abort(prnt, code)

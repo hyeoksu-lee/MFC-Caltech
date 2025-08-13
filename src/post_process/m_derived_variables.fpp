@@ -34,6 +34,7 @@ module m_derived_variables
  s_derive_qm, &
  s_derive_liutex, &
  s_apply_gaussian_filter, &
+ s_compute_mixlayer_thickenss, &
  s_derive_numerical_schlieren_function, &
  s_compute_speed_of_sound, &
  s_finalize_derived_variables_module
@@ -757,10 +758,9 @@ contains
 
     end subroutine s_derive_liutex
 
-    impure subroutine s_apply_gaussian_filter(field, field_filtered)
+    impure subroutine s_apply_gaussian_filter(field, field_filtered, filter_size)
         real(wp) :: sigma  ! Gaussian filter width
-        integer, parameter :: kernel_size = 11  ! Kernel size (odd number)
-        integer, parameter :: pad_size = (kernel_size - 1)/2
+        integer, parameter :: max_pad_size = 200
 
         real(wp), &
             dimension(-offset_x%beg:m + offset_x%end, &
@@ -774,54 +774,163 @@ contains
                       -offset_z%beg:p + offset_z%end), &
             intent(out) :: field_filtered
 
-        real(wp), dimension(-pad_size:pad_size) :: kernel_x, kernel_y, kernel_z
+        real(wp), intent(in) :: filter_size
+
+        real(wp), dimension(-max_pad_size:max_pad_size) :: kernel_x, kernel_y
         integer :: i, j, k, l, q, r, il, jq, kr
-        real(wp) :: sum, norm, dist_x, dist_y, dist_z
+        real(wp) :: sum, norm, dist_x, dist_y, ds
 
-        sigma = nint((pad_size - 1)/2._wp)*minval(dy)
+        integer :: i_glb, j_glb, k_glb
+        real(wp), dimension(-offset_x%beg:m + offset_x%end) :: x_glb
+        real(wp), dimension(-offset_y%beg:n + offset_y%end) :: y_glb
+        real(wp), dimension(-offset_z%beg:p + offset_z%end) :: z_glb
 
+        sigma = filter_size / 6._wp
         norm = 1._wp / (sigma * sqrt(2._wp * pi))
+        ds = minval(dx)
+
         field_filtered = 0._wp
-        do k = -offset_z%beg + pad_size, p + offset_z%end - pad_size
-            do j = -offset_y%beg + pad_size, n + offset_y%end - pad_size
-                do i = -offset_x%beg + pad_size, m + offset_x%end - pad_size
+        do k = -offset_z%beg, p + offset_z%end
+            do j = -offset_y%beg, n + offset_y%end
+                do i = -offset_x%beg, m + offset_x%end
 
                     ! Compute kernel
-                    do l = -pad_size, pad_size
-                        dist_x = x_cc(i + l) - x_cc(i)
-                        dist_y = y_cc(j + l) - y_cc(j)
-                        dist_z = z_cc(k + l) - z_cc(k)
-                        kernel_x(l) = norm * exp(-0.5_wp * (dist_x / sigma)**2._wp)
-                        kernel_y(l) = norm * exp(-0.5_wp * (dist_y / sigma)**2._wp)
-                        kernel_z(l) = norm * exp(-0.5_wp * (dist_z / sigma)**2._wp)
+                    kernel_x = 0._wp
+                    kernel_y = 0._wp
+                    do l = -max_pad_size, max_pad_size
+                        ! dist_x = l*ds
+                        ! dist_y = l*ds
+                        if (i + l < 1) then
+                            dist_x = (x_cc(i + l + m) - (x_cc(m) - x_cc(0))) - x_cc(i)
+                        else if (i + l > m) then
+                            dist_x = (x_cc(i + l - m) + (x_cc(m) - x_cc(0))) - x_cc(i)
+                        else
+                            dist_x = x_cc(i + l) - x_cc(i)
+                        end if
+                        if (j + l < 1 .or. j + l > n) then
+                            dist_y = 0._wp
+                        else
+                            dist_y = y_cc(j + l) - y_cc(j)
+                        end if
+                        if (abs(dist_x) < filter_size/2._wp) then
+                            kernel_x(l) = norm * exp(-0.5_wp * (dist_x / sigma)**2._wp) * ds
+                        end if
+                        if (abs(dist_y) < filter_size/2._wp) then
+                            kernel_y(l) = norm * exp(-0.5_wp * (dist_y / sigma)**2._wp) * ds
+                        end if
                     end do
-                    ! Normalize kernel
                     kernel_x = kernel_x / sum(kernel_x)
                     kernel_y = kernel_y / sum(kernel_y)
-                    kernel_z = kernel_z / sum(kernel_z)
+
 
                     field_filtered(i, j, k) = 0._wp
-                    do r = -pad_size, pad_size
-                        do q = -pad_size, pad_size
-                            do l = -pad_size, pad_size
-                                il = i + l
-                                jq = j + q
-                                kr = k + r
-                                ! Apply periodic BC in x and z, clamp in y
-                                if (il < 1) il = il + m
-                                if (il > m) il = il - m
-                                if (kr < 1) kr = kr + p
-                                if (kr > p) kr = kr - p
-                                if (jq > 1 .and. jq < n) then
-                                    field_filtered(i, j, k) = field_filtered(i, j, k) + field(il, jq, kr) * (kernel_x(l) * kernel_y(q) * kernel_z(r))
-                                end if
-                            end do
+                    do q = -max_pad_size, max_pad_size
+                        do l = -max_pad_size, max_pad_size
+                            il = i + l
+                            jq = j + q
+                            ! Apply periodic BC in x and z, clamp in y
+                            if (il < 1) il = il + m
+                            if (il > m) il = il - m
+                            if (jq > 1 .and. jq < n) then
+                                field_filtered(i, j, k) = field_filtered(i, j, k) + field(il, jq, k) * (kernel_x(l) * kernel_y(q))
+                            end if
                         end do
                     end do
                 end do
             end do
         end do
     end subroutine s_apply_gaussian_filter
+
+
+    impure subroutine s_compute_mixlayer_thickenss(q_prim_vf, vel1_avg_out, mixlayer_thickness)
+
+        type(scalar_field), &
+            dimension(sys_size), &
+            intent(in) :: q_prim_vf
+
+        real(wp), intent(out) :: mixlayer_thickness
+
+        real(wp), dimension(-offset_y%beg:n + offset_y%end) :: vel1_avg
+        real(wp), dimension(0:n) :: y_loc
+
+        real(wp), dimension(-offset_x%beg:m + offset_x%end, &
+                            -offset_y%beg:n + offset_y%end, &
+                            -offset_z%beg:p + offset_z%end) :: vel1, vel1_gather
+
+        real(wp), dimension(-offset_x%beg:m + offset_x%end, &
+                            -offset_y%beg:n + offset_y%end, &
+                            -offset_z%beg:p + offset_z%end), intent(out) :: vel1_avg_out
+
+        integer :: i, j, k, ierr, size, size_xz
+        integer :: y_idx_beg, y_idx_end
+        real(wp), dimension(2) :: var_loc_beg, var_loc_end
+        real(wp) :: min_beg, min_end
+        real(wp) :: y_cc_beg, y_cc_end
+
+
+        do i = -offset_x%beg, m + offset_x%end
+            do j = -offset_y%beg, n + offset_y%end
+                do k = -offset_z%beg, p + offset_z%end
+                    vel1(i, j, k) = q_prim_vf(momxb)%sf(i, j, k)
+                end do
+            end do
+        end do
+
+        size =  (m + offset_x%end + offset_x%beg)* &
+                (n + offset_y%end + offset_y%beg)* &
+                (p + offset_z%end + offset_z%beg)
+        size_xz = (m + offset_x%end + offset_x%beg)* &
+                  (p + offset_z%end + offset_z%beg)
+        call MPI_gather(vel1, size, mpi_p, vel1_gather, 1, mpi_p, 0, ierr)
+
+        if (proc_rank == 0) then 
+            do j = -offset_y%beg, n + offset_y%end
+                vel1_avg = 0._wp
+                do i = -offset_x%beg, m + offset_x%end
+                    do k = -offset_z%beg, p + offset_z%end
+                        vel1_avg(j) = vel1_gather(i, j, k) / size_xz
+                    end do
+                end do
+                vel1_avg_out(:, j, :) = vel1_avg(j)
+                if (vel1_avg(j) < -0.99_wp) y_loc(j) = 0._wp
+                if (vel1_avg(j) >  0.99_wp) y_loc(j) = 0._wp
+            end do
+
+            var_loc_beg = (/minval(y_loc), real(proc_rank, wp)/)
+            var_loc_end = (/maxval(y_loc), real(proc_rank, wp)/)
+            mixlayer_thickness = var_loc_end(1) - var_loc_beg(1)
+            print *, proc_rank, "mixlayer_thickness", mixlayer_thickness, var_loc_beg(1), var_loc_beg(1)
+
+            call MPI_BCAST(mixlayer_thickness, 1, mpi_p, 0, MPI_COMM_WORLD, ierr)
+        end if
+
+        ! do j = -offset_y%beg, n + offset_y%end
+        !     vel1_avg_loc(j) = 0._wp
+        !     do i = 0, m
+        !         do k = 0, p
+        !             vel1_avg_loc(j) = vel1_avg_loc(j) + q_prim_vf(momxb)%sf(i, j, k) / ((m+1)*(p+1))
+        !         end do
+        !     end do
+
+        !     if (num_procs > 1) call s_mpi_allreduce_sum(vel1_avg_loc(j), vel1_avg_glb)
+
+        !     vel1_avg_out(:, j, :) = vel1_avg_glb
+
+        !     if (vel1_avg_glb < -0.99_wp) y_loc(j) = 0._wp
+        !     if (vel1_avg_glb >  0.99_wp) y_loc(j) = 0._wp
+        ! end do
+
+        ! var_loc_beg = (/minval(y_loc), real(proc_rank, wp)/)
+        ! if (num_procs > 1) call s_mpi_reduce_minloc(var_loc_beg)
+
+        ! var_loc_end = (/maxval(y_loc), real(proc_rank, wp)/)
+        ! if (num_procs > 1) call s_mpi_reduce_maxloc(var_loc_end)
+        
+        ! mixlayer_thickness = var_loc_end(1) - var_loc_beg(1)
+        ! print *, proc_rank, "mixlayer_thickness", mixlayer_thickness, var_loc_beg(1), var_loc_beg(1)
+
+    end subroutine s_compute_mixlayer_thickenss
+
 
     !>  This subroutine gets as inputs the conservative variables
         !!      and density. From those inputs, it proceeds to calculate

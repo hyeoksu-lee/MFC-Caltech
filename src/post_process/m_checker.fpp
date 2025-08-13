@@ -48,7 +48,8 @@ contains
     impure subroutine s_check_inputs_partial_domain
         @:PROHIBIT(output_partial_domain .and. format == 1)
         @:PROHIBIT(output_partial_domain .and. precision == 1)
-        @:PROHIBIT(output_partial_domain .and. any([flux_wrt, heat_ratio_wrt, pres_inf_wrt, c_wrt, schlieren_wrt, qm_wrt, liutex_wrt, ib, any(omega_wrt)]))
+        @:PROHIBIT(output_partial_domain .and. any([flux_wrt, heat_ratio_wrt, pres_inf_wrt, c_wrt, schlieren_wrt, qm_wrt, ib, any(omega_wrt)]))
+        ! @:PROHIBIT(output_partial_domain .and. any([flux_wrt, heat_ratio_wrt, pres_inf_wrt, c_wrt, schlieren_wrt, qm_wrt, liutex_wrt, ib, any(omega_wrt)]))
         @:PROHIBIT(output_partial_domain .and. (f_is_default(x_output%beg) .or. f_is_default(x_output%end)))
         @:PROHIBIT(output_partial_domain .and. n /= 0 .and. (f_is_default(y_output%beg) .or. f_is_default(y_output%end)))
         @:PROHIBIT(output_partial_domain .and. p /= 0 .and. (f_is_default(z_output%beg) .or. f_is_default(z_output%end)))
