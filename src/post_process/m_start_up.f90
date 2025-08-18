@@ -195,30 +195,6 @@ contains
         ! Converting the conservative variables to the primitive ones
         call s_convert_conservative_to_primitive_variables(q_cons_vf, q_T_sf, q_prim_vf, idwbuff)
 
-        do i = 0, num_procs
-          if (i == proc_rank) then
-            print *, proc_rank, x_cc(0), y_cc(0), z_cc(0)
-          end if
-        end do
-        call s_mpi_barrier
-
-        do i = 0, m
-            write(99,*) "x", proc_rank, i + mod(floor(proc_rank/24._wp, wp)*128, 1024), x_cc(i + mod(floor(proc_rank/24._wp, wp)*128, 1024))
-        end do
-        call s_mpi_barrier
-
-        do j = 0, n
-            write(98,*) "y", proc_rank, j + mod(floor(proc_rank/3._wp, wp)*128, 1024), y_cc(j + mod(floor(proc_rank/3._wp, wp)*128, 1024))
-        end do
-        call s_mpi_barrier
-
-        do k = 0, p
-            write(97,*) "z", proc_rank, k + mod(floor(proc_rank/1._wp, wp)*171, 512), z_cc(k + mod(floor(proc_rank/1._wp, wp)*171, 512))
-        end do
-        call s_mpi_barrier
-
-        call s_mpi_abort()
-
     end subroutine s_perform_time_step
 
     impure subroutine s_save_data(t_step, varname, pres, c, H)

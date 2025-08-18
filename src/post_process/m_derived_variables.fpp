@@ -758,15 +758,20 @@ contains
 
     end subroutine s_derive_liutex
 
-    impure subroutine s_apply_gaussian_filter(field, field_filtered, filter_size)
+    impure subroutine s_apply_gaussian_filter(field_in, field_filtered, filter_size)
         real(wp) :: sigma  ! Gaussian filter width
         integer, parameter :: max_pad_size = 200
 
         real(wp), &
             dimension(-offset_x%beg:m + offset_x%end, &
                       -offset_y%beg:n + offset_y%end, &
+                      -offset_z%beg:p + offset_z%end) :: field
+
+        real(wp), &
+            dimension(-offset_x%beg:m + offset_x%end, &
+                      -offset_y%beg:n + offset_y%end, &
                       -offset_z%beg:p + offset_z%end), &
-            intent(in) :: field
+            intent(in) :: field_in
 
         real(wp), &
             dimension(-offset_x%beg:m + offset_x%end, &
@@ -784,6 +789,21 @@ contains
         real(wp), dimension(-offset_x%beg:m + offset_x%end) :: x_glb
         real(wp), dimension(-offset_y%beg:n + offset_y%end) :: y_glb
         real(wp), dimension(-offset_z%beg:p + offset_z%end) :: z_glb
+
+! #ifdef MFC_MPI
+!         call s_mpi_barrier
+!         call s_mpi_gather_data()
+! #else
+!         field = field_in
+! #endif
+
+        print *, "starts s_apply_gaussian_filter"
+        print *, proc_rank, m, x_cc(m)
+        print *, proc_rank, n, y_cc(n)
+        print *, proc_rank, p, z_cc(p)
+
+
+        call s_mpi_abort("stop here")
 
         sigma = filter_size / 6._wp
         norm = 1._wp / (sigma * sqrt(2._wp * pi))
