@@ -308,6 +308,137 @@ contains
 #endif
     end subroutine s_mpi_gather_data
 
+    impure subroutine s_mpi_allgather_data(my_vector, counts, gathered_vector)
+
+        integer, intent(in) :: counts          ! Array of vector lengths for each process
+        real(wp), intent(in), dimension(counts) :: my_vector   ! Input vector on each process
+        real(wp), allocatable, intent(out) :: gathered_vector(:) ! Gathered vector on the root process
+
+        integer :: i
+        integer, allocatable :: recounts(:), displs(:)
+
+#ifdef MFC_MPI
+
+        allocate (recounts(num_procs))
+
+        call MPI_ALLGATHER(counts, 1, MPI_INTEGER, recounts, 1, MPI_INTEGER, &
+                        MPI_COMM_WORLD, ierr)
+
+        allocate (displs(size(recounts)))
+
+        displs(1) = 0
+
+        do i = 2, size(recounts)
+            displs(i) = displs(i - 1) + recounts(i - 1)
+        end do
+
+        allocate (gathered_vector(sum(recounts)))
+        call MPI_ALLGATHERV(my_vector, counts, mpi_p, gathered_vector, recounts, displs, mpi_p, &
+                            MPI_COMM_WORLD, ierr)
+#endif
+    end subroutine s_mpi_allgather_data
+
+    impure subroutine s_mpi_allgather_data_1d(my_vector, counts, gathered_vector, gathered_counts)
+
+        integer, intent(in) :: counts          ! Array of vector lengths for each process
+        real(wp), intent(in), dimension(counts) :: my_vector   ! Input vector on each process
+        integer, intent(in) :: gathered_counts
+        real(wp), allocatable :: gathered_vector_full(:)
+        real(wp), intent(out), dimension(gathered_counts) :: gathered_vector ! Gathered vector on the root process
+
+#ifdef MFC_MPI
+        call s_mpi_allgather_data(my_vector, counts, gathered_vector_full)
+        gathered_vector = gathered_vector_full(1:gathered_counts)
+#endif
+    end subroutine s_mpi_allgather_data_1d
+
+    impure subroutine s_mpi_allgather_data_3d(my_data, counts, gathered_data, gathered_counts)
+
+        integer, intent(in), dimension(3) :: counts
+        real(wp), intent(in), dimension(counts(1),counts(2),counts(3)) :: my_data
+        integer, intent(in), dimension(3) :: gathered_counts
+        real(wp), intent(out), dimension(gathered_counts(1),gathered_counts(2),gathered_counts(3)) :: gathered_data
+
+        real(wp), allocatable :: my_data_1d(:)
+        real(wp), allocatable :: gathered_data_1d(:)
+        integer :: counts_all, gathered_counts_all
+        integer :: proc_rank_x, proc_rank_y, proc_rank_z, proc_rank_tmp
+        integer :: i, j, k, l, ii, jj, kk, ll, ierr
+
+#ifdef MFC_MPI
+        counts_all = counts(1)*counts(2)*counts(3)
+        gathered_counts_all = gathered_counts(1)*gathered_counts(2)*gathered_counts(3)
+
+        allocate (my_data_1d(counts_all))
+        allocate (gathered_data_1d(gathered_counts_all))
+
+        my_data_1d = reshape(my_data, (/counts(1)*counts(2)*counts(3)/))
+        call s_mpi_allgather_data_1d(my_data_1d, counts_all, gathered_data_1d, gathered_counts_all)
+        call s_mpi_data_1d_to_3d(gathered_data_1d, gathered_data, counts, counts_all, gathered_counts, gathered_counts_all)
+#endif
+    end subroutine s_mpi_allgather_data_3d
+    
+    impure subroutine s_mpi_data_1d_to_3d(gathered_data_1d, gathered_data, counts, counts_all, gathered_counts, gathered_counts_all)
+        integer, intent(in), dimension(3) :: counts
+        integer, intent(in), dimension(3) :: gathered_counts
+        integer, intent(in) :: counts_all, gathered_counts_all
+        real(wp), intent(in), dimension(gathered_counts_all) :: gathered_data_1d
+        real(wp), intent(out), dimension(gathered_counts(1),gathered_counts(2),gathered_counts(3)) :: gathered_data
+    
+        integer :: proc_rank_x, proc_rank_y, proc_rank_z, proc_rank_tmp
+        integer :: i, j, k, l, ii, jj, kk, ll, ierr
+
+        if (proc_rank == 0) then
+            do l = 0, num_procs - 1
+                proc_rank_z = mod(l, num_procs_z)
+                proc_rank_tmp = (l - proc_rank_z)/num_procs_z
+                proc_rank_y = mod(proc_rank_tmp, num_procs_y)
+                proc_rank_x = (proc_rank_tmp - proc_rank_y)/num_procs_y
+                
+                do k = 1, counts(3)
+                    do j = 1, counts(2)
+                        do i = 1, counts(1)
+                            ii = i + proc_rank_x*counts(1)
+                            jj = j + proc_rank_y*counts(2)
+                            kk = k + proc_rank_z*counts(3)
+                            ll = l*counts_all + (i - 1) + (j - 1)*counts(1) + (k - 1)*counts(1)*counts(2) + 1
+                            gathered_data(ii, jj, kk) = gathered_data_1d(ll)
+                        end do
+                    end do
+                end do
+            end do
+        end if
+        call MPI_BCAST(gathered_data, gathered_counts_all, mpi_p, 0, MPI_COMM_WORLD, ierr)
+    end subroutine s_mpi_data_1d_to_3d
+
+    impure subroutine s_mpi_data_glb_to_loc(data_glb, counts_glb, data_loc, counts_loc)
+        integer, intent(in), dimension(3) :: counts_loc, counts_glb
+        real(wp), intent(in), dimension(counts_glb(1),counts_glb(2),counts_glb(3)) :: data_glb
+        real(wp), intent(out), dimension(counts_loc(1),counts_loc(2),counts_loc(3)) :: data_loc
+        integer :: proc_rank_x, proc_rank_y, proc_rank_z, proc_rank_tmp
+        integer :: i, j, k, l, ierr
+        integer :: ii, jj, kk
+
+        call MPI_BCAST(data_glb, counts_glb(1)*counts_glb(2)*counts_glb(3), mpi_p, 0, MPI_COMM_WORLD, ierr)
+
+        proc_rank_z = mod(proc_rank, num_procs_z)
+        proc_rank_tmp = (proc_rank - proc_rank_z)/num_procs_z
+        proc_rank_y = mod(proc_rank_tmp, num_procs_y)
+        proc_rank_x = (proc_rank_tmp - proc_rank_y)/num_procs_y
+
+        do k = 1, counts_loc(3)
+            do j = 1, counts_loc(2)
+                do i = 1, counts_loc(1)
+                    ii = i + proc_rank_x*counts_loc(1)
+                    jj = j + proc_rank_y*counts_loc(2)
+                    kk = k + proc_rank_z*counts_loc(3)
+                    data_loc(i, j, k) = data_glb(ii, jj, kk)
+                end do
+            end do
+        end do
+    end subroutine s_mpi_data_glb_to_loc
+
+
     impure subroutine mpi_bcast_time_step_values(proc_time, time_avg)
 
         real(wp), dimension(0:num_procs - 1), intent(inout) :: proc_time
@@ -1098,9 +1229,6 @@ contains
     subroutine s_mpi_decompose_computational_domain
 
 #ifdef MFC_MPI
-
-        integer :: num_procs_x, num_procs_y, num_procs_z !<
-            !! Optimal number of processors in the x-, y- and z-directions
 
         real(wp) :: tmp_num_procs_x, tmp_num_procs_y, tmp_num_procs_z !<
             !! Non-optimal number of processors in the x-, y- and z-directions

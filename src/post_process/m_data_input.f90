@@ -330,8 +330,6 @@ contains
 
 #ifdef MFC_MPI
 
-        real(wp), allocatable, dimension(:) :: x_cb_glb, y_cb_glb, z_cb_glb
-
         integer :: ifile, ierr, data_size
         integer, dimension(MPI_STATUS_SIZE) :: status
 
@@ -347,10 +345,6 @@ contains
         character(len=10) :: t_step_string
 
         integer :: i
-
-        allocate (x_cb_glb(-1:m_glb))
-        allocate (y_cb_glb(-1:n_glb))
-        allocate (z_cb_glb(-1:p_glb))
 
         ! Read in cell boundary locations in x-direction
         file_loc = trim(case_dir)//'/restart_data'//trim(mpiiofs)//'x_cb.dat'
@@ -371,6 +365,8 @@ contains
         dx(0:m) = x_cb(0:m) - x_cb(-1:m - 1)
         ! Computing the cell center location
         x_cc(0:m) = x_cb(-1:m - 1) + dx(0:m)/2._wp
+        ! Global cell center location
+        x_cc_glb = (x_cb_glb(-1:m_glb - 1) + x_cb_glb(0:m_glb))/2._wp
 
         if (n > 0) then
             ! Read in cell boundary locations in y-direction
@@ -392,7 +388,9 @@ contains
             dy(0:n) = y_cb(0:n) - y_cb(-1:n - 1)
             ! Computing the cell center location
             y_cc(0:n) = y_cb(-1:n - 1) + dy(0:n)/2._wp
-
+            ! Global cell center location
+            y_cc_glb = (y_cb_glb(-1:n_glb - 1) + y_cb_glb(0:n_glb))/2._wp
+            
             if (p > 0) then
                 ! Read in cell boundary locations in z-direction
                 file_loc = trim(case_dir)//'/restart_data'//trim(mpiiofs)//'z_cb.dat'
@@ -413,12 +411,12 @@ contains
                 dz(0:p) = z_cb(0:p) - z_cb(-1:p - 1)
                 ! Computing the cell center location
                 z_cc(0:p) = z_cb(-1:p - 1) + dz(0:p)/2._wp
+                ! Global cell center location
+                z_cc_glb = (z_cb_glb(-1:p_glb - 1) + z_cb_glb(0:p_glb))/2._wp
             end if
         end if
 
         call s_read_parallel_conservative_data(t_step, m_MOK, n_MOK, p_MOK, WP_MOK, MOK, str_MOK, NVARS_MOK)
-
-        deallocate (x_cb_glb, y_cb_glb, z_cb_glb)
 
         if (bc_io) then
             call s_read_parallel_boundary_condition_files(bc_type)

@@ -568,7 +568,8 @@ contains
         !!  @param q_prim_vf Primitive variables
         !!  @param liutex_mag Liutex magnitude
         !!  @param liutex_axis Liutex axis
-    impure subroutine s_derive_liutex(q_prim_vf, liutex_mag, liutex_axis, omega, vort_stretch, vort_stretch_proj, vort_stretch_res, &
+    impure subroutine s_derive_liutex(q_prim_vf, y_idx_beg, y_idx_end, &
+                                    liutex_mag, liutex_axis, omega, vort_stretch, vort_stretch_proj, vort_stretch_res, &
                                     A_rr, A_ps, A_ns, A_sr)
         type(scalar_field), &
             dimension(sys_size), &
@@ -604,11 +605,7 @@ contains
                       -offset_z%beg:p + offset_z%end), &
             intent(out) :: A_rr, A_ps, A_ns, A_sr
 
-        real(wp), &
-            dimension(-offset_x%beg:m + offset_x%end, &
-                      -offset_y%beg:n + offset_y%end, &
-                      -offset_z%beg:p + offset_z%end) &
-            :: u_filtered, v_filtered, w_filtered
+        integer, intent(in) :: y_idx_beg, y_idx_end
 
         real(wp), dimension(3, 3) :: vgt, vgti !< velocity gradient tensor
 
@@ -628,145 +625,145 @@ contains
         integer :: j, k, l, r, i, il, jq, kr !< Generic loop iterators
         integer :: idx
         integer :: ierr
-
-        do l = -offset_z%beg, p + offset_z%end
-            do k = -offset_y%beg, n + offset_y%end
-                do j = -offset_x%beg, m + offset_x%end
-
-                    ! Get velocity gradient tensor (VGT)
-                    vgt(:, :) = 0._wp   ! real part of VGT
-                    vgti(:, :) = 0._wp  ! imaginary part of VGT is essentially zero
-                    
-                    do r = -fd_number, fd_number
-                        do i = 1, 3
-                            ! d()/dx
-                            vgt(i, 1) = &
-                                vgt(i, 1) + &
-                                fd_coeff_x(r, j)* &
-                                q_prim_vf(mom_idx%beg + i - 1)%sf(r + j, k, l)
-                            ! d()/dy
-                            vgt(i, 2) = &
-                                vgt(i, 2) + &
-                                fd_coeff_y(r, k)* &
-                                q_prim_vf(mom_idx%beg + i - 1)%sf(j, r + k, l)
-                            ! d()/dz
-                            vgt(i, 3) = &
-                                vgt(i, 3) + &
-                                fd_coeff_z(r, l)* &
-                                q_prim_vf(mom_idx%beg + i - 1)%sf(j, k, r + l)
+        
+        omega = 0._wp
+        liutex_mag = 0._wp
+        liutex_axis = 0._wp 
+        vort_stretch_proj = 0._wp 
+        vort_stretch_res = 0._wp 
+        A_rr = 0._wp
+        A_ps = 0._wp
+        A_ns = 0._wp
+        A_sr = 0._wp
+        do k = -offset_y%beg, n + offset_y%end
+            if (y_cc(k) >= y_cc_glb(y_idx_beg) .and. y_cc(k) <= y_cc_glb(y_idx_end)) then
+                do l = -offset_z%beg, p + offset_z%end
+                    do j = -offset_x%beg, m + offset_x%end
+                        ! Get velocity gradient tensor (VGT)
+                        vgt(:, :) = 0._wp   ! real part of VGT
+                        vgti(:, :) = 0._wp  ! imaginary part of VGT is essentially zero
+                        
+                        do r = -fd_number, fd_number
+                            do i = 1, 3
+                                ! d()/dx
+                                vgt(i, 1) = &
+                                    vgt(i, 1) + &
+                                    fd_coeff_x(r, j)* &
+                                    q_prim_vf(mom_idx%beg + i - 1)%sf(r + j, k, l)
+                                ! d()/dy
+                                vgt(i, 2) = &
+                                    vgt(i, 2) + &
+                                    fd_coeff_y(r, k)* &
+                                    q_prim_vf(mom_idx%beg + i - 1)%sf(j, r + k, l)
+                                ! d()/dz
+                                vgt(i, 3) = &
+                                    vgt(i, 3) + &
+                                    fd_coeff_z(r, l)* &
+                                    q_prim_vf(mom_idx%beg + i - 1)%sf(j, k, r + l)
+                            end do
                         end do
-                    end do
-                    
-                    ! Compute vorticity
-                    omega(j, k, l, 1) = vgt(3,2) - vgt(2,3)
-                    omega(j, k, l, 2) = vgt(1,3) - vgt(3,1)
-                    omega(j, k, l, 3) = vgt(2,1) - vgt(1,2)
+                        
+                        ! Compute vorticity
+                        omega(j, k, l, 1) = vgt(3,2) - vgt(2,3)
+                        omega(j, k, l, 2) = vgt(1,3) - vgt(3,1)
+                        omega(j, k, l, 3) = vgt(2,1) - vgt(1,2)
 
-                    ! Compute vortex stretching term
-                    do r = 1, 3
-                        vort_stretch(j, k, l, r) = omega(j, k, l, 1)*vgt(r,1) &
-                                                 + omega(j, k, l, 2)*vgt(r,2) &
-                                                 + omega(j, k, l, 3)*vgt(r,3)
-                    end do
-
-                    !
-                    A_S = 0.5_wp*(vgt + transpose(vgt))
-                    A_W = 0.5_wp*(vgt - transpose(vgt))
-                    S2 = 0._wp
-                    W2 = 0._wp
-                    do i = 1, 3
+                        ! Compute vortex stretching term
                         do r = 1, 3
-                            S2 = S2 + A_S(i, r)**2._wp
-                            W2 = W2 + A_W(i, r)**2._wp
+                            vort_stretch(j, k, l, r) = omega(j, k, l, 1)*vgt(r,1) &
+                                                    + omega(j, k, l, 2)*vgt(r,2) &
+                                                    + omega(j, k, l, 3)*vgt(r,3)
                         end do
-                    end do
 
-                    ! Compute eigenvalues (l = lr + i*li) and eigenvectors (z = zr + i*zi)
-                    call cg(3, 3, vgt, vgti, lr, li, zr, zi, fv1, fv2, fv3, ierr)
+                        !
+                        A_S = 0.5_wp*(vgt + transpose(vgt))
+                        A_W = 0.5_wp*(vgt - transpose(vgt))
+                        S2 = 0._wp
+                        W2 = 0._wp
+                        do i = 1, 3
+                            do r = 1, 3
+                                S2 = S2 + A_S(i, r)**2._wp
+                                W2 = W2 + A_W(i, r)**2._wp
+                            end do
+                        end do
 
-                    ! Find real eigenvector
-                    idx = 1
-                    do r = 2, 3
-                        if (abs(li(r)) < abs(li(idx))) then
-                            idx = r
+                        ! Compute eigenvalues (l = lr + i*li) and eigenvectors (z = zr + i*zi)
+                        call cg(3, 3, vgt, vgti, lr, li, zr, zi, fv1, fv2, fv3, ierr)
+
+                        ! Find real eigenvector
+                        idx = 1
+                        do r = 2, 3
+                            if (abs(li(r)) < abs(li(idx))) then
+                                idx = r
+                            end if
+                        end do
+                        eigvec = zr(:,idx)
+
+                        ! Normalize real eigenvector if it is effectively non-zero
+                        eigvec_mag = sqrt(eigvec(1)**2._wp &
+                                        + eigvec(2)**2._wp &
+                                        + eigvec(3)**2._wp)
+                        if (eigvec_mag > sgm_eps) then
+                            eigvec = eigvec / eigvec_mag
+                        else
+                            eigvec = 0._wp
                         end if
+
+                        ! Compute vorticity projected on the eigenvector
+                        omega_proj = omega(j, k, l, 1)*eigvec(1) &
+                                + omega(j, k, l, 2)*eigvec(2) &
+                                + omega(j, k, l, 3)*eigvec(3)
+
+                        ! As eigenvector can have +/- signs, we can choose the sign
+                        ! so that omega_proj is positive
+                        if (omega_proj < 0._wp) then
+                            eigvec = -eigvec
+                            omega_proj = -omega_proj
+                        end if
+
+                        ! Find imaginary part of complex eigenvalue
+                        lci = li(mod(idx, 3) + 1)
+
+                        ! Compute Liutex magnitude
+                        alpha = omega_proj**2._wp - 4._wp*lci**2._wp ! (2*alpha)^2 
+                        if (alpha .gt. 0._wp) then
+                            liutex_mag(j, k, l) = omega_proj - sqrt(alpha)
+                        else
+                            liutex_mag(j, k, l) = omega_proj
+                        end if
+
+                        ! Compute Liutex axis
+                        if (liutex_mag(j, k, l) > 0.01_wp) then
+                            liutex_axis(j, k, l, :) = eigvec(:)
+                        end if
+                        
+                        ! Compute projection of vortex stretching term on Liutex axis
+                        vort_stretch_proj(j, k, l) = &
+                            abs(liutex_axis(j, k, l, 1)*vort_stretch(j, k, l, 1) + &
+                                liutex_axis(j, k, l, 2)*vort_stretch(j, k, l, 2) + &
+                                liutex_axis(j, k, l, 3)*vort_stretch(j, k, l, 3))
+
+                        vort_stretch_res(j, k, l) = &
+                            sqrt((vort_stretch(j, k, l, 1) - liutex_axis(j, k, l, 1)*vort_stretch_proj(j, k, l))**2._wp + &
+                                (vort_stretch(j, k, l, 2) - liutex_axis(j, k, l, 2)*vort_stretch_proj(j, k, l))**2._wp + &
+                                (vort_stretch(j, k, l, 3) - liutex_axis(j, k, l, 3)*vort_stretch_proj(j, k, l))**2._wp)
+
+                        ! Strength
+                        vort_ps(1) = omega(j, k, l, 1) - liutex_mag(j, k, l)*liutex_axis(j, k, l, 1)
+                        vort_ps(2) = omega(j, k, l, 2) - liutex_mag(j, k, l)*liutex_axis(j, k, l, 2)
+                        vort_ps(3) = omega(j, k, l, 3) - liutex_mag(j, k, l)*liutex_axis(j, k, l, 3)
+                        A_rr(j, k, l) = 0.5_wp * liutex_mag(j, k, l)**2._wp
+                        A_ps(j, k, l) = vort_ps(1)**2._wp + vort_ps(2)**2._wp + vort_ps(3)**2._wp
+                        A_ns(j, k, l) = S2 - 0.5_wp*A_ps(j, k, l)
+                        A_sr(j, k, l) = W2 - 0.5_wp*A_ps(j, k, l) - 0.5_wp*A_rr(j, k, l)
                     end do
-                    eigvec = zr(:,idx)
-
-                    ! Normalize real eigenvector if it is effectively non-zero
-                    eigvec_mag = sqrt(eigvec(1)**2._wp &
-                                    + eigvec(2)**2._wp &
-                                    + eigvec(3)**2._wp)
-                    if (eigvec_mag > sgm_eps) then
-                        eigvec = eigvec / eigvec_mag
-                    else
-                        eigvec = 0._wp
-                    end if
-
-                    ! Compute vorticity projected on the eigenvector
-                    omega_proj = omega(j, k, l, 1)*eigvec(1) &
-                               + omega(j, k, l, 2)*eigvec(2) &
-                               + omega(j, k, l, 3)*eigvec(3)
-
-                    ! As eigenvector can have +/- signs, we can choose the sign
-                    ! so that omega_proj is positive
-                    if (omega_proj < 0._wp) then
-                        eigvec = -eigvec
-                        omega_proj = -omega_proj
-                    end if
-
-                    ! Find imaginary part of complex eigenvalue
-                    lci = li(mod(idx, 3) + 1)
-
-                    ! Compute Liutex magnitude
-                    alpha = omega_proj**2._wp - 4._wp*lci**2._wp ! (2*alpha)^2 
-                    if (alpha .gt. 0._wp) then
-                        liutex_mag(j, k, l) = omega_proj - sqrt(alpha)
-                    else
-                        liutex_mag(j, k, l) = omega_proj
-                    end if
-
-                    ! Compute Liutex axis
-                    if (liutex_mag(j, k, l) > 0.01) then
-                        liutex_axis(j, k, l, :) = eigvec(:)
-                    else
-                        liutex_axis(j, k, l, :) = 0._wp
-                    end if
-                    
-                    ! Compute projection of vortex stretching term on Liutex axis
-                    vort_stretch_proj(j, k, l) = &
-                        abs(liutex_axis(j, k, l, 1)*vort_stretch(j, k, l, 1) + &
-                            liutex_axis(j, k, l, 2)*vort_stretch(j, k, l, 2) + &
-                            liutex_axis(j, k, l, 3)*vort_stretch(j, k, l, 3))
-
-                    vort_stretch_res(j, k, l) = &
-                        sqrt((vort_stretch(j, k, l, 1) - liutex_axis(j, k, l, 1)*vort_stretch_proj(j, k, l))**2._wp + &
-                             (vort_stretch(j, k, l, 2) - liutex_axis(j, k, l, 2)*vort_stretch_proj(j, k, l))**2._wp + &
-                             (vort_stretch(j, k, l, 3) - liutex_axis(j, k, l, 3)*vort_stretch_proj(j, k, l))**2._wp)
-
-                    ! Strength
-                    vort_ps(1) = omega(j, k, l, 1) - liutex_mag(j, k, l)*liutex_axis(j, k, l, 1)
-                    vort_ps(2) = omega(j, k, l, 2) - liutex_mag(j, k, l)*liutex_axis(j, k, l, 2)
-                    vort_ps(3) = omega(j, k, l, 3) - liutex_mag(j, k, l)*liutex_axis(j, k, l, 3)
-                    A_rr(j, k, l) = 0.5_wp * liutex_mag(j, k, l)**2._wp
-                    A_ps(j, k, l) = vort_ps(1)**2._wp + vort_ps(2)**2._wp + vort_ps(3)**2._wp
-                    A_ns(j, k, l) = S2 - 0.5_wp*A_ps(j, k, l)
-                    A_sr(j, k, l) = W2 - 0.5_wp*A_ps(j, k, l) - 0.5_wp*A_rr(j, k, l)
                 end do
-            end do
+            end if
         end do
 
     end subroutine s_derive_liutex
 
-    impure subroutine s_apply_gaussian_filter(field_in, field_filtered, filter_size)
-        real(wp) :: sigma  ! Gaussian filter width
-        integer, parameter :: max_pad_size = 200
-
-        real(wp), &
-            dimension(-offset_x%beg:m + offset_x%end, &
-                      -offset_y%beg:n + offset_y%end, &
-                      -offset_z%beg:p + offset_z%end) :: field
-
+    impure subroutine s_apply_gaussian_filter(field_in, field_filtered, filter_size, y_idx_beg, y_idx_end)        
         real(wp), &
             dimension(-offset_x%beg:m + offset_x%end, &
                       -offset_y%beg:n + offset_y%end, &
@@ -780,175 +777,116 @@ contains
             intent(out) :: field_filtered
 
         real(wp), intent(in) :: filter_size
+        integer, intent(in) :: y_idx_beg, y_idx_end
 
-        real(wp), dimension(-max_pad_size:max_pad_size) :: kernel_x, kernel_y
-        integer :: i, j, k, l, q, r, il, jq, kr
+        integer :: pad_size
+        real(wp), dimension(:), allocatable :: kernel_x, kernel_y
+        real(wp) :: sigma  ! Gaussian filter width
+
+        integer :: i, j, k, l, q, r, il, jq, kr, ii, jj, kk
         real(wp) :: sum, norm, dist_x, dist_y, ds
+        integer :: ierr
 
-        integer :: i_glb, j_glb, k_glb
-        real(wp), dimension(-offset_x%beg:m + offset_x%end) :: x_glb
-        real(wp), dimension(-offset_y%beg:n + offset_y%end) :: y_glb
-        real(wp), dimension(-offset_z%beg:p + offset_z%end) :: z_glb
+        real(wp), dimension(0:m_glb, 0:n_glb, 0:p_glb) :: field_glb, field_filtered_glb
+        real(wp), dimension((m_glb + 1)*(n_glb + 1)*(p_glb + 1)) ::field_filtered_glb_1d
+        real(wp), dimension((m + 1)*(n + 1)*(p + 1)) ::field_filtered_1d
 
-! #ifdef MFC_MPI
-!         call s_mpi_barrier
-!         call s_mpi_gather_data()
-! #else
-!         field = field_in
-! #endif
+#ifdef MFC_MPI
+        call s_mpi_allgather_data_3d(field_in(0:m, 0:n, 0:p), (/m + 1, n + 1, p + 1/), &
+                                     field_glb, (/m_glb + 1, n_glb + 1, p_glb + 1/))
+#else
+        field_glb = field_in(0:m, 0:n, 0:p)
+#endif 
 
-        print *, "starts s_apply_gaussian_filter"
-        print *, proc_rank, m, x_cc(m)
-        print *, proc_rank, n, y_cc(n)
-        print *, proc_rank, p, z_cc(p)
+        if (proc_rank == 0) then
+            pad_size = nint((y_idx_end - y_idx_beg)/2._wp)
+            allocate (kernel_x(-pad_size:pad_size))
+            allocate (kernel_y(-pad_size:pad_size))
 
+            sigma = filter_size/6._wp
+            norm = 1._wp / (sigma * sqrt(2._wp * pi))
 
-        call s_mpi_abort("stop here")
+            field_filtered_glb = 0._wp
+            do j = y_idx_beg, y_idx_end
+                do k = 0, p_glb
+                    do i = 0, m_glb
 
-        sigma = filter_size / 6._wp
-        norm = 1._wp / (sigma * sqrt(2._wp * pi))
-        ds = minval(dx)
-
-        field_filtered = 0._wp
-        do k = -offset_z%beg, p + offset_z%end
-            do j = -offset_y%beg, n + offset_y%end
-                do i = -offset_x%beg, m + offset_x%end
-
-                    ! Compute kernel
-                    kernel_x = 0._wp
-                    kernel_y = 0._wp
-                    do l = -max_pad_size, max_pad_size
-                        ! dist_x = l*ds
-                        ! dist_y = l*ds
-                        if (i + l < 1) then
-                            dist_x = (x_cc(i + l + m) - (x_cc(m) - x_cc(0))) - x_cc(i)
-                        else if (i + l > m) then
-                            dist_x = (x_cc(i + l - m) + (x_cc(m) - x_cc(0))) - x_cc(i)
-                        else
-                            dist_x = x_cc(i + l) - x_cc(i)
-                        end if
-                        if (j + l < 1 .or. j + l > n) then
-                            dist_y = 0._wp
-                        else
-                            dist_y = y_cc(j + l) - y_cc(j)
-                        end if
-                        if (abs(dist_x) < filter_size/2._wp) then
-                            kernel_x(l) = norm * exp(-0.5_wp * (dist_x / sigma)**2._wp) * ds
-                        end if
-                        if (abs(dist_y) < filter_size/2._wp) then
-                            kernel_y(l) = norm * exp(-0.5_wp * (dist_y / sigma)**2._wp) * ds
-                        end if
-                    end do
-                    kernel_x = kernel_x / sum(kernel_x)
-                    kernel_y = kernel_y / sum(kernel_y)
-
-
-                    field_filtered(i, j, k) = 0._wp
-                    do q = -max_pad_size, max_pad_size
-                        do l = -max_pad_size, max_pad_size
-                            il = i + l
-                            jq = j + q
-                            ! Apply periodic BC in x and z, clamp in y
-                            if (il < 1) il = il + m
-                            if (il > m) il = il - m
-                            if (jq > 1 .and. jq < n) then
-                                field_filtered(i, j, k) = field_filtered(i, j, k) + field(il, jq, k) * (kernel_x(l) * kernel_y(q))
+                        ! Compute kernel
+                        kernel_x = 0._wp
+                        kernel_y = 0._wp
+                        do l = -pad_size, pad_size
+                            ! periodic in x
+                            if (i + l < 1) then
+                                dist_x = (x_cc_glb(i + l + m_glb) - (x_cb_glb(m_glb) - x_cb_glb(-1))) - x_cc_glb(i)
+                            else if (i + l > m_glb) then
+                                dist_x = (x_cc_glb(i + l - m_glb) + (x_cb_glb(m_glb) - x_cb_glb(-1))) - x_cc_glb(i)
+                            else
+                                dist_x = x_cc_glb(i + l) - x_cc_glb(i)
                             end if
+
+                            ! non-periodic in y
+                            if (j + l < 1 .or. j + l > n_glb) then
+                                dist_y = 0._wp
+                            else
+                                dist_y = y_cc_glb(j + l) - y_cc_glb(j)
+                            end if
+
+                            ! kernel function
+                            kernel_x(l) = norm * exp(-0.5_wp * (dist_x / sigma)**2._wp)
+                            kernel_y(l) = norm * exp(-0.5_wp * (dist_y / sigma)**2._wp)
+                        end do
+                        kernel_x = kernel_x / sum(kernel_x)
+                        kernel_y = kernel_y / sum(kernel_y)
+
+                        ! Compute filtered field
+                        do q = -pad_size, pad_size
+                            do l = -pad_size, pad_size
+                                il = i + l
+                                jq = j + q
+                                ! Apply periodic BC in x and z, clamp in y
+                                if (il < 1) il = il + m_glb
+                                if (il > m_glb) il = il - m_glb
+                                if (jq > 1 .and. jq < n_glb) then
+                                    field_filtered_glb(i, j, k) = field_filtered_glb(i, j, k) + field_glb(il, jq, k) * (kernel_x(l) * kernel_y(q))
+                                end if
+                            end do
                         end do
                     end do
                 end do
             end do
-        end do
-    end subroutine s_apply_gaussian_filter
-
-
-    impure subroutine s_compute_mixlayer_thickenss(q_prim_vf, vel1_avg_out, mixlayer_thickness)
-
-        type(scalar_field), &
-            dimension(sys_size), &
-            intent(in) :: q_prim_vf
-
-        real(wp), intent(out) :: mixlayer_thickness
-
-        real(wp), dimension(-offset_y%beg:n + offset_y%end) :: vel1_avg
-        real(wp), dimension(0:n) :: y_loc
-
-        real(wp), dimension(-offset_x%beg:m + offset_x%end, &
-                            -offset_y%beg:n + offset_y%end, &
-                            -offset_z%beg:p + offset_z%end) :: vel1, vel1_gather
-
-        real(wp), dimension(-offset_x%beg:m + offset_x%end, &
-                            -offset_y%beg:n + offset_y%end, &
-                            -offset_z%beg:p + offset_z%end), intent(out) :: vel1_avg_out
-
-        integer :: i, j, k, ierr, size, size_xz
-        integer :: y_idx_beg, y_idx_end
-        real(wp), dimension(2) :: var_loc_beg, var_loc_end
-        real(wp) :: min_beg, min_end
-        real(wp) :: y_cc_beg, y_cc_end
-
-
-        do i = -offset_x%beg, m + offset_x%end
-            do j = -offset_y%beg, n + offset_y%end
-                do k = -offset_z%beg, p + offset_z%end
-                    vel1(i, j, k) = q_prim_vf(momxb)%sf(i, j, k)
-                end do
-            end do
-        end do
-
-        size =  (m + offset_x%end + offset_x%beg)* &
-                (n + offset_y%end + offset_y%beg)* &
-                (p + offset_z%end + offset_z%beg)
-        size_xz = (m + offset_x%end + offset_x%beg)* &
-                  (p + offset_z%end + offset_z%beg)
-        call MPI_gather(vel1, size, mpi_p, vel1_gather, 1, mpi_p, 0, ierr)
-
-        if (proc_rank == 0) then 
-            do j = -offset_y%beg, n + offset_y%end
-                vel1_avg = 0._wp
-                do i = -offset_x%beg, m + offset_x%end
-                    do k = -offset_z%beg, p + offset_z%end
-                        vel1_avg(j) = vel1_gather(i, j, k) / size_xz
-                    end do
-                end do
-                vel1_avg_out(:, j, :) = vel1_avg(j)
-                if (vel1_avg(j) < -0.99_wp) y_loc(j) = 0._wp
-                if (vel1_avg(j) >  0.99_wp) y_loc(j) = 0._wp
-            end do
-
-            var_loc_beg = (/minval(y_loc), real(proc_rank, wp)/)
-            var_loc_end = (/maxval(y_loc), real(proc_rank, wp)/)
-            mixlayer_thickness = var_loc_end(1) - var_loc_beg(1)
-            print *, proc_rank, "mixlayer_thickness", mixlayer_thickness, var_loc_beg(1), var_loc_beg(1)
-
-            call MPI_BCAST(mixlayer_thickness, 1, mpi_p, 0, MPI_COMM_WORLD, ierr)
         end if
 
-        ! do j = -offset_y%beg, n + offset_y%end
-        !     vel1_avg_loc(j) = 0._wp
-        !     do i = 0, m
-        !         do k = 0, p
-        !             vel1_avg_loc(j) = vel1_avg_loc(j) + q_prim_vf(momxb)%sf(i, j, k) / ((m+1)*(p+1))
-        !         end do
-        !     end do
+#ifdef MFC_MPI
+        call s_mpi_data_glb_to_loc(&
+            field_filtered_glb, (/(m_glb + 1), (n_glb + 1), (p_glb + 1)/), &
+            field_filtered(0:m, 0:n, 0:p), (/(m + 1), (n + 1), (p + 1)/))
+#else 
+        field_filtered(0:m, 0:n, 0:p) = field_filtered_glb
+#endif
+    end subroutine s_apply_gaussian_filter
 
-        !     if (num_procs > 1) call s_mpi_allreduce_sum(vel1_avg_loc(j), vel1_avg_glb)
+    impure subroutine s_compute_mixlayer_thickenss(vel1_glb, mixlayer_thickness, mixlayer_idx_beg, mixlayer_idx_end)
+        real(wp), intent(in), dimension(0:m_glb, 0:n_glb, 0:p_glb) :: vel1_glb
+        real(wp), intent(out) :: mixlayer_thickness
+        integer, intent(out) :: mixlayer_idx_beg, mixlayer_idx_end
+        real(wp), dimension(0:n_glb) :: vel1_avg
+        real(wp), dimension(0:n_glb) :: y_loc
+        integer :: i, ierr 
 
-        !     vel1_avg_out(:, j, :) = vel1_avg_glb
-
-        !     if (vel1_avg_glb < -0.99_wp) y_loc(j) = 0._wp
-        !     if (vel1_avg_glb >  0.99_wp) y_loc(j) = 0._wp
-        ! end do
-
-        ! var_loc_beg = (/minval(y_loc), real(proc_rank, wp)/)
-        ! if (num_procs > 1) call s_mpi_reduce_minloc(var_loc_beg)
-
-        ! var_loc_end = (/maxval(y_loc), real(proc_rank, wp)/)
-        ! if (num_procs > 1) call s_mpi_reduce_maxloc(var_loc_end)
-        
-        ! mixlayer_thickness = var_loc_end(1) - var_loc_beg(1)
-        ! print *, proc_rank, "mixlayer_thickness", mixlayer_thickness, var_loc_beg(1), var_loc_beg(1)
-
+        if (proc_rank == 0) then 
+            vel1_avg = sum(sum(vel1_glb, 3), 1) / (m_glb * p_glb)
+            y_loc = y_cc_glb(0:n_glb)
+            do i = 0, n_glb
+                if (vel1_avg(i) < -0.99_wp) y_loc(i) = 0._wp
+                if (vel1_avg(i) >  0.99_wp) y_loc(i) = 0._wp
+            end do
+            mixlayer_idx_beg = minloc(y_loc, DIM=1)
+            mixlayer_idx_end = maxloc(y_loc, DIM=1)
+            mixlayer_thickness = y_loc(mixlayer_idx_end) - y_loc(mixlayer_idx_beg)
+        end if
+        call MPI_BCAST(mixlayer_thickness, 1, mpi_p, 0, MPI_COMM_WORLD, ierr)
+        call MPI_BCAST(mixlayer_idx_beg, 1, mpi_integer, 0, MPI_COMM_WORLD, ierr)
+        call MPI_BCAST(mixlayer_idx_end, 1, mpi_integer, 0, MPI_COMM_WORLD, ierr)
     end subroutine s_compute_mixlayer_thickenss
 
 
