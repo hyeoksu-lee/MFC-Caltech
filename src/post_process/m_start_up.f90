@@ -617,9 +617,11 @@ contains
 #endif 
 
             ! Compute mixing layer thickness
+            print *, "start s_compute_mixlayer_thickenss"
             call s_compute_mixlayer_thickenss(vel1_glb, mixlayer_thickness, mixlayer_idx_beg, mixlayer_idx_end)
 
             ! Compute Liutex vector and its magnitude
+            print *, "start s_derive_liutex"
             call s_derive_liutex(q_prim_vf, mixlayer_idx_beg + 1, mixlayer_idx_end - 1, &
                                 liutex_mag, liutex_axis, omega, vort_stretch, vort_stretch_proj, vort_stretch_res, A_rr, A_ps, A_ns, A_sr)
             q_sf = liutex_mag
@@ -628,6 +630,7 @@ contains
             varname(:) = ' '
 
             ! Compute filtered velocity
+            print *, "s_apply_gaussian_filter"
             call s_apply_gaussian_filter(q_prim_vf(mom_idx%beg    )%sf(-offset_x%beg:m+offset_x%end,-offset_y%beg:n+offset_y%end,-offset_z%beg:p+offset_z%end), &
                                          q_prim_ft(mom_idx%beg    )%sf(-offset_x%beg:m+offset_x%end,-offset_y%beg:n+offset_y%end,-offset_z%beg:p+offset_z%end), &
                                          mixlayer_thickness, mixlayer_idx_beg, mixlayer_idx_end)
@@ -657,6 +660,7 @@ contains
             varname(:) = ' '
 
             ! Compute liutex using filtered velocity
+            print *, "start s_derive_liutex"
             call s_derive_liutex(q_prim_ft, mixlayer_idx_beg + 1, mixlayer_idx_end - 1, &
                                 liutex_mag_filtered, liutex_axis, omega, vort_stretch, vort_stretch_proj, vort_stretch_res, A_rr, A_ps, A_ns, A_sr)
             q_sf = omega(:,:,:,1)
