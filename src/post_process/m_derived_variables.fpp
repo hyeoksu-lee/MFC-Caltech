@@ -33,6 +33,7 @@ module m_derived_variables
  s_derive_vorticity_component, &
  s_derive_qm, &
  s_derive_liutex, &
+ s_get_proc_rank_xyz, &
  s_apply_gaussian_filter, &
  s_compute_mixlayer_thickenss, &
  s_derive_numerical_schlieren_function, &
@@ -53,6 +54,8 @@ module m_derived_variables
     real(wp), allocatable, dimension(:, :), public :: fd_coeff_y
     real(wp), allocatable, dimension(:, :), public :: fd_coeff_z
     !> @}
+
+    integer :: proc_rank_x, proc_rank_y, proc_rank_tmp, proc_rank_z
 
     integer, private :: flg  !<
     !! Flagging (flg) variable used to annotate the dimensionality of the dataset
@@ -763,7 +766,7 @@ contains
 
     end subroutine s_derive_liutex
 
-    impure subroutine s_apply_gaussian_filter(field_in, field_filtered, filter_size, y_idx_beg, y_idx_end)        
+    impure subroutine s_apply_gaussian_filter_old(field_in, field_filtered, filter_size, y_idx_beg, y_idx_end)        
         real(wp), &
             dimension(-offset_x%beg:m + offset_x%end, &
                       -offset_y%beg:n + offset_y%end, &
@@ -807,9 +810,10 @@ contains
             norm = 1._wp / (sigma * sqrt(2._wp * pi))
 
             field_filtered_glb = 0._wp
-            do j = y_idx_beg, y_idx_end
-                do k = 0, p_glb
-                    do i = 0, m_glb
+            do j = 0, n
+                jj = j + proc_rank_y*(n + 1)
+                do k = 0, p
+                    do i = 0, m
 
                         ! Compute kernel
                         kernel_x = 0._wp
@@ -863,9 +867,252 @@ contains
 #else 
         field_filtered(0:m, 0:n, 0:p) = field_filtered_glb
 #endif
+    end subroutine s_apply_gaussian_filter_old 
+
+    impure subroutine s_apply_gaussian_filter(field_in, field_filtered, filter_size, y_idx_beg, y_idx_end)        
+        real(wp), &
+            dimension(-offset_x%beg:m + offset_x%end, &
+                      -offset_y%beg:n + offset_y%end, &
+                      -offset_z%beg:p + offset_z%end), &
+            intent(in) :: field_in
+
+        real(wp), &
+            dimension(-offset_x%beg:m + offset_x%end, &
+                      -offset_y%beg:n + offset_y%end, &
+                      -offset_z%beg:p + offset_z%end), &
+            intent(out) :: field_filtered
+
+        real(wp), dimension(:, :, :), allocatable :: field
+        real(wp), intent(in) :: filter_size
+        integer, intent(in) :: y_idx_beg, y_idx_end
+
+        integer :: pad_size
+        real(wp), dimension(:), allocatable :: kernel_x, kernel_y
+        real(wp) :: sigma  ! Gaussian filter width
+
+        integer :: i, j, k, l, q, r, il, jq, kr, ii, jj, kk
+        real(wp) :: sum, norm, dist_x, dist_y
+
+        ! Add paddings to field for each processor
+        pad_size = nint((y_idx_end - y_idx_beg)/2._wp)
+#ifdef MFC_MPI
+        if (pad_size > max(m + 1, n + 1)) call s_mpi_abort("pad_size is too large")
+        call s_mpi_add_paddings(field_in, pad_size, field)
+#else 
+        field(-pad_size:-1, :, :) = field_in(m - pad_size + 1:m, :, :)
+        field(m + 1:m + pad_size, :, :) = field_in(0:pad_size - 1, :, :)
+        field(:, -pad_size:-1, :) = field_in(:, n - pad_size + 1:n, :)
+        field(:, n + 1:n + pad_size, :) = field_in(:, 0:pad_size - 1, :)
+#endif
+
+        ! Allocate kernels
+        allocate (kernel_x(-pad_size:pad_size))
+        allocate (kernel_y(-pad_size:pad_size))
+
+        ! Kernel parameters
+        sigma = filter_size/6._wp
+        norm = 1._wp / (sigma * sqrt(2._wp * pi))
+
+        ! Filtering loops
+        if (proc_rank == 0) print *, "start loops"
+        field_filtered = 0._wp
+        do j = 0, n
+            call s_mpi_barrier
+            if (y_cc(j) >= y_cc_glb(y_idx_beg) .and. y_cc(j) <= y_cc_glb(y_idx_end)) then
+                jj = j + proc_rank*n
+                do k = 0, p
+                    kk = k + proc_rank_z*(p + 1)
+                    do i = 0, m
+                        ii = i + proc_rank_x*(m + 1)
+
+                        ! Compute kernel
+                        kernel_x = 0._wp
+                        kernel_y = 0._wp
+                        do l = -pad_size, pad_size
+                            ! periodic in x
+                            if (ii + l < 1) then
+                                dist_x = (x_cc_glb(ii + l + m_glb) - (x_cb_glb(m_glb) - x_cb_glb(-1))) - x_cc_glb(ii)
+                            else if (ii + l > m_glb) then
+                                dist_x = (x_cc_glb(ii + l - m_glb) + (x_cb_glb(m_glb) - x_cb_glb(-1))) - x_cc_glb(ii)
+                            else
+                                dist_x = x_cc_glb(ii + l) - x_cc_glb(ii)
+                            end if
+
+                            ! non-periodic in y
+                            if (jj + l < 1 .or. jj + l > n_glb) then
+                                dist_y = 0._wp
+                            else
+                                dist_y = y_cc_glb(jj + l) - y_cc_glb(jj)
+                            end if
+
+                            ! kernel function
+                            kernel_x(l) = norm * exp(-0.5_wp * (dist_x / sigma)**2._wp)
+                            kernel_y(l) = norm * exp(-0.5_wp * (dist_y / sigma)**2._wp)
+                        end do
+                        kernel_x = kernel_x / sum(kernel_x)
+                        kernel_y = kernel_y / sum(kernel_y)
+
+                        ! Compute filtered field
+                        do q = -pad_size, pad_size
+                            do l = -pad_size, pad_size
+                                il = i + l
+                                jq = j + q
+                                field_filtered(i, j, k) = field_filtered(i, j, k) + field(il, jq, k) * (kernel_x(l) * kernel_y(q))
+                            end do
+                        end do
+                    end do
+                end do
+            end if
+        end do
     end subroutine s_apply_gaussian_filter
 
-    impure subroutine s_compute_mixlayer_thickenss(vel1_glb, mixlayer_thickness, mixlayer_idx_beg, mixlayer_idx_end)
+    impure subroutine s_get_proc_rank_xyz()
+        integer :: proc_rank_tmp
+        proc_rank_z = mod(proc_rank, num_procs_z)
+        proc_rank_tmp = (proc_rank - proc_rank_z)/num_procs_z
+        proc_rank_y = mod(proc_rank_tmp, num_procs_y)
+        proc_rank_x = (proc_rank_tmp - proc_rank_y)/num_procs_y
+    end subroutine s_get_proc_rank_xyz
+
+    impure subroutine s_get_proc_rank(prx, pry, prz, pr)
+        integer, intent(in) :: prx, pry, prz 
+        integer, intent(out) :: pr
+
+        pr = prx*num_procs_y*num_procs_z + pry*num_procs_z + prz
+    end subroutine s_get_proc_rank
+
+    impure subroutine s_mpi_add_paddings(field_in, pad_size, field_out)
+        real(wp), dimension(0:m, 0:n, 0:p), intent(in) :: field_in
+        integer, intent(in) :: pad_size
+        real(wp), dimension(:, :, :), allocatable, intent(out) :: field_out
+        integer :: type_slice, pr_send, start_idx_send, start_idx_recv
+        integer :: start_send, start_recv, end_send, end_recv, len_data
+        real(wp), dimension(:), allocatable :: temp
+        integer :: i, ierr
+
+        ! Allocate field_out
+        allocate (field_out(-pad_size:m + pad_size, -pad_size:n + pad_size, 0:p))
+
+        ! Interior points
+        field_out(0:m, 0:n, 0:p) = field_in(0:m, 0:n, 0:p)
+
+        ! Left padding
+        call s_mpi_barrier
+        if (proc_rank == 0) print *, proc_rank, "left padding"
+        if (proc_rank_x == 0) then
+            call s_get_proc_rank(num_procs_x - 1, proc_rank_y, proc_rank_z, pr_send)
+        else 
+            call s_get_proc_rank(proc_rank_x - 1, proc_rank_y, proc_rank_z, pr_send)
+        end if
+        start_send = m + 1 - pad_size
+        start_recv = -pad_size
+        end_send = start_send + pad_size - 1
+        end_recv = start_recv + pad_size - 1
+        len_data = pad_size*(n + 1)*(p + 1)
+        allocate (temp(len_data))
+        temp = reshape(field_in(start_send:end_send, :, :), [len_data])
+        call s_mpi_barrier
+        if (proc_rank == 0) print *, proc_rank, "start MPI_SENDRECV"
+        call MPI_SENDRECV(temp, len_data, mpi_p, proc_rank, 0, &
+                          temp, len_data, mpi_p, pr_send, 0, &
+                          MPI_COMM_WORLD, MPI_STATUS_IGNORE, ierr)
+        call s_mpi_barrier
+        if (proc_rank == 0) print *, proc_rank, "end MPI_SENDRECV"
+        field_out(start_recv:end_recv, :, :) = reshape(temp, [pad_size, (n + 1), (p + 1)])
+        deallocate (temp)
+        ! print *, proc_rank, "create_slice_x_type"
+        ! call create_slice_x_type(m + 1, n + 1, p + 1, pad_size, type_slice)
+        ! start_idx_send = m + 1 - pad_size
+        ! start_idx_recv = -pad_size
+        ! print *, proc_rank, "MPI_SENDRECV"
+        ! call MPI_ISENDRECV(field_out(start_idx_send, :, :), 1, type_slice, proc_rank, 0, &
+        !                   field_out(start_idx_recv, :, :), 1, type_slice, pr_send, 0, &
+        !                   MPI_COMM_WORLD, MPI_STATUS_IGNORE, ierr)
+        ! print *, proc_rank, "MPI_TYPE_FREE"
+        ! call MPI_TYPE_FREE(type_slice, ierr)
+
+        ! Right padding
+        call s_mpi_barrier
+        if (proc_rank == 0) print *, proc_rank, "right padding"
+        if (proc_rank_x == num_procs_x - 1) then
+            call s_get_proc_rank(0, proc_rank_y, proc_rank_z, pr_send)
+        else 
+            call s_get_proc_rank(proc_rank_x + 1, proc_rank_y, proc_rank_z, pr_send)
+        end if
+        call create_slice_x_type(m + 1, n + 1, p + 1, pad_size, type_slice)
+        start_idx_send = 0
+        start_idx_recv = m + 1
+        call MPI_SENDRECV(field_out(start_idx_send, :, :), 1, type_slice, proc_rank, 0, &
+                          field_out(start_idx_recv, :, :), 1, type_slice, pr_send, 0, &
+                          MPI_COMM_WORLD, MPI_STATUS_IGNORE, ierr)
+        call MPI_TYPE_FREE(type_slice, ierr)
+
+        ! Bottom padding
+        call s_mpi_barrier
+        if (proc_rank == 0) print *, proc_rank, "bottom padding"
+        if (proc_rank_y == 0) then
+            call s_get_proc_rank(proc_rank_x, num_procs_y - 1, proc_rank_z, pr_send)
+        else 
+            call s_get_proc_rank(proc_rank_x, proc_rank_y - 1, proc_rank_z, pr_send)
+        end if
+        call create_slice_y_type(m + 1, n + 1, p + 1, pad_size, type_slice)
+        start_send = n + 1 - pad_size
+        start_recv = -pad_size
+        call MPI_SENDRECV(field_out(:, start_idx_send, :), 1, type_slice, proc_rank, 0, &
+                          field_out(:, start_idx_recv, :), 1, type_slice, pr_send, 0, &
+                          MPI_COMM_WORLD, MPI_STATUS_IGNORE, ierr)
+        call MPI_TYPE_FREE(type_slice, ierr)
+
+        ! Top padding
+        call s_mpi_barrier
+        if (proc_rank == 0) print *, proc_rank, "top padding"
+        if (proc_rank_y == num_procs_y - 1) then
+            call s_get_proc_rank(proc_rank_x, 0, proc_rank_z, pr_send)
+        else 
+            call s_get_proc_rank(proc_rank_x, proc_rank_y + 1 , proc_rank_z, pr_send)
+        end if
+        call create_slice_y_type(m + 1, n + 1, p + 1, pad_size, type_slice)
+        start_idx_send = 0
+        start_idx_recv = n + 1
+        call MPI_SENDRECV(field_out(:, start_idx_send, :), 1, type_slice, proc_rank, 0, &
+                          field_out(:, start_idx_recv, :), 1, type_slice, pr_send, 0, &
+                          MPI_COMM_WORLD, MPI_STATUS_IGNORE, ierr)
+        call MPI_TYPE_FREE(type_slice, ierr)
+
+    contains
+        subroutine create_slice_x_type(nx, ny, nz, len_slice, type_slice)
+            integer, intent(in) :: nx, ny, nz, len_slice
+            integer, intent(out) :: type_slice
+            integer :: ierr
+            ! Create datatype for A(start:end,:,:)
+            ! This is ny*nz blocks, each with len_slice contiguous elements, strided by nx
+            call MPI_TYPE_VECTOR(ny*nz, len_slice, nx, mpi_p, type_slice, ierr)
+            call MPI_TYPE_COMMIT(type_slice, ierr)
+        end subroutine create_slice_x_type
+
+        subroutine create_slice_y_type(nx, ny, nz, len_slice, type_slice)
+            integer, intent(in) :: nx, ny, nz, len_slice
+            integer, intent(out) :: type_slice
+            integer :: ierr
+            ! Create datatype for A(:,start:end,:)
+            ! This is nz blocks, each with len_slice*nx contiguous elements, strided by nx*ny
+            call MPI_TYPE_VECTOR(nz, len_slice*nx, nx*ny, mpi_p, type_slice, ierr)
+            call MPI_TYPE_COMMIT(type_slice, ierr)
+        end subroutine create_slice_y_type
+
+        subroutine create_slice_z_type(nx, ny, nz, len_slice, type_slice)
+            integer, intent(in) :: nx, ny, nz, len_slice
+            integer, intent(out) :: type_slice
+            integer :: ierr
+            ! Create datatype for A(:,:,start:end)
+            ! This is len_slice planes of nx*ny contiguous elements
+            call MPI_TYPE_CONTIGUOUS(nx*ny*len_slice, mpi_p, type_slice, ierr)
+            call MPI_TYPE_COMMIT(type_slice, ierr)
+        end subroutine create_slice_z_type
+
+    end subroutine s_mpi_add_paddings
+
+    impure subroutine s_compute_mixlayer_thickenss_old(vel1_glb, mixlayer_thickness, mixlayer_idx_beg, mixlayer_idx_end)
         real(wp), intent(in), dimension(0:m_glb, 0:n_glb, 0:p_glb) :: vel1_glb
         real(wp), intent(out) :: mixlayer_thickness
         integer, intent(out) :: mixlayer_idx_beg, mixlayer_idx_end
@@ -887,8 +1134,45 @@ contains
         call MPI_BCAST(mixlayer_thickness, 1, mpi_p, 0, MPI_COMM_WORLD, ierr)
         call MPI_BCAST(mixlayer_idx_beg, 1, mpi_integer, 0, MPI_COMM_WORLD, ierr)
         call MPI_BCAST(mixlayer_idx_end, 1, mpi_integer, 0, MPI_COMM_WORLD, ierr)
-    end subroutine s_compute_mixlayer_thickenss
+    end subroutine s_compute_mixlayer_thickenss_old
 
+    impure subroutine s_compute_mixlayer_thickenss(vel1_loc, mixlayer_thickness, mixlayer_idx_beg, mixlayer_idx_end)
+        real(wp), intent(in), dimension(0:m, 0:n, 0:p) :: vel1_loc
+        real(wp), intent(out) :: mixlayer_thickness
+        integer, intent(out) :: mixlayer_idx_beg, mixlayer_idx_end
+        real(wp), dimension(0:n) :: vel1_loc_sum
+        real(wp), dimension(0:n_glb) :: vel1_sum, vel1_glb_avg
+        real(wp), dimension(0:n_glb) :: y_loc
+        integer :: j, jj, ierr 
+
+        ! Compute local average field for each processor
+        vel1_loc_sum = sum(sum(vel1_loc, 3), 1)
+
+        ! Compute global average field
+        vel1_sum = 0._wp
+        do j = 0, n
+            jj = j + proc_rank_y*(n + 1)
+            vel1_sum(jj) = vel1_sum(jj) + vel1_loc_sum(j)
+        end do
+        call MPI_ALLREDUCE(vel1_sum, vel1_glb_avg(0:n_glb), n_glb + 1, mpi_p, &
+                           MPI_SUM, MPI_COMM_WORLD, ierr)
+        vel1_glb_avg = vel1_glb_avg / ((m_glb + 1) * (p_glb + 1))
+
+        ! Compute mixlayer_thickness
+        if (proc_rank == 0) then 
+            y_loc = y_cc_glb(0:n_glb)
+            do j = 0, n_glb
+                if (vel1_glb_avg(j) < -0.99_wp) y_loc(j) = 0._wp
+                if (vel1_glb_avg(j) >  0.99_wp) y_loc(j) = 0._wp
+            end do
+            mixlayer_idx_beg = minloc(y_loc, DIM=1)
+            mixlayer_idx_end = maxloc(y_loc, DIM=1)
+            mixlayer_thickness = y_loc(mixlayer_idx_end) - y_loc(mixlayer_idx_beg)
+        end if
+        call MPI_BCAST(mixlayer_thickness, 1, mpi_p, 0, MPI_COMM_WORLD, ierr)
+        call MPI_BCAST(mixlayer_idx_beg, 1, mpi_integer, 0, MPI_COMM_WORLD, ierr)
+        call MPI_BCAST(mixlayer_idx_end, 1, mpi_integer, 0, MPI_COMM_WORLD, ierr)
+    end subroutine s_compute_mixlayer_thickenss
 
     !>  This subroutine gets as inputs the conservative variables
         !!      and density. From those inputs, it proceeds to calculate
