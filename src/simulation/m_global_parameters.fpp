@@ -32,6 +32,7 @@ module m_global_parameters
 
     ! Logistics
     integer :: num_procs             !< Number of processors
+    integer :: num_procs_x, num_procs_y, num_procs_z !< Optimal number of processors in the x-, y- and z-directions
     character(LEN=path_len) :: case_dir              !< Case folder location
     logical :: run_time_info         !< Run-time output flag
     integer :: t_step_old            !< Existing IC/grid folder

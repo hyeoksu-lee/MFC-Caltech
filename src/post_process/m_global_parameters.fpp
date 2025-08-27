@@ -24,6 +24,7 @@ module m_global_parameters
     !> @name Logistics
     !> @{
     integer :: num_procs            !< Number of processors
+    integer :: num_procs_x, num_procs_y, num_procs_z !< Optimal number of processors in the x-, y- and z-directions
     character(LEN=path_len) :: case_dir             !< Case folder location
     !> @}
 
@@ -59,16 +60,19 @@ module m_global_parameters
 
     !> @name Cell-boundary locations in the x-, y- and z-coordinate directions
     !> @{
-    real(wp), allocatable, dimension(:) :: x_cb, x_root_cb, y_cb, z_cb
+    real(wp), allocatable, dimension(:) :: x_cb, y_cb, z_cb
+    real(wp), allocatable, dimension(:) :: x_cb_glb, y_cb_glb, z_cb_glb
+    real(wp), allocatable, dimension(:) :: x_root_cb, y_root_cb, z_root_cb
     real(wp), allocatable, dimension(:) :: x_cb_s, y_cb_s, z_cb_s
     !> @}
 
     !> @name Cell-center locations in the x-, y- and z-coordinate directions
     !> @{
-    real(wp), allocatable, dimension(:) :: x_cc, x_root_cc, y_cc, z_cc
-    real(sp), allocatable, dimension(:) :: x_root_cc_s, x_cc_s
+    real(wp), allocatable, dimension(:) :: x_cc, y_cc, z_cc
+    real(wp), allocatable, dimension(:) :: x_cc_glb, y_cc_glb, z_cc_glb
+    real(sp), allocatable, dimension(:) :: x_root_cc, x_root_cc_s, x_cc_s
     !> @}
-
+    
     !> Cell-width distributions in the x-, y- and z-coordinate directions
     !> @{
     real(wp), allocatable, dimension(:) :: dx, dy, dz
@@ -870,6 +874,8 @@ contains
         ! Allocating the grid variables in the x-coordinate direction
         allocate (x_cb(-1 - offset_x%beg:m + offset_x%end))
         allocate (x_cc(-buff_size:m + buff_size))
+        allocate (x_cc_glb(0:m_glb))
+        allocate (x_cb_glb(-1:m_glb))
         allocate (dx(-buff_size:m + buff_size))
 
         ! Allocating grid variables in the y- and z-coordinate directions
@@ -877,11 +883,15 @@ contains
 
             allocate (y_cb(-1 - offset_y%beg:n + offset_y%end))
             allocate (y_cc(-buff_size:n + buff_size))
+            allocate (y_cc_glb(0:n_glb))
+            allocate (y_cb_glb(-1:n_glb))
             allocate (dy(-buff_size:n + buff_size))
 
             if (p > 0) then
                 allocate (z_cb(-1 - offset_z%beg:p + offset_z%end))
                 allocate (z_cc(-buff_size:p + buff_size))
+                allocate (z_cc_glb(0:p_glb))
+                allocate (z_cb_glb(-1:p_glb))
                 allocate (dz(-buff_size:p + buff_size))
             end if
 

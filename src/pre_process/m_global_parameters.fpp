@@ -23,6 +23,7 @@ module m_global_parameters
 
     ! Logistics
     integer :: num_procs            !< Number of processors
+    integer :: num_procs_x, num_procs_y, num_procs_z !< Optimal number of processors in the x-, y- and z-directions
     character(LEN=path_len) :: case_dir             !< Case folder location
     logical :: old_grid             !< Use existing grid data
     logical :: old_ic, non_axis_sym               !< Use existing IC data

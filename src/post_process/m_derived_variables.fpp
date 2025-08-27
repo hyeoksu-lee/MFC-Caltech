@@ -30,6 +30,14 @@ module m_derived_variables
  s_derive_vorticity_component, &
  s_derive_qm, &
  s_derive_liutex, &
+ s_apply_gaussian_filter, &
+ s_add_paddings_xy, &
+ s_add_paddings_real, &
+ s_add_paddings_logical, &
+ s_get_proc_rank_xyz, &
+ s_get_proc_rank, &
+ s_compute_mixlayer_thickenss, &
+ s_detect_qsv, &
  s_derive_numerical_schlieren_function, &
  s_compute_speed_of_sound, &
  s_finalize_derived_variables_module
@@ -48,6 +56,8 @@ module m_derived_variables
     real(wp), allocatable, dimension(:, :), public :: fd_coeff_y
     real(wp), allocatable, dimension(:, :), public :: fd_coeff_z
     !> @}
+
+    integer :: proc_rank_x, proc_rank_y, proc_rank_tmp, proc_rank_z
 
     integer, private :: flg  !<
     !! Flagging (flg) variable used to annotate the dimensionality of the dataset
@@ -563,11 +573,15 @@ contains
         !!  @param q_prim_vf Primitive variables
         !!  @param liutex_mag Liutex magnitude
         !!  @param liutex_axis Liutex axis
-    impure subroutine s_derive_liutex(q_prim_vf, liutex_mag, liutex_axis)
+    impure subroutine s_derive_liutex(q_prim_vf, y_idx_beg, y_idx_end, &
+                                    liutex_mag, liutex_axis, omega, vort_stretch, vort_stretch_proj, vort_stretch_res, &
+                                    A_rr, A_ps, A_ns, A_sr)
         integer, parameter :: nm = 3
         type(scalar_field), &
             dimension(sys_size), &
             intent(in) :: q_prim_vf
+
+        integer, intent(in) :: y_idx_beg, y_idx_end
 
         real(wp), &
             dimension(-offset_x%beg:m + offset_x%end, &
@@ -580,6 +594,22 @@ contains
                       -offset_y%beg:n + offset_y%end, &
                       -offset_z%beg:p + offset_z%end, nm), &
             intent(out) :: liutex_axis !< Liutex rigid rotation axis
+
+        real(wp), &
+            dimension(-offset_x%beg:m + offset_x%end, &
+                      -offset_y%beg:n + offset_y%end, &
+                      -offset_z%beg:p + offset_z%end, nm), &
+            intent(out) :: omega, vort_stretch !< Vorticity
+
+        real(wp), &
+            dimension(-offset_x%beg:m + offset_x%end, &
+                      -offset_y%beg:n + offset_y%end, &
+                      -offset_z%beg:p + offset_z%end), &
+            intent(out) :: vort_stretch_proj, vort_stretch_res, A_rr, A_ps, A_ns, A_sr
+
+        real(wp), dimension(nm, nm) :: A_S, A_W
+        real(wp), dimension(nm) :: vort_ps
+        real(wp) :: S2, W2
 
         character, parameter :: ivl = 'N' !< compute left eigenvectors
         character, parameter :: ivr = 'V' !< compute right eigenvectors
@@ -599,92 +629,1239 @@ contains
         integer :: j, k, l, r, i !< Generic loop iterators
         integer :: idx
 
-        do l = -offset_z%beg, p + offset_z%end
-            do k = -offset_y%beg, n + offset_y%end
-                do j = -offset_x%beg, m + offset_x%end
+        omega = 0._wp
+        liutex_mag = 0._wp
+        liutex_axis = 0._wp 
+        vort_stretch_proj = 0._wp 
+        vort_stretch_res = 0._wp 
+        A_rr = 0._wp
+        A_ps = 0._wp
+        A_ns = 0._wp
+        A_sr = 0._wp
+        do k = -offset_y%beg, n + offset_y%end 
+            if (y_cc(k) >= y_cc_glb(y_idx_beg) .and. y_cc(k) <= y_cc_glb(y_idx_end)) then
+                do l = -offset_z%beg, p + offset_z%end
+                    do j = -offset_x%beg, m + offset_x%end
 
-                    ! Get velocity gradient tensor (VGT)
-                    vgt(:, :) = 0._wp
+                        ! Get velocity gradient tensor (VGT)
+                        vgt(:, :) = 0._wp
 
-                    do r = -fd_number, fd_number
-                        do i = 1, 3
-                            ! d()/dx
-                            vgt(i, 1) = &
-                                vgt(i, 1) + &
-                                fd_coeff_x(r, j)* &
-                                q_prim_vf(mom_idx%beg + i - 1)%sf(r + j, k, l)
-                            ! d()/dy
-                            vgt(i, 2) = &
-                                vgt(i, 2) + &
-                                fd_coeff_y(r, k)* &
-                                q_prim_vf(mom_idx%beg + i - 1)%sf(j, r + k, l)
-                            ! d()/dz
-                            vgt(i, 3) = &
-                                vgt(i, 3) + &
-                                fd_coeff_z(r, l)* &
-                                q_prim_vf(mom_idx%beg + i - 1)%sf(j, k, r + l)
+                        do r = -fd_number, fd_number
+                            do i = 1, 3
+                                ! d()/dx
+                                vgt(i, 1) = &
+                                    vgt(i, 1) + &
+                                    fd_coeff_x(r, j)* &
+                                    q_prim_vf(mom_idx%beg + i - 1)%sf(r + j, k, l)
+                                ! d()/dy
+                                vgt(i, 2) = &
+                                    vgt(i, 2) + &
+                                    fd_coeff_y(r, k)* &
+                                    q_prim_vf(mom_idx%beg + i - 1)%sf(j, r + k, l)
+                                ! d()/dz
+                                vgt(i, 3) = &
+                                    vgt(i, 3) + &
+                                    fd_coeff_z(r, l)* &
+                                    q_prim_vf(mom_idx%beg + i - 1)%sf(j, k, r + l)
+                            end do
                         end do
-                    end do
 
-                    ! Call appropriate LAPACK routine based on precision
+                        ! Compute vorticity
+                        omega(j, k, l, 1) = vgt(3,2) - vgt(2,3)
+                        omega(j, k, l, 2) = vgt(1,3) - vgt(3,1)
+                        omega(j, k, l, 3) = vgt(2,1) - vgt(1,2)
+
+                        ! Compute vortex stretching term
+                        do r = 1, 3
+                            vort_stretch(j, k, l, r) = omega(j, k, l, 1)*vgt(r,1) &
+                                                    + omega(j, k, l, 2)*vgt(r,2) &
+                                                    + omega(j, k, l, 3)*vgt(r,3)
+                        end do
+
+                        !
+                        A_S = 0.5_wp*(vgt + transpose(vgt))
+                        A_W = 0.5_wp*(vgt - transpose(vgt))
+                        S2 = 0._wp
+                        W2 = 0._wp
+                        do i = 1, 3
+                            do r = 1, 3
+                                S2 = S2 + A_S(i, r)**2._wp
+                                W2 = W2 + A_W(i, r)**2._wp
+                            end do
+                        end do
+
+                        ! Call appropriate LAPACK routine based on precision
 #ifdef MFC_SINGLE_PRECISION
-                    call sgeev(ivl, ivr, nm, vgt, nm, lr, li, vl, nm, vr, nm, work, lwork, info)
+                        call sgeev(ivl, ivr, nm, vgt, nm, lr, li, vl, nm, vr, nm, work, lwork, info)
 #else
-                    call dgeev(ivl, ivr, nm, vgt, nm, lr, li, vl, nm, vr, nm, work, lwork, info)
+                        call dgeev(ivl, ivr, nm, vgt, nm, lr, li, vl, nm, vr, nm, work, lwork, info)
 #endif
 
-                    ! Find real eigenvector
-                    idx = 1
-                    do r = 2, 3
-                        if (abs(li(r)) < abs(li(idx))) then
-                            idx = r
+                        ! Find real eigenvector
+                        idx = 1
+                        do r = 2, 3
+                            if (abs(li(r)) < abs(li(idx))) then
+                                idx = r
+                            end if
+                        end do
+                        eigvec = vr(:, idx)
+
+                        ! Normalize real eigenvector if it is effectively non-zero
+                        eigvec_mag = sqrt(eigvec(1)**2._wp &
+                                          + eigvec(2)**2._wp &
+                                          + eigvec(3)**2._wp)
+                        if (eigvec_mag > sgm_eps) then
+                            eigvec = eigvec/eigvec_mag
+                        else
+                            eigvec = 0._wp
                         end if
+
+                        ! Compute vorticity projected on the eigenvector
+                        omega_proj = (vgt(3, 2) - vgt(2, 3))*eigvec(1) &
+                                    + (vgt(1, 3) - vgt(3, 1))*eigvec(2) &
+                                    + (vgt(2, 1) - vgt(1, 2))*eigvec(3)
+
+                        ! As eigenvector can have +/- signs, we can choose the sign
+                        ! so that omega_proj is positive
+                        if (omega_proj < 0._wp) then
+                            eigvec = -eigvec
+                            omega_proj = -omega_proj
+                        end if
+
+                        ! Find imaginary part of complex eigenvalue
+                        lci = li(mod(idx, 3) + 1)
+
+                        ! Compute Liutex magnitude
+                        alpha = omega_proj**2._wp - 4._wp*lci**2._wp ! (2*alpha)^2
+                        if (alpha > 0._wp) then
+                            liutex_mag(j, k, l) = omega_proj - sqrt(alpha)
+                        else
+                            liutex_mag(j, k, l) = omega_proj
+                        end if
+
+                        ! Compute Liutex axis
+                        liutex_axis(j, k, l, :) = eigvec(:)
+
+                        ! Compute projection of vortex stretching term on Liutex axis
+                        vort_stretch_proj(j, k, l) = &
+                            abs(liutex_axis(j, k, l, 1)*vort_stretch(j, k, l, 1) + &
+                                liutex_axis(j, k, l, 2)*vort_stretch(j, k, l, 2) + &
+                                liutex_axis(j, k, l, 3)*vort_stretch(j, k, l, 3))
+
+                        vort_stretch_res(j, k, l) = &
+                            sqrt((vort_stretch(j, k, l, 1) - liutex_axis(j, k, l, 1)*vort_stretch_proj(j, k, l))**2._wp + &
+                                (vort_stretch(j, k, l, 2) - liutex_axis(j, k, l, 2)*vort_stretch_proj(j, k, l))**2._wp + &
+                                (vort_stretch(j, k, l, 3) - liutex_axis(j, k, l, 3)*vort_stretch_proj(j, k, l))**2._wp)
+
+                        ! Strength
+                        vort_ps(1) = omega(j, k, l, 1) - liutex_mag(j, k, l)*liutex_axis(j, k, l, 1)
+                        vort_ps(2) = omega(j, k, l, 2) - liutex_mag(j, k, l)*liutex_axis(j, k, l, 2)
+                        vort_ps(3) = omega(j, k, l, 3) - liutex_mag(j, k, l)*liutex_axis(j, k, l, 3)
+                        A_rr(j, k, l) = 0.5_wp * liutex_mag(j, k, l)**2._wp
+                        A_ps(j, k, l) = vort_ps(1)**2._wp + vort_ps(2)**2._wp + vort_ps(3)**2._wp
+                        A_ns(j, k, l) = S2 - 0.5_wp*A_ps(j, k, l)
+                        A_sr(j, k, l) = W2 - 0.5_wp*A_ps(j, k, l) - 0.5_wp*A_rr(j, k, l)
                     end do
-                    eigvec = vr(:, idx)
-
-                    ! Normalize real eigenvector if it is effectively non-zero
-                    eigvec_mag = sqrt(eigvec(1)**2._wp &
-                                      + eigvec(2)**2._wp &
-                                      + eigvec(3)**2._wp)
-                    if (eigvec_mag > sgm_eps) then
-                        eigvec = eigvec/eigvec_mag
-                    else
-                        eigvec = 0._wp
-                    end if
-
-                    ! Compute vorticity projected on the eigenvector
-                    omega_proj = (vgt(3, 2) - vgt(2, 3))*eigvec(1) &
-                                 + (vgt(1, 3) - vgt(3, 1))*eigvec(2) &
-                                 + (vgt(2, 1) - vgt(1, 2))*eigvec(3)
-
-                    ! As eigenvector can have +/- signs, we can choose the sign
-                    ! so that omega_proj is positive
-                    if (omega_proj < 0._wp) then
-                        eigvec = -eigvec
-                        omega_proj = -omega_proj
-                    end if
-
-                    ! Find imaginary part of complex eigenvalue
-                    lci = li(mod(idx, 3) + 1)
-
-                    ! Compute Liutex magnitude
-                    alpha = omega_proj**2._wp - 4._wp*lci**2._wp ! (2*alpha)^2
-                    if (alpha > 0._wp) then
-                        liutex_mag(j, k, l) = omega_proj - sqrt(alpha)
-                    else
-                        liutex_mag(j, k, l) = omega_proj
-                    end if
-
-                    ! Compute Liutex axis
-                    liutex_axis(j, k, l, 1) = eigvec(1)
-                    liutex_axis(j, k, l, 2) = eigvec(2)
-                    liutex_axis(j, k, l, 3) = eigvec(3)
-
                 end do
-            end do
+            end if
         end do
 
     end subroutine s_derive_liutex
+
+    impure subroutine s_apply_gaussian_filter(field_in, field_filtered, filter_size, y_idx_beg, y_idx_end)        
+        real(wp), dimension(0:m, 0:n, 0:p), intent(in) :: field_in
+        real(wp), dimension(0:m, 0:n, 0:p), intent(out) :: field_filtered
+        real(wp), intent(in) :: filter_size
+        integer, intent(in) :: y_idx_beg, y_idx_end
+
+        integer :: pad_size
+        real(wp), dimension(:, :, :), allocatable :: field
+        real(wp), dimension(:), allocatable :: kernel_x, kernel_y
+
+        real(wp) :: sigma, norm, dist_x, dist_y
+        integer :: i, j, k, l, q, r, il, jq, kr, ii, jj
+
+        ! Compute pad size
+        pad_size = nint((y_idx_end - y_idx_beg)/2._wp)
+        if (pad_size > max(m + 1, n + 1)) then 
+            print *, "pad_size is too large: ", pad_size, m + 1, n + 1
+            call s_mpi_abort()
+        end if
+
+        ! Kernel parameters
+        sigma = filter_size/6._wp
+
+        ! Allocate memory
+        allocate (field(-pad_size:m + pad_size, -pad_size:n + pad_size, 0:p))
+        allocate (kernel_x(-pad_size:pad_size))
+        allocate (kernel_y(-pad_size:pad_size))
+        
+        ! Add paddings to field for each processor
+        call s_add_paddings_xy(field_in, pad_size, field)
+
+        ! Filtering loops
+        field_filtered = 0._wp
+        do j = 0, n
+            if (y_cc(j) >= y_cc_glb(y_idx_beg) .and. y_cc(j) <= y_cc_glb(y_idx_end)) then
+                jj = j + proc_rank_y*(n + 1)
+                do k = 0, p
+                    do i = 0, m
+                        ii = i + proc_rank_x*(m + 1)
+
+                        ! Compute kernel
+                        kernel_x = 0._wp
+                        kernel_y = 0._wp
+                        do l = -pad_size, pad_size
+                            ! periodic in x
+                            if (ii + l < 1) then
+                                dist_x = (x_cc_glb(ii + l + m_glb) - (x_cb_glb(m_glb) - x_cb_glb(-1))) - x_cc_glb(ii)
+                            else if (ii + l > m_glb) then
+                                dist_x = (x_cc_glb(ii + l - m_glb) + (x_cb_glb(m_glb) - x_cb_glb(-1))) - x_cc_glb(ii)
+                            else
+                                dist_x = x_cc_glb(ii + l) - x_cc_glb(ii)
+                            end if
+                            ! kernel function
+                            kernel_x(l) = exp(-0.5_wp * (dist_x / sigma)**2._wp)
+
+                            ! non-periodic in y
+                            if (jj + l < 1 .or. jj + l > n_glb) then
+                                kernel_y(l) = 0._wp
+                            else
+                                dist_y = y_cc_glb(jj + l) - y_cc_glb(jj)
+                                kernel_y(l) = exp(-0.5_wp * (dist_y / sigma)**2._wp)
+                            end if
+                        end do
+                        kernel_x = kernel_x / sum(kernel_x)
+                        kernel_y = kernel_y / sum(kernel_y)
+
+                        ! Compute filtered field
+                        do q = -pad_size, pad_size
+                            do l = -pad_size, pad_size
+                                il = i + l
+                                jq = j + q
+                                field_filtered(i, j, k) = field_filtered(i, j, k) + field(il, jq, k) * (kernel_x(l) * kernel_y(q))
+                            end do
+                        end do
+                    end do
+                end do
+            end if
+        end do
+
+        deallocate (field, kernel_x, kernel_y)
+    end subroutine s_apply_gaussian_filter
+
+    impure subroutine s_add_paddings_xy(field_in, pad_size, field_out)
+        real(wp), dimension(0:m, 0:n, 0:p), intent(in) :: field_in
+        integer, intent(in) :: pad_size
+        real(wp), dimension(-pad_size:m + pad_size, &
+                            -pad_size:n + pad_size, &
+                                    0:p), intent(out) :: field_out
+        integer :: type_slice, pr_pos, pr_neg
+        integer :: start_send, start_recv
+        integer :: ierr
+
+        ! Initialize output array
+        field_out(0:m, 0:n, 0:p) = field_in(0:m, 0:n, 0:p)
+
+        ! x-direction
+        if (num_procs_x > 1) then
+            ! Compute left neighbor
+            if (proc_rank_x == 0) then
+                call s_get_proc_rank(num_procs_x - 1, proc_rank_y, proc_rank_z, pr_neg)
+            else
+                call s_get_proc_rank(proc_rank_x - 1, proc_rank_y, proc_rank_z, pr_neg)
+            end if
+            ! Compute right neighbor
+            if (proc_rank_x == num_procs_x - 1) then
+                call s_get_proc_rank(0, proc_rank_y, proc_rank_z, pr_pos)
+            else
+                call s_get_proc_rank(proc_rank_x + 1, proc_rank_y, proc_rank_z, pr_pos)
+            end if
+
+            ! Create MPI_TYPE
+            call create_slice_x_type(m + 1 + 2*pad_size, n + 1 + 2*pad_size, p + 1, pad_size, type_slice)
+
+            ! Left padding
+            start_send = m + 1 - pad_size
+            start_recv = -pad_size
+            call MPI_SENDRECV(field_out(start_send, -pad_size, 0), 1, type_slice, pr_pos, 0, &
+                              field_out(start_recv, -pad_size, 0), 1, type_slice, pr_neg, 0, &
+                              MPI_COMM_WORLD, MPI_STATUS_IGNORE, ierr)
+
+            ! Right padding
+            start_send = 0
+            start_recv = m + 1
+            call MPI_SENDRECV(field_out(start_send, -pad_size, 0), 1, type_slice, pr_neg, 0, &
+                              field_out(start_recv, -pad_size, 0), 1, type_slice, pr_pos, 0, &
+                              MPI_COMM_WORLD, MPI_STATUS_IGNORE, ierr)
+            
+            ! Free MPI_TYPE
+            call MPI_TYPE_FREE(type_slice, ierr)
+        else
+            ! Left padding
+            field_out(-pad_size:-1, 0:n, 0:p) = field_in(m - pad_size + 1:m, 0:n, 0:p)
+            ! Right padding
+            field_out(m + 1:m + pad_size, 0:n, 0:p) = field_in(0:pad_size - 1, 0:n, 0:p)
+        end if
+
+        ! y-direction
+        if (num_procs_y > 1) then
+            ! Compute bottom neighbor
+            if (proc_rank_y == 0) then
+                call s_get_proc_rank(proc_rank_x, num_procs_y - 1, proc_rank_z, pr_neg)
+            else
+                call s_get_proc_rank(proc_rank_x, proc_rank_y - 1, proc_rank_z, pr_neg)
+            end if
+            ! Compute top neighbor
+            if (proc_rank_y == num_procs_y - 1) then
+                call s_get_proc_rank(proc_rank_x, 0, proc_rank_z, pr_pos)
+            else
+                call s_get_proc_rank(proc_rank_x, proc_rank_y + 1, proc_rank_z, pr_pos)
+            end if
+
+            ! Create MPI_TYPE
+            call create_slice_y_type(m + 1 + 2*pad_size, n + 1 + 2*pad_size, p + 1, pad_size, type_slice)
+
+            ! Bottom padding
+            start_send = n + 1 - pad_size
+            start_recv = -pad_size
+            call MPI_SENDRECV(field_out(-pad_size, start_send, 0), 1, type_slice, pr_pos, 0, &
+                              field_out(-pad_size, start_recv, 0), 1, type_slice, pr_neg, 0, &
+                              MPI_COMM_WORLD, MPI_STATUS_IGNORE, ierr)
+
+            ! Top padding
+            start_send = 0
+            start_recv = n + 1
+            call MPI_SENDRECV(field_out(-pad_size, start_send, 0), 1, type_slice, pr_neg, 0, &
+                              field_out(-pad_size, start_recv, 0), 1, type_slice, pr_pos, 0, &
+                              MPI_COMM_WORLD, MPI_STATUS_IGNORE, ierr)
+
+            ! Free MPI_TYPE
+            call MPI_TYPE_FREE(type_slice, ierr)
+        else
+            ! Bottom padding
+            field_out(0:m, -pad_size:-1, 0:p) = field_in(0:m, n - pad_size + 1:n, 0:p)
+            ! Top padding
+            field_out(0:m, n + 1:n + pad_size, 0:p) = field_in(0:m, 0:pad_size - 1, 0:p)
+        end if
+
+    contains
+        subroutine create_slice_x_type(nx, ny, nz, len_slice, type_slice)
+            integer, intent(in) :: nx, ny, nz, len_slice
+            integer, intent(out) :: type_slice
+            integer :: ierr
+            call MPI_TYPE_VECTOR(ny*nz, len_slice, nx, mpi_p, type_slice, ierr)
+            call MPI_TYPE_COMMIT(type_slice, ierr)
+        end subroutine create_slice_x_type
+
+        subroutine create_slice_y_type(nx, ny, nz, len_slice, type_slice)
+            integer, intent(in) :: nx, ny, nz, len_slice
+            integer, intent(out) :: type_slice
+            integer :: ierr
+            call MPI_TYPE_VECTOR(nz, len_slice*nx, nx*ny, mpi_p, type_slice, ierr)
+            call MPI_TYPE_COMMIT(type_slice, ierr)
+        end subroutine create_slice_y_type
+    end subroutine s_add_paddings_xy
+
+    impure subroutine s_add_paddings_real(field_in, pad_size, field_out)
+        real(wp), dimension(0:m, 0:n, 0:p), intent(in) :: field_in
+        integer, intent(in) :: pad_size
+        real(wp), dimension(-pad_size:m + pad_size, &
+                            -pad_size:n + pad_size, &
+                            -pad_size:p + pad_size), intent(out) :: field_out
+        integer :: type_slice, pr_pos, pr_neg
+        integer :: start_send, start_recv
+        integer :: ierr
+
+        ! Initialize output array
+        field_out(0:m, 0:n, 0:p) = field_in(0:m, 0:n, 0:p)
+
+        ! x-direction
+        if (num_procs_x > 1) then
+            ! Compute left neighbor
+            if (proc_rank_x == 0) then
+                call s_get_proc_rank(num_procs_x - 1, proc_rank_y, proc_rank_z, pr_neg)
+            else
+                call s_get_proc_rank(proc_rank_x - 1, proc_rank_y, proc_rank_z, pr_neg)
+            end if
+            ! Compute right neighbor
+            if (proc_rank_x == num_procs_x - 1) then
+                call s_get_proc_rank(0, proc_rank_y, proc_rank_z, pr_pos)
+            else
+                call s_get_proc_rank(proc_rank_x + 1, proc_rank_y, proc_rank_z, pr_pos)
+            end if
+
+            ! Create MPI_TYPE
+            call create_slice_x_type(m + 1 + 2*pad_size, n + 1 + 2*pad_size, p + 1 + 2*pad_size, pad_size, type_slice)
+
+            ! Left padding
+            start_send = m + 1 - pad_size
+            start_recv = -pad_size
+            call MPI_SENDRECV(field_out(start_send, -pad_size, -pad_size), 1, type_slice, pr_pos, 0, &
+                              field_out(start_recv, -pad_size, -pad_size), 1, type_slice, pr_neg, 0, &
+                              MPI_COMM_WORLD, MPI_STATUS_IGNORE, ierr)
+
+            ! Right padding
+            start_send = 0
+            start_recv = m + 1
+            call MPI_SENDRECV(field_out(start_send, -pad_size, -pad_size), 1, type_slice, pr_neg, 0, &
+                              field_out(start_recv, -pad_size, -pad_size), 1, type_slice, pr_pos, 0, &
+                              MPI_COMM_WORLD, MPI_STATUS_IGNORE, ierr)
+            
+            ! Free MPI_TYPE
+            call MPI_TYPE_FREE(type_slice, ierr)
+        else
+            ! Left padding
+            field_out(-pad_size:-1, 0:n, 0:p) = field_in(m - pad_size + 1:m, 0:n, 0:p)
+            ! Right padding
+            field_out(m + 1:m + pad_size, 0:n, 0:p) = field_in(0:pad_size - 1, 0:n, 0:p)
+        end if
+
+        ! y-direction
+        if (num_procs_y > 1) then
+            ! Compute bottom neighbor
+            if (proc_rank_y == 0) then
+                call s_get_proc_rank(proc_rank_x, num_procs_y - 1, proc_rank_z, pr_neg)
+            else
+                call s_get_proc_rank(proc_rank_x, proc_rank_y - 1, proc_rank_z, pr_neg)
+            end if
+            ! Compute top neighbor
+            if (proc_rank_y == num_procs_y - 1) then
+                call s_get_proc_rank(proc_rank_x, 0, proc_rank_z, pr_pos)
+            else
+                call s_get_proc_rank(proc_rank_x, proc_rank_y + 1, proc_rank_z, pr_pos)
+            end if
+
+            ! Create MPI_TYPE
+            call create_slice_y_type(m + 1 + 2*pad_size, n + 1 + 2*pad_size, p + 1 + 2*pad_size, pad_size, type_slice)
+
+            ! Bottom padding
+            start_send = n + 1 - pad_size
+            start_recv = -pad_size
+            call MPI_SENDRECV(field_out(-pad_size, start_send, -pad_size), 1, type_slice, pr_pos, 0, &
+                              field_out(-pad_size, start_recv, -pad_size), 1, type_slice, pr_neg, 0, &
+                              MPI_COMM_WORLD, MPI_STATUS_IGNORE, ierr)
+
+            ! Top padding
+            start_send = 0
+            start_recv = n + 1
+            call MPI_SENDRECV(field_out(-pad_size, start_send, -pad_size), 1, type_slice, pr_neg, 0, &
+                              field_out(-pad_size, start_recv, -pad_size), 1, type_slice, pr_pos, 0, &
+                              MPI_COMM_WORLD, MPI_STATUS_IGNORE, ierr)
+
+            ! Free MPI_TYPE
+            call MPI_TYPE_FREE(type_slice, ierr)
+        else
+            ! Bottom padding
+            field_out(0:m, -pad_size:-1, 0:p) = field_in(0:m, n - pad_size + 1:n, 0:p)
+            ! Top padding
+            field_out(0:m, n + 1:n + pad_size, 0:p) = field_in(0:m, 0:pad_size - 1, 0:p)
+        end if
+
+        ! z-direction
+        if (num_procs_z > 1) then
+            ! Compute front neighbor
+            if (proc_rank_z == 0) then
+                call s_get_proc_rank(proc_rank_x, proc_rank_y, num_procs_z - 1, pr_neg)
+            else
+                call s_get_proc_rank(proc_rank_x, proc_rank_y, proc_rank_z - 1, pr_neg)
+            end if
+            ! Compute back neighbor
+            if (proc_rank_z == num_procs_z - 1) then
+                call s_get_proc_rank(proc_rank_x, proc_rank_y, 0, pr_pos)
+            else
+                call s_get_proc_rank(proc_rank_x, proc_rank_y, proc_rank_z + 1, pr_pos)
+            end if
+
+            ! Create MPI_TYPE
+            call create_slice_z_type(m + 1 + 2*pad_size, n + 1 + 2*pad_size, p + 1 + 2*pad_size, pad_size, type_slice)
+
+            ! Bottom padding
+            start_send = p + 1 - pad_size
+            start_recv = -pad_size
+            call MPI_SENDRECV(field_out(-pad_size, -pad_size, start_send), 1, type_slice, pr_pos, 0, &
+                              field_out(-pad_size, -pad_size, start_recv), 1, type_slice, pr_neg, 0, &
+                              MPI_COMM_WORLD, MPI_STATUS_IGNORE, ierr)
+
+            ! Top padding
+            start_send = 0
+            start_recv = p + 1
+            call MPI_SENDRECV(field_out(-pad_size, -pad_size, start_send), 1, type_slice, pr_neg, 0, &
+                              field_out(-pad_size, -pad_size, start_recv), 1, type_slice, pr_pos, 0, &
+                              MPI_COMM_WORLD, MPI_STATUS_IGNORE, ierr)
+
+            ! Free MPI_TYPE
+            call MPI_TYPE_FREE(type_slice, ierr)
+        else
+            ! Front padding
+            field_out(0:m, 0:p, -pad_size:-1) = field_in(0:m, 0:n, p - pad_size + 1:p)
+            ! Back padding
+            field_out(0:m, 0:n, p + 1:p + pad_size) = field_in(0:m, 0:n, 0:pad_size - 1)
+        end if
+
+    contains
+        subroutine create_slice_x_type(nx, ny, nz, len_slice, type_slice)
+            integer, intent(in) :: nx, ny, nz, len_slice
+            integer, intent(out) :: type_slice
+            integer :: ierr
+            call MPI_TYPE_VECTOR(ny*nz, len_slice, nx, mpi_p, type_slice, ierr)
+            call MPI_TYPE_COMMIT(type_slice, ierr)
+        end subroutine create_slice_x_type
+
+        subroutine create_slice_y_type(nx, ny, nz, len_slice, type_slice)
+            integer, intent(in) :: nx, ny, nz, len_slice
+            integer, intent(out) :: type_slice
+            integer :: ierr
+            call MPI_TYPE_VECTOR(nz, len_slice*nx, nx*ny, mpi_p, type_slice, ierr)
+            call MPI_TYPE_COMMIT(type_slice, ierr)
+        end subroutine create_slice_y_type
+
+        subroutine create_slice_z_type(nx, ny, nz, len_slice, type_slice)
+            integer, intent(in) :: nx, ny, nz, len_slice
+            integer, intent(out) :: type_slice
+            integer :: ierr
+            call MPI_TYPE_CONTIGUOUS(nx*ny*len_slice, mpi_p, type_slice, ierr)
+            call MPI_TYPE_COMMIT(type_slice, ierr)
+        end subroutine create_slice_z_type
+    end subroutine s_add_paddings_real
+
+    impure subroutine s_add_paddings_logical(field_in, pad_size, field_out)
+        logical, dimension(0:m, 0:n, 0:p), intent(in) :: field_in
+        integer, intent(in) :: pad_size
+        logical, dimension(-pad_size:m + pad_size, &
+                            -pad_size:n + pad_size, &
+                                    0:p), intent(out) :: field_out
+        integer :: type_slice, pr_pos, pr_neg
+        integer :: start_send, start_recv
+        integer :: ierr
+
+        ! Initialize output array
+        field_out(0:m, 0:n, 0:p) = field_in(0:m, 0:n, 0:p)
+
+        ! x-direction
+        if (num_procs_x > 1) then
+            ! Compute left neighbor
+            if (proc_rank_x == 0) then
+                call s_get_proc_rank(num_procs_x - 1, proc_rank_y, proc_rank_z, pr_neg)
+            else
+                call s_get_proc_rank(proc_rank_x - 1, proc_rank_y, proc_rank_z, pr_neg)
+            end if
+            ! Compute right neighbor
+            if (proc_rank_x == num_procs_x - 1) then
+                call s_get_proc_rank(0, proc_rank_y, proc_rank_z, pr_pos)
+            else
+                call s_get_proc_rank(proc_rank_x + 1, proc_rank_y, proc_rank_z, pr_pos)
+            end if
+
+            ! Create MPI_TYPE
+            call create_slice_x_type(m + 1 + 2*pad_size, n + 1 + 2*pad_size, p + 1, pad_size, type_slice)
+
+            ! Left padding
+            start_send = m + 1 - pad_size
+            start_recv = -pad_size
+            call MPI_SENDRECV(field_out(start_send, -pad_size, 0), 1, type_slice, pr_pos, 0, &
+                              field_out(start_recv, -pad_size, 0), 1, type_slice, pr_neg, 0, &
+                              MPI_COMM_WORLD, MPI_STATUS_IGNORE, ierr)
+
+            ! Right padding
+            start_send = 0
+            start_recv = m + 1
+            call MPI_SENDRECV(field_out(start_send, -pad_size, 0), 1, type_slice, pr_neg, 0, &
+                              field_out(start_recv, -pad_size, 0), 1, type_slice, pr_pos, 0, &
+                              MPI_COMM_WORLD, MPI_STATUS_IGNORE, ierr)
+            
+            ! Free MPI_TYPE
+            call MPI_TYPE_FREE(type_slice, ierr)
+        else
+            ! Left padding
+            field_out(-pad_size:-1, 0:n, 0:p) = field_in(m - pad_size + 1:m, 0:n, 0:p)
+            ! Right padding
+            field_out(m + 1:m + pad_size, 0:n, 0:p) = field_in(0:pad_size - 1, 0:n, 0:p)
+        end if
+
+        ! y-direction
+        if (num_procs_y > 1) then
+            ! Compute bottom neighbor
+            if (proc_rank_y == 0) then
+                call s_get_proc_rank(proc_rank_x, num_procs_y - 1, proc_rank_z, pr_neg)
+            else
+                call s_get_proc_rank(proc_rank_x, proc_rank_y - 1, proc_rank_z, pr_neg)
+            end if
+            ! Compute top neighbor
+            if (proc_rank_y == num_procs_y - 1) then
+                call s_get_proc_rank(proc_rank_x, 0, proc_rank_z, pr_pos)
+            else
+                call s_get_proc_rank(proc_rank_x, proc_rank_y + 1, proc_rank_z, pr_pos)
+            end if
+
+            ! Create MPI_TYPE
+            call create_slice_y_type(m + 1 + 2*pad_size, n + 1 + 2*pad_size, p + 1, pad_size, type_slice)
+
+            ! Bottom padding
+            start_send = n + 1 - pad_size
+            start_recv = -pad_size
+            call MPI_SENDRECV(field_out(-pad_size, start_send, 0), 1, type_slice, pr_pos, 0, &
+                              field_out(-pad_size, start_recv, 0), 1, type_slice, pr_neg, 0, &
+                              MPI_COMM_WORLD, MPI_STATUS_IGNORE, ierr)
+
+            ! Top padding
+            start_send = 0
+            start_recv = n + 1
+            call MPI_SENDRECV(field_out(-pad_size, start_send, 0), 1, type_slice, pr_neg, 0, &
+                              field_out(-pad_size, start_recv, 0), 1, type_slice, pr_pos, 0, &
+                              MPI_COMM_WORLD, MPI_STATUS_IGNORE, ierr)
+
+            ! Free MPI_TYPE
+            call MPI_TYPE_FREE(type_slice, ierr)
+        else
+            ! Bottom padding
+            field_out(0:m, -pad_size:-1, 0:p) = field_in(0:m, n - pad_size + 1:n, 0:p)
+            ! Top padding
+            field_out(0:m, n + 1:n + pad_size, 0:p) = field_in(0:m, 0:pad_size - 1, 0:p)
+        end if
+
+        ! z-direction
+        if (num_procs_z > 1) then
+            ! Compute front neighbor
+            if (proc_rank_z == 0) then
+                call s_get_proc_rank(proc_rank_x, proc_rank_y, num_procs_z - 1, pr_neg)
+            else
+                call s_get_proc_rank(proc_rank_x, proc_rank_y, proc_rank_z - 1, pr_neg)
+            end if
+            ! Compute back neighbor
+            if (proc_rank_z == num_procs_z - 1) then
+                call s_get_proc_rank(proc_rank_x, proc_rank_y, 0, pr_pos)
+            else
+                call s_get_proc_rank(proc_rank_x, proc_rank_y, proc_rank_z + 1, pr_pos)
+            end if
+
+            ! Create MPI_TYPE
+            call create_slice_z_type(m + 1 + 2*pad_size, n + 1 + 2*pad_size, p + 1 + 2*pad_size, pad_size, type_slice)
+
+            ! Bottom padding
+            start_send = p + 1 - pad_size
+            start_recv = -pad_size
+            call MPI_SENDRECV(field_out(-pad_size, -pad_size, start_send), 1, type_slice, pr_pos, 0, &
+                              field_out(-pad_size, -pad_size, start_recv), 1, type_slice, pr_neg, 0, &
+                              MPI_COMM_WORLD, MPI_STATUS_IGNORE, ierr)
+
+            ! Top padding
+            start_send = 0
+            start_recv = p + 1
+            call MPI_SENDRECV(field_out(-pad_size, -pad_size, start_send), 1, type_slice, pr_neg, 0, &
+                              field_out(-pad_size, -pad_size, start_recv), 1, type_slice, pr_pos, 0, &
+                              MPI_COMM_WORLD, MPI_STATUS_IGNORE, ierr)
+
+            ! Free MPI_TYPE
+            call MPI_TYPE_FREE(type_slice, ierr)
+        else
+            ! Front padding
+            field_out(0:m, 0:p, -pad_size:-1) = field_in(0:m, 0:n, p - pad_size + 1:p)
+            ! Back padding
+            field_out(0:m, 0:n, p + 1:p + pad_size) = field_in(0:m, 0:n, 0:pad_size - 1)
+        end if
+    contains
+        subroutine create_slice_x_type(nx, ny, nz, len_slice, type_slice)
+            integer, intent(in) :: nx, ny, nz, len_slice
+            integer, intent(out) :: type_slice
+            integer :: ierr
+            call MPI_TYPE_VECTOR(ny*nz, len_slice, nx, mpi_logical, type_slice, ierr)
+            call MPI_TYPE_COMMIT(type_slice, ierr)
+        end subroutine create_slice_x_type
+
+        subroutine create_slice_y_type(nx, ny, nz, len_slice, type_slice)
+            integer, intent(in) :: nx, ny, nz, len_slice
+            integer, intent(out) :: type_slice
+            integer :: ierr
+            call MPI_TYPE_VECTOR(nz, len_slice*nx, nx*ny, mpi_logical, type_slice, ierr)
+            call MPI_TYPE_COMMIT(type_slice, ierr)
+        end subroutine create_slice_y_type
+
+        subroutine create_slice_z_type(nx, ny, nz, len_slice, type_slice)
+            integer, intent(in) :: nx, ny, nz, len_slice
+            integer, intent(out) :: type_slice
+            integer :: ierr
+            call MPI_TYPE_CONTIGUOUS(nx*ny*len_slice, mpi_logical, type_slice, ierr)
+            call MPI_TYPE_COMMIT(type_slice, ierr)
+        end subroutine create_slice_z_type        
+    end subroutine s_add_paddings_logical
+
+    impure subroutine s_get_proc_rank_xyz()
+        integer :: proc_rank_tmp
+        proc_rank_z = mod(proc_rank, num_procs_z)
+        proc_rank_tmp = (proc_rank - proc_rank_z)/num_procs_z
+        proc_rank_y = mod(proc_rank_tmp, num_procs_y)
+        proc_rank_x = (proc_rank_tmp - proc_rank_y)/num_procs_y
+    end subroutine s_get_proc_rank_xyz
+
+    impure subroutine s_get_proc_rank(prx, pry, prz, pr)
+        integer, intent(in) :: prx, pry, prz 
+        integer, intent(out) :: pr
+
+        pr = prx*num_procs_y*num_procs_z + pry*num_procs_z + prz
+    end subroutine s_get_proc_rank
+    
+    impure subroutine s_compute_mixlayer_thickenss(vel1_loc, mixlayer_thickness, mixlayer_idx_beg, mixlayer_idx_end)
+        real(wp), intent(in), dimension(0:m, 0:n, 0:p) :: vel1_loc
+        real(wp), intent(out) :: mixlayer_thickness
+        integer, intent(out) :: mixlayer_idx_beg, mixlayer_idx_end
+        real(wp), dimension(0:n) :: vel1_loc_sum
+        real(wp), dimension(0:n_glb) :: vel1_sum, vel1_glb_avg
+        real(wp), dimension(0:n_glb) :: y_loc
+        integer :: j, jj, ierr 
+
+        ! Compute local average field for each processor
+        vel1_loc_sum = sum(sum(vel1_loc, 3), 1)
+
+        ! Compute global average field
+        vel1_sum = 0._wp
+        do j = 0, n
+            jj = j + proc_rank_y*(n + 1)
+            vel1_sum(jj) = vel1_sum(jj) + vel1_loc_sum(j)
+        end do
+        call MPI_ALLREDUCE(vel1_sum, vel1_glb_avg(0:n_glb), n_glb + 1, mpi_p, &
+                           MPI_SUM, MPI_COMM_WORLD, ierr)
+        vel1_glb_avg = vel1_glb_avg / ((m_glb + 1) * (p_glb + 1))
+
+        ! Compute mixlayer_thickness
+        if (proc_rank == 0) then 
+            y_loc = y_cc_glb(0:n_glb)
+            do j = 0, n_glb
+                if (vel1_glb_avg(j) < -0.99_wp) y_loc(j) = 0._wp
+                if (vel1_glb_avg(j) >  0.99_wp) y_loc(j) = 0._wp
+            end do
+            mixlayer_idx_beg = minloc(y_loc, DIM=1)
+            mixlayer_idx_end = maxloc(y_loc, DIM=1)
+            mixlayer_thickness = y_loc(mixlayer_idx_end) - y_loc(mixlayer_idx_beg)
+        end if
+        call MPI_BCAST(mixlayer_thickness, 1, mpi_p, 0, MPI_COMM_WORLD, ierr)
+        call MPI_BCAST(mixlayer_idx_beg, 1, mpi_integer, 0, MPI_COMM_WORLD, ierr)
+        call MPI_BCAST(mixlayer_idx_end, 1, mpi_integer, 0, MPI_COMM_WORLD, ierr)
+    end subroutine s_compute_mixlayer_thickenss
+
+    impure subroutine s_detect_qsv(liutex_mag, liutex_axis, y_idx_beg, y_idx_end, q_sf1, q_sf2, q_sf3, q_sf4, q_sf_group)
+        real(wp), dimension(-offset_x%beg:m + offset_x%end, &
+                            -offset_y%beg:n + offset_y%end, &
+                            -offset_z%beg:p + offset_z%end), intent(in) :: liutex_mag
+        
+        real(wp), dimension(-offset_x%beg:m + offset_x%end, &
+                            -offset_y%beg:n + offset_y%end, &
+                            -offset_z%beg:p + offset_z%end, 3), intent(in) :: liutex_axis
+
+        integer, intent(in) :: y_idx_beg, y_idx_end
+
+        real(wp), &
+            dimension(-offset_x%beg:m + offset_x%end, &
+                      -offset_y%beg:n + offset_y%end, &
+                      -offset_z%beg:p + offset_z%end), intent(inout) :: q_sf1, q_sf2, q_sf3, q_sf4, q_sf_group
+        
+        integer, dimension(0:m, 0:n, 0:p) :: qsv_group
+        logical, dimension(0:m, 0:n, 0:p, 5) :: qsv_flag
+        integer :: id_qsv_group_max
+        integer, dimension(:), allocatable :: num_qsv_group_member
+        real(wp) :: theta1, theta2
+        integer :: i, j, k, l
+
+        ! Initialization
+        qsv_flag = .false.
+        q_sf1 = 0._wp
+        q_sf2 = 0._wp
+        q_sf3 = 0._wp
+        q_sf4 = 0._wp
+        q_sf_group = 0._wp
+
+        ! (1,2) Initial filtering
+        do j = 0, n
+            if (y_cc(j) >= y_cc_glb(y_idx_beg) .and. y_cc(j) <= y_cc_glb(y_idx_end)) then
+                do k = 0, p
+                    do i = 0, m
+                        ! (1) liutex_mag
+                        if (liutex_mag(i, j, k) > 1._wp) then
+                            qsv_flag(i, j, k, 1) = .true.
+                            q_sf1(i, j, k) = 1._wp
+                        end if
+
+                        ! (2) liutex axis
+                        if (qsv_flag(i, j, k, 1)) then
+                            theta1 = atan(liutex_axis(i, j, k, 2) / liutex_axis(i, j, k, 1)) / pi * 180._wp
+                            theta2 = atan(liutex_axis(i, j, k, 3) / liutex_axis(i, j, k, 1)) / pi * 180._wp
+                            if (theta1 > 0._wp .and. theta1 < 90._wp .and. &
+                                theta2 > -45._wp .and. theta2 < 45._wp) then
+                                qsv_flag(i, j, k, 2) = .true.
+                                q_sf2(i, j, k) = 2._wp
+                            end if
+                        end if
+                    end do
+                end do
+            end if
+        end do
+
+        ! (3) Remove isolated single point
+        do j = 0, n
+            if (y_cc(j) >= y_cc_glb(y_idx_beg) .and. y_cc(j) <= y_cc_glb(y_idx_end)) then
+                do k = 0, p
+                    do i = 0, m
+                        if (qsv_flag(i, j, k, 2)) then 
+                          call s_remove_isolated_single_point(i, j, k, qsv_flag)
+                        
+                          if (qsv_flag(i, j, k, 3)) then 
+                            q_sf3(i, j, k) = 3._wp
+                          end if
+                        end if
+                    end do
+                end do
+            end if
+        end do
+
+        ! Grouping connected points
+        call s_identify_connected_groups(qsv_flag, qsv_group, id_qsv_group_max, y_idx_beg, y_idx_end)
+        allocate (num_qsv_group_member(1:id_qsv_group_max))
+        num_qsv_group_member = 0
+        do l = 1, id_qsv_group_max
+          do k = 0, p
+            do j = 0, n
+              do i = 0, m
+                if (qsv_group(i, j, k) == l) then
+                  num_qsv_group_member(l) = num_qsv_group_member(l) + 1
+                end if
+              end do
+            end do
+          end do
+        end do
+        q_sf_group(0:m, 0:n, 0:p) = real(qsv_group(0:m, 0:n, 0:p), wp)
+
+        ! (4) Remove too small ones
+        do l = 1, id_qsv_group_max
+          if (num_qsv_group_member(l) >= 10) then
+            do k = 0, p
+              do j = 0, n
+                do i = 0, m
+                  if (qsv_group(i, j, k) == l) then
+                    qsv_flag(i, j, k, 4) = .true.
+                    q_sf4(i, j, k) = 1._wp
+                  end if
+                end do
+              end do
+            end do
+          end if
+        end do
+
+    end subroutine s_detect_qsv
+
+    impure subroutine s_identify_connected_groups(qsv_flag, qsv_group, id_qsv_group_max, y_idx_beg, y_idx_end)
+        logical, dimension(0:m, 0:n, 0:p, 5), intent(inout) :: qsv_flag
+        integer, dimension(0:m, 0:n, 0:p), intent(out) :: qsv_group
+        integer, intent(out) :: id_qsv_group_max
+        integer, intent(in) :: y_idx_beg, y_idx_end
+        
+        integer, dimension(-1:m + 1, -1:n + 1, -1:p + 1) :: qsv_group_padded
+        integer :: id_qsv_group_init, id_qsv_group 
+        integer :: ibase, jbase, kbase, i, j, k, l, ii, jj, kk
+        integer :: pr_neg, pr_pos
+        integer :: ierr
+        logical :: breakpoint
+
+        id_qsv_group_init = proc_rank
+        id_qsv_group = id_qsv_group_init
+        qsv_group = id_qsv_group_init
+        qsv_group_padded = id_qsv_group_init
+
+        ! Find connected regions inside the domain
+        do jbase = 0, n
+          if (y_cc(jbase) >= y_cc_glb(y_idx_beg) .and. y_cc(jbase) <= y_cc_glb(y_idx_end)) then
+            do kbase = 0, p
+              do ibase = 0, m
+                if (qsv_flag(ibase, jbase, kbase, 3)) then
+                  ! Check surrounding points
+                  do k = kbase - 1, kbase + 1
+                    do j = jbase - 1, jbase + 1
+                      do i = ibase - 1, ibase + 1
+                        if (i >= 0 .and. i <= m .and. &
+                            j >= 0 .and. j <= n .and. &
+                            k >= 0 .and. k <= p) then
+                          ! if the connected point is not the base point,
+                                                    ! qsv candidate, and
+                                                    ! grouped
+                          if (.not. (i == ibase .and. j == jbase .and. k == kbase) &
+                              .and. qsv_flag(i, j, k, 3)) then
+                              if (qsv_group(i, j, k) == id_qsv_group_init .and. &
+                                  qsv_group(ibase, jbase, kbase) == id_qsv_group_init) then
+                                    id_qsv_group = id_qsv_group + num_procs
+                                    qsv_group(i, j, k) = id_qsv_group
+                                    qsv_group(ibase, jbase, kbase) = id_qsv_group
+                              else if (qsv_group(i, j, k) /= id_qsv_group_init .and. &
+                                       qsv_group(ibase, jbase, kbase) /= id_qsv_group_init) then
+                                  if (qsv_group(ibase, jbase, kbase) /= qsv_group(i, j, k)) then
+                                    call s_merge_groups(qsv_group, qsv_group(ibase, jbase, kbase), qsv_group(i, j, k))
+                                  end if
+                              else if (qsv_group(i, j, k) == id_qsv_group_init .and.  &
+                                       qsv_group(ibase, jbase, kbase) /= id_qsv_group_init) then
+                                qsv_group(i, j, k) = qsv_group(ibase, jbase, kbase)
+                              else
+                                qsv_group(ibase, jbase, kbase) = qsv_group(i, j, k)
+                              end if
+                          end if
+                        end if
+                      end do
+                    end do
+                  end do
+                end if
+              end do
+            end do
+          end if
+        end do
+
+        do l = 0, num_procs - 1
+          ! Add paddings
+          call s_add_paddings_integer(qsv_group, 1, qsv_group_padded)
+          ! Get adjecent proc_rank
+          call s_get_adjacent_proc_rank(1, pr_neg, pr_pos)
+          if (proc_rank == l) then
+            ! Merge qsv groups at the boundary in x-direction
+            do k = 0, p
+              do j = 0, n
+                breakpoint = .false.
+                do kk = k - 1, k + 1
+                  do jj = j - 1, j + 1
+                    if (qsv_group_padded(-1, jj, kk) /= pr_neg .and. &
+                        qsv_group(0, j, k) /= proc_rank .and. &
+                        qsv_group_padded(-1, jj, kk) /= qsv_group(0, j, k)) then
+                      WHERE (qsv_group == qsv_group(0, j, k)) qsv_group = qsv_group_padded(-1, jj, kk)
+                      breakpoint = .true.
+                    end if
+                    if (breakpoint) exit
+                  end do
+                  if (breakpoint) exit
+                end do
+              end do
+            end do
+          end if
+
+          ! Add paddings
+          call s_add_paddings_integer(qsv_group, 1, qsv_group_padded)
+          ! Get adjecent proc_rank
+          call s_get_adjacent_proc_rank(2, pr_neg, pr_pos)
+          if (proc_rank == l) then
+            ! Merge qsv groups at the boundary in y-direction
+            do k = 0, p
+              do i = 0, m
+                breakpoint = .false.
+                do kk = k - 1, k + 1
+                  do ii = i - 1, i + 1
+                    if (qsv_group_padded(ii, -1, kk) /= pr_neg .and. &
+                        qsv_group(i, 0, k) /= proc_rank .and. &
+                        qsv_group_padded(ii, -1, kk) /= qsv_group(i, 0, k)) then
+                      ! Have to deal with situation where two groups are separate in proc1 but they are connected by a point in proc2
+                      WHERE (qsv_group == qsv_group(i, 0, k)) qsv_group = qsv_group_padded(ii, -1, kk)
+                      breakpoint = .true.
+                    end if
+                    if (breakpoint) exit
+                  end do
+                  if (breakpoint) exit
+                end do
+              end do
+            end do
+          end if
+
+          ! Add paddings
+          call s_add_paddings_integer(qsv_group, 1, qsv_group_padded)
+          ! Get adjecent proc_rank
+          call s_get_adjacent_proc_rank(3, pr_neg, pr_pos)
+          if (proc_rank == l) then
+            ! Merge qsv groups at the boundary in z-direction
+            do j = 0, n
+              do i = 0, m
+                breakpoint = .false.
+                do jj = j - 1, j + 1
+                  do ii = i - 1, i + 1
+                    if (qsv_group_padded(ii, jj, -1) /= pr_neg .and. &
+                        qsv_group(i, j, 0) /= proc_rank .and. &
+                        qsv_group_padded(ii, jj, -1) /= qsv_group(i, j, 0)) then
+                      WHERE (qsv_group == qsv_group(i, j, 0)) qsv_group = qsv_group_padded(ii, jj, -1)
+                      breakpoint = .true.
+                    end if
+                    if (breakpoint) exit
+                  end do
+                  if (breakpoint) exit
+                end do
+              end do
+            end do
+          end if
+        end do
+
+        !
+        where (qsv_group == id_qsv_group_init) qsv_group = 0
+
+        !
+        call MPI_ALLREDUCE(id_qsv_group, id_qsv_group_max, 1, mpi_integer, MPI_MAX, MPI_COMM_WORLD, ierr)
+
+    end subroutine s_identify_connected_groups
+
+    impure subroutine s_add_paddings_integer(field_in, pad_size, field_out)
+        integer, dimension(0:m, 0:n, 0:p), intent(in) :: field_in
+        integer, intent(in) :: pad_size
+        integer,  dimension(-pad_size:m + pad_size, &
+                            -pad_size:n + pad_size, &
+                            -pad_size:p + pad_size), intent(out) :: field_out
+        integer :: type_slice, pr_pos, pr_neg
+        integer :: start_send, start_recv
+        integer :: ierr
+
+        ! Initialize output array
+        field_out(0:m, 0:n, 0:p) = field_in(0:m, 0:n, 0:p)
+
+        ! x-direction
+        if (num_procs_x > 1) then
+            ! Compute left neighbor
+            if (proc_rank_x == 0) then
+                call s_get_proc_rank(num_procs_x - 1, proc_rank_y, proc_rank_z, pr_neg)
+            else
+                call s_get_proc_rank(proc_rank_x - 1, proc_rank_y, proc_rank_z, pr_neg)
+            end if
+            ! Compute right neighbor
+            if (proc_rank_x == num_procs_x - 1) then
+                call s_get_proc_rank(0, proc_rank_y, proc_rank_z, pr_pos)
+            else
+                call s_get_proc_rank(proc_rank_x + 1, proc_rank_y, proc_rank_z, pr_pos)
+            end if
+
+            ! Create MPI_TYPE
+            call create_slice_x_type(m + 1 + 2*pad_size, n + 1 + 2*pad_size, p + 1 + 2*pad_size, pad_size, type_slice)
+
+            ! Left padding
+            start_send = m + 1 - pad_size
+            start_recv = -pad_size
+            call MPI_SENDRECV(field_out(start_send, -pad_size, -pad_size), 1, type_slice, pr_pos, 0, &
+                              field_out(start_recv, -pad_size, -pad_size), 1, type_slice, pr_neg, 0, &
+                              MPI_COMM_WORLD, MPI_STATUS_IGNORE, ierr)
+
+            ! Right padding
+            start_send = 0
+            start_recv = m + 1
+            call MPI_SENDRECV(field_out(start_send, -pad_size, -pad_size), 1, type_slice, pr_neg, 0, &
+                              field_out(start_recv, -pad_size, -pad_size), 1, type_slice, pr_pos, 0, &
+                              MPI_COMM_WORLD, MPI_STATUS_IGNORE, ierr)
+            
+            ! Free MPI_TYPE
+            call MPI_TYPE_FREE(type_slice, ierr)
+        else
+            ! Left padding
+            field_out(-pad_size:-1, 0:n, 0:p) = field_in(m - pad_size + 1:m, 0:n, 0:p)
+            ! Right padding
+            field_out(m + 1:m + pad_size, 0:n, 0:p) = field_in(0:pad_size - 1, 0:n, 0:p)
+        end if
+
+        ! y-direction
+        if (num_procs_y > 1) then
+            ! Compute bottom neighbor
+            if (proc_rank_y == 0) then
+                call s_get_proc_rank(proc_rank_x, num_procs_y - 1, proc_rank_z, pr_neg)
+            else
+                call s_get_proc_rank(proc_rank_x, proc_rank_y - 1, proc_rank_z, pr_neg)
+            end if
+            ! Compute top neighbor
+            if (proc_rank_y == num_procs_y - 1) then
+                call s_get_proc_rank(proc_rank_x, 0, proc_rank_z, pr_pos)
+            else
+                call s_get_proc_rank(proc_rank_x, proc_rank_y + 1, proc_rank_z, pr_pos)
+            end if
+
+            ! Create MPI_TYPE
+            call create_slice_y_type(m + 1 + 2*pad_size, n + 1 + 2*pad_size, p + 1 + 2*pad_size, pad_size, type_slice)
+
+            ! Bottom padding
+            start_send = n + 1 - pad_size
+            start_recv = -pad_size
+            call MPI_SENDRECV(field_out(-pad_size, start_send, -pad_size), 1, type_slice, pr_pos, 0, &
+                              field_out(-pad_size, start_recv, -pad_size), 1, type_slice, pr_neg, 0, &
+                              MPI_COMM_WORLD, MPI_STATUS_IGNORE, ierr)
+
+            ! Top padding
+            start_send = 0
+            start_recv = n + 1
+            call MPI_SENDRECV(field_out(-pad_size, start_send, -pad_size), 1, type_slice, pr_neg, 0, &
+                              field_out(-pad_size, start_recv, -pad_size), 1, type_slice, pr_pos, 0, &
+                              MPI_COMM_WORLD, MPI_STATUS_IGNORE, ierr)
+
+            ! Free MPI_TYPE
+            call MPI_TYPE_FREE(type_slice, ierr)
+        else
+            ! Bottom padding
+            field_out(0:m, -pad_size:-1, 0:p) = field_in(0:m, n - pad_size + 1:n, 0:p)
+            ! Top padding
+            field_out(0:m, n + 1:n + pad_size, 0:p) = field_in(0:m, 0:pad_size - 1, 0:p)
+        end if
+
+        ! z-direction
+        if (num_procs_z > 1) then
+            ! Compute front neighbor
+            if (proc_rank_z == 0) then
+                call s_get_proc_rank(proc_rank_x, proc_rank_y, num_procs_z - 1, pr_neg)
+            else
+                call s_get_proc_rank(proc_rank_x, proc_rank_y, proc_rank_z - 1, pr_neg)
+            end if
+            ! Compute back neighbor
+            if (proc_rank_z == num_procs_z - 1) then
+                call s_get_proc_rank(proc_rank_x, proc_rank_y, 0, pr_pos)
+            else
+                call s_get_proc_rank(proc_rank_x, proc_rank_y, proc_rank_z + 1, pr_pos)
+            end if
+
+            ! Create MPI_TYPE
+            call create_slice_z_type(m + 1 + 2*pad_size, n + 1 + 2*pad_size, p + 1 + 2*pad_size, pad_size, type_slice)
+
+            ! Bottom padding
+            start_send = p + 1 - pad_size
+            start_recv = -pad_size
+            call MPI_SENDRECV(field_out(-pad_size, -pad_size, start_send), 1, type_slice, pr_pos, 0, &
+                              field_out(-pad_size, -pad_size, start_recv), 1, type_slice, pr_neg, 0, &
+                              MPI_COMM_WORLD, MPI_STATUS_IGNORE, ierr)
+
+            ! Top padding
+            start_send = 0
+            start_recv = p + 1
+            call MPI_SENDRECV(field_out(-pad_size, -pad_size, start_send), 1, type_slice, pr_neg, 0, &
+                              field_out(-pad_size, -pad_size, start_recv), 1, type_slice, pr_pos, 0, &
+                              MPI_COMM_WORLD, MPI_STATUS_IGNORE, ierr)
+
+            ! Free MPI_TYPE
+            call MPI_TYPE_FREE(type_slice, ierr)
+        else
+            ! Front padding
+            field_out(0:m, 0:p, -pad_size:-1) = field_in(0:m, 0:n, p - pad_size + 1:p)
+            ! Back padding
+            field_out(0:m, 0:n, p + 1:p + pad_size) = field_in(0:m, 0:n, 0:pad_size - 1)
+        end if
+
+    contains
+        subroutine create_slice_x_type(nx, ny, nz, len_slice, type_slice)
+            integer, intent(in) :: nx, ny, nz, len_slice
+            integer, intent(out) :: type_slice
+            integer :: ierr
+            call MPI_TYPE_VECTOR(ny*nz, len_slice, nx, mpi_integer, type_slice, ierr)
+            call MPI_TYPE_COMMIT(type_slice, ierr)
+        end subroutine create_slice_x_type
+
+        subroutine create_slice_y_type(nx, ny, nz, len_slice, type_slice)
+            integer, intent(in) :: nx, ny, nz, len_slice
+            integer, intent(out) :: type_slice
+            integer :: ierr
+            call MPI_TYPE_VECTOR(nz, len_slice*nx, nx*ny, mpi_integer, type_slice, ierr)
+            call MPI_TYPE_COMMIT(type_slice, ierr)
+        end subroutine create_slice_y_type
+
+        subroutine create_slice_z_type(nx, ny, nz, len_slice, type_slice)
+            integer, intent(in) :: nx, ny, nz, len_slice
+            integer, intent(out) :: type_slice
+            integer :: ierr
+            call MPI_TYPE_CONTIGUOUS(nx*ny*len_slice, mpi_integer, type_slice, ierr)
+            call MPI_TYPE_COMMIT(type_slice, ierr)
+        end subroutine create_slice_z_type
+    end subroutine s_add_paddings_integer
+
+    impure subroutine s_get_adjacent_proc_rank(dir, pr_neg, pr_pos)
+      integer, intent(in) :: dir
+      integer, intent(out) :: pr_neg, pr_pos
+
+      if (dir == 1) then
+        if (num_procs_x > 1) then
+          ! Compute left neighbor
+          if (proc_rank_x == 0) then
+              call s_get_proc_rank(num_procs_x - 1, proc_rank_y, proc_rank_z, pr_neg)
+          else
+              call s_get_proc_rank(proc_rank_x - 1, proc_rank_y, proc_rank_z, pr_neg)
+          end if
+          ! Compute right neighbor
+          if (proc_rank_x == num_procs_x - 1) then
+              call s_get_proc_rank(0, proc_rank_y, proc_rank_z, pr_pos)
+          else
+              call s_get_proc_rank(proc_rank_x + 1, proc_rank_y, proc_rank_z, pr_pos)
+          end if
+        else
+          pr_neg = 0
+          pr_pos = 0
+        end if
+      else if (dir == 2) then
+        if (num_procs_y > 1) then
+            ! Compute bottom neighbor
+            if (proc_rank_y == 0) then
+                call s_get_proc_rank(proc_rank_x, num_procs_y - 1, proc_rank_z, pr_neg)
+            else
+                call s_get_proc_rank(proc_rank_x, proc_rank_y - 1, proc_rank_z, pr_neg)
+            end if
+            ! Compute top neighbor
+            if (proc_rank_y == num_procs_y - 1) then
+                call s_get_proc_rank(proc_rank_x, 0, proc_rank_z, pr_pos)
+            else
+                call s_get_proc_rank(proc_rank_x, proc_rank_y + 1, proc_rank_z, pr_pos)
+            end if
+        else
+          pr_neg = 0
+          pr_pos = 0
+        end if
+      else if (dir == 3) then
+        if (num_procs_z > 1) then
+          ! Compute front neighbor
+          if (proc_rank_z == 0) then
+              call s_get_proc_rank(proc_rank_x, proc_rank_y, num_procs_z - 1, pr_neg)
+          else
+              call s_get_proc_rank(proc_rank_x, proc_rank_y, proc_rank_z - 1, pr_neg)
+          end if
+          ! Compute back neighbor
+          if (proc_rank_z == num_procs_z - 1) then
+              call s_get_proc_rank(proc_rank_x, proc_rank_y, 0, pr_pos)
+          else
+              call s_get_proc_rank(proc_rank_x, proc_rank_y, proc_rank_z + 1, pr_pos)
+          end if
+        else
+          pr_neg = 0
+          pr_pos = 0
+        end if
+      end if
+
+    end subroutine s_get_adjacent_proc_rank
+
+    impure subroutine s_merge_groups(qsv_group, id_qsv_group1, id_qsv_group2)
+        integer, intent(in) :: id_qsv_group1, id_qsv_group2
+        integer, dimension(0:m, 0:n, 0:p), intent(inout) :: qsv_group
+        integer :: qsv_group_merged
+        integer :: i, j, k
+
+        qsv_group_merged = min(id_qsv_group1, id_qsv_group2)
+
+        do k = 0, p
+          do j = 0, n
+            do i = 0, m
+              if (qsv_group(i, j, k) == id_qsv_group1 .or. &
+                  qsv_group(i, j, k) == id_qsv_group2) then
+                qsv_group(i, j, k) = qsv_group_merged
+              end if
+            end do
+          end do
+        end do
+    end subroutine s_merge_groups
+
+    impure subroutine s_remove_isolated_single_point(ibase, jbase, kbase, qsv_flag)
+        integer, intent(in) :: ibase, jbase, kbase
+        logical, dimension(0:m, 0:n, 0:p, 5), intent(inout) :: qsv_flag
+        integer :: i, j, k
+
+        do k = kbase - 1, kbase + 1
+          do j = jbase - 1, jbase + 1
+            do i = ibase - 1, ibase + 1
+              if (i >= 0 .and. i <= m .and. &
+                  j >= 0 .and. j <= n .and. &
+                  k >= 0 .and. k <= p) then
+                if (.not. (i == ibase .and. j == jbase .and. k == kbase) &
+                    .and. qsv_flag(i, j, k, 2)) then
+                  qsv_flag(ibase, jbase, kbase, 3) = .true.
+                  return
+                end if
+              end if
+            end do
+          end do
+        end do
+    end subroutine s_remove_isolated_single_point
 
     !>  This subroutine gets as inputs the conservative variables
         !!      and density. From those inputs, it proceeds to calculate
