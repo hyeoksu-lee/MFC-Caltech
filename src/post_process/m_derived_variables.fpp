@@ -1358,9 +1358,9 @@ contains
         integer, dimension(0:m, 0:n, 0:p) :: qsv_group
         logical, dimension(0:m, 0:n, 0:p, 5) :: qsv_flag
         integer :: id_qsv_group_max
-        integer, dimension(:), allocatable :: num_qsv_group_member
+        integer, dimension(:), allocatable :: num_qsv_group_member, num_qsv_group_member_glb
         real(wp) :: theta1, theta2
-        integer :: i, j, k, l
+        integer :: i, j, k, l, ierr
 
         ! Initialization
         qsv_flag = .false.
@@ -1376,7 +1376,7 @@ contains
                 do k = 0, p
                     do i = 0, m
                         ! (1) liutex_mag
-                        if (liutex_mag(i, j, k) > 1._wp) then
+                        if (liutex_mag(i, j, k) > 3._wp) then
                             qsv_flag(i, j, k, 1) = .true.
                             q_sf1(i, j, k) = 1._wp
                         end if
@@ -1416,6 +1416,7 @@ contains
         ! Grouping connected points
         call s_identify_connected_groups(qsv_flag, qsv_group, id_qsv_group_max, y_idx_beg, y_idx_end)
         allocate (num_qsv_group_member(1:id_qsv_group_max))
+        allocate (num_qsv_group_member_glb(1:id_qsv_group_max))
         num_qsv_group_member = 0
         do l = 1, id_qsv_group_max
           do k = 0, p
@@ -1428,11 +1429,13 @@ contains
             end do
           end do
         end do
+        
+        call MPI_ALLREDUCE(num_qsv_group_member, num_qsv_group_member_glb, id_qsv_group_max, mpi_integer, MPI_SUM, MPI_COMM_WORLD, ierr)
         q_sf_group(0:m, 0:n, 0:p) = real(qsv_group(0:m, 0:n, 0:p), wp)
 
         ! (4) Remove too small ones
         do l = 1, id_qsv_group_max
-          if (num_qsv_group_member(l) >= 10) then
+          if (num_qsv_group_member_glb(l) >= 20) then
             do k = 0, p
               do j = 0, n
                 do i = 0, m
