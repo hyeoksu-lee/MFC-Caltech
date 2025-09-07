@@ -214,7 +214,13 @@ contains
         integer :: mixlayer_idx_beg, mixlayer_idx_end
         real(wp), dimension(-offset_x%beg:m + offset_x%end, &
                             -offset_y%beg:n + offset_y%end, &
-                            -offset_z%beg:p + offset_z%end) :: liutex_mag, vort_stretch_proj, vort_stretch_res, liutex_mag_filtered, A_rr, A_ps, A_ns, A_sr, q_sf1, q_sf2, q_sf3, q_sf4, q_sf_group
+                            -offset_z%beg:p + offset_z%end) :: liutex_mag, liutex_rrs, liutex_mag_filtered, &
+                                                              vort_stretch_proj, vort_stretch_res, &
+                                                              A_rr, A_ps, A_ns, A_sr, &
+                                                              q_sf1, q_sf2, q_sf3, q_sf4, q_sf_group
+        integer, dimension(-offset_x%beg:m + offset_x%end, &
+                            -offset_y%beg:n + offset_y%end, &
+                            -offset_z%beg:p + offset_z%end) ::liutex_core
         real(wp), dimension(-offset_x%beg:m + offset_x%end, &
                             -offset_y%beg:n + offset_y%end, &
                             -offset_z%beg:p + offset_z%end, 3) :: liutex_axis, omega, vort_stretch, vel_filtered    
@@ -618,14 +624,26 @@ contains
 
             ! Compute Liutex vector and its magnitude
             call s_derive_liutex(q_prim_vf, mixlayer_idx_beg, mixlayer_idx_end, &
-                                liutex_mag, liutex_axis, omega, &
-                                vort_stretch, vort_stretch_proj, vort_stretch_res, &
+                                liutex_mag, liutex_axis, liutex_rrs, liutex_core, &
+                                omega, vort_stretch, vort_stretch_proj, vort_stretch_res, &
                                 A_rr, A_ps, A_ns, A_sr)
             ! Liutex magnitude
             q_sf = liutex_mag
             write (varname, '(A)') 'liutex_mag'
             call s_write_variable_to_formatted_database_file(varname, t_step)
             varname(:) = ' '
+
+            ! ! Liutex core
+            ! q_sf = liutex_core
+            ! write (varname, '(A)') 'liutex_core'
+            ! call s_write_variable_to_formatted_database_file(varname, t_step)
+            ! varname(:) = ' '
+
+            ! ! Liutex relative rotation strength
+            ! q_sf = liutex_rrs
+            ! write (varname, '(A)') 'liutex_rrs'
+            ! call s_write_variable_to_formatted_database_file(varname, t_step)
+            ! varname(:) = ' '
 
             ! ! Liutex axis
             ! do i = 1, 3
@@ -673,7 +691,7 @@ contains
             ! varname(:) = ' '
 
             ! QSV detection
-            call s_detect_qsv(liutex_mag, liutex_axis, mixlayer_idx_beg, mixlayer_idx_end, q_sf1, q_sf2, q_sf3, q_sf4, q_sf_group)
+            call s_detect_qsv(liutex_mag, liutex_axis, liutex_core, mixlayer_idx_beg, mixlayer_idx_end, q_sf1, q_sf2, q_sf3, q_sf4, q_sf_group)
             q_sf = q_sf1
             write (varname, '(A)') 'qsv1'
             call s_write_variable_to_formatted_database_file(varname, t_step)

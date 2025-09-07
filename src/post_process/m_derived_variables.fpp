@@ -574,7 +574,8 @@ contains
         !!  @param liutex_mag Liutex magnitude
         !!  @param liutex_axis Liutex axis
     impure subroutine s_derive_liutex(q_prim_vf, y_idx_beg, y_idx_end, &
-                                    liutex_mag, liutex_axis, omega, vort_stretch, vort_stretch_proj, vort_stretch_res, &
+                                    liutex_mag, liutex_axis, liutex_rrs, liutex_core, &
+                                    omega, vort_stretch, vort_stretch_proj, vort_stretch_res, &
                                     A_rr, A_ps, A_ns, A_sr)
         integer, parameter :: nm = 3
         type(scalar_field), &
@@ -587,7 +588,13 @@ contains
             dimension(-offset_x%beg:m + offset_x%end, &
                       -offset_y%beg:n + offset_y%end, &
                       -offset_z%beg:p + offset_z%end), &
-            intent(out) :: liutex_mag !< Liutex magnitude
+            intent(out) :: liutex_mag, liutex_rrs
+
+        integer, &
+            dimension(-offset_x%beg:m + offset_x%end, &
+                      -offset_y%beg:n + offset_y%end, &
+                      -offset_z%beg:p + offset_z%end), &
+            intent(out) :: liutex_core
 
         real(wp), &
             dimension(-offset_x%beg:m + offset_x%end, &
@@ -623,15 +630,19 @@ contains
         real(wp), dimension(nm) :: eigvec !< real eigenvector
         real(wp) :: eigvec_mag !< magnitude of real eigenvector
         real(wp) :: omega_proj !< projection of vorticity on real eigenvector
-        real(wp) :: lci !< imaginary part of complex eigenvalue
-        real(wp) :: alpha
+        real(wp) :: lrr, lcr, lci !< imaginary part of complex eigenvalue
+        real(wp) :: alpha, beta
+
+        real(wp), dimension(3) :: grad_liutex_mag
+        real(wp) :: liutex_core_val
 
         integer :: j, k, l, r, i !< Generic loop iterators
         integer :: idx
 
         omega = 0._wp
         liutex_mag = 0._wp
-        liutex_axis = 0._wp 
+        liutex_axis = 0._wp
+        liutex_rrs = 0._wp 
         vort_stretch_proj = 0._wp 
         vort_stretch_res = 0._wp 
         A_rr = 0._wp
@@ -671,24 +682,24 @@ contains
                         omega(j, k, l, 2) = vgt(1,3) - vgt(3,1)
                         omega(j, k, l, 3) = vgt(2,1) - vgt(1,2)
 
-                        ! Compute vortex stretching term
-                        do r = 1, 3
-                            vort_stretch(j, k, l, r) = omega(j, k, l, 1)*vgt(r,1) &
-                                                    + omega(j, k, l, 2)*vgt(r,2) &
-                                                    + omega(j, k, l, 3)*vgt(r,3)
-                        end do
+                        ! ! Compute vortex stretching term
+                        ! do r = 1, 3
+                        !     vort_stretch(j, k, l, r) = omega(j, k, l, 1)*vgt(r,1) &
+                        !                             + omega(j, k, l, 2)*vgt(r,2) &
+                        !                             + omega(j, k, l, 3)*vgt(r,3)
+                        ! end do
 
                         !
-                        A_S = 0.5_wp*(vgt + transpose(vgt))
-                        A_W = 0.5_wp*(vgt - transpose(vgt))
-                        S2 = 0._wp
-                        W2 = 0._wp
-                        do i = 1, 3
-                            do r = 1, 3
-                                S2 = S2 + A_S(i, r)**2._wp
-                                W2 = W2 + A_W(i, r)**2._wp
-                            end do
-                        end do
+                        ! A_S = 0.5_wp*(vgt + transpose(vgt))
+                        ! A_W = 0.5_wp*(vgt - transpose(vgt))
+                        ! S2 = 0._wp
+                        ! W2 = 0._wp
+                        ! do i = 1, 3
+                        !     do r = 1, 3
+                        !         S2 = S2 + A_S(i, r)**2._wp
+                        !         W2 = W2 + A_W(i, r)**2._wp
+                        !     end do
+                        ! end do
 
                         ! Call appropriate LAPACK routine based on precision
 #ifdef MFC_SINGLE_PRECISION
@@ -728,39 +739,89 @@ contains
                             omega_proj = -omega_proj
                         end if
 
-                        ! Find imaginary part of complex eigenvalue
+                        ! Find real and imaginary part of complex eigenvalue
+                        lrr = lr(idx)
+                        lcr = lr(mod(idx, 3) + 1)
                         lci = li(mod(idx, 3) + 1)
+                        
+                        ! Compute Liutex magnitude
+                        alpha = 0.25_wp*omega_proj**2._wp - lci**2._wp
+                        if (alpha > 0._wp) then
+                            alpha = sqrt(alpha)
+                        else
+                            alpha = 0._wp
+                        end if
+                        beta = 0.5_wp*omega_proj
 
                         ! Compute Liutex magnitude
-                        alpha = omega_proj**2._wp - 4._wp*lci**2._wp ! (2*alpha)^2
-                        if (alpha > 0._wp) then
-                            liutex_mag(j, k, l) = omega_proj - sqrt(alpha)
-                        else
-                            liutex_mag(j, k, l) = omega_proj
-                        end if
-
+                        liutex_mag(j, k, l) = 2._wp*(beta - alpha)
+                        ! Compute relative rotation strength
+                        liutex_rrs(j, k, l) = beta**2._wp / (beta**2._wp + alpha**2._wp + lcr**2._wp + 0.5_wp*lrr**2._wp + sgm_eps)
                         ! Compute Liutex axis
                         liutex_axis(j, k, l, :) = eigvec(:)
 
-                        ! Compute projection of vortex stretching term on Liutex axis
-                        vort_stretch_proj(j, k, l) = &
-                            abs(liutex_axis(j, k, l, 1)*vort_stretch(j, k, l, 1) + &
-                                liutex_axis(j, k, l, 2)*vort_stretch(j, k, l, 2) + &
-                                liutex_axis(j, k, l, 3)*vort_stretch(j, k, l, 3))
+                        ! ! Compute projection of vortex stretching term on Liutex axis
+                        ! vort_stretch_proj(j, k, l) = &
+                        !     abs(liutex_axis(j, k, l, 1)*vort_stretch(j, k, l, 1) + &
+                        !         liutex_axis(j, k, l, 2)*vort_stretch(j, k, l, 2) + &
+                        !         liutex_axis(j, k, l, 3)*vort_stretch(j, k, l, 3))
 
-                        vort_stretch_res(j, k, l) = &
-                            sqrt((vort_stretch(j, k, l, 1) - liutex_axis(j, k, l, 1)*vort_stretch_proj(j, k, l))**2._wp + &
-                                (vort_stretch(j, k, l, 2) - liutex_axis(j, k, l, 2)*vort_stretch_proj(j, k, l))**2._wp + &
-                                (vort_stretch(j, k, l, 3) - liutex_axis(j, k, l, 3)*vort_stretch_proj(j, k, l))**2._wp)
+                        ! vort_stretch_res(j, k, l) = &
+                        !     sqrt((vort_stretch(j, k, l, 1) - liutex_axis(j, k, l, 1)*vort_stretch_proj(j, k, l))**2._wp + &
+                        !         (vort_stretch(j, k, l, 2) - liutex_axis(j, k, l, 2)*vort_stretch_proj(j, k, l))**2._wp + &
+                        !         (vort_stretch(j, k, l, 3) - liutex_axis(j, k, l, 3)*vort_stretch_proj(j, k, l))**2._wp)
 
-                        ! Strength
-                        vort_ps(1) = omega(j, k, l, 1) - liutex_mag(j, k, l)*liutex_axis(j, k, l, 1)
-                        vort_ps(2) = omega(j, k, l, 2) - liutex_mag(j, k, l)*liutex_axis(j, k, l, 2)
-                        vort_ps(3) = omega(j, k, l, 3) - liutex_mag(j, k, l)*liutex_axis(j, k, l, 3)
-                        A_rr(j, k, l) = 0.5_wp * liutex_mag(j, k, l)**2._wp
-                        A_ps(j, k, l) = vort_ps(1)**2._wp + vort_ps(2)**2._wp + vort_ps(3)**2._wp
-                        A_ns(j, k, l) = S2 - 0.5_wp*A_ps(j, k, l)
-                        A_sr(j, k, l) = W2 - 0.5_wp*A_ps(j, k, l) - 0.5_wp*A_rr(j, k, l)
+                        ! ! Strength
+                        ! vort_ps(1) = omega(j, k, l, 1) - liutex_mag(j, k, l)*liutex_axis(j, k, l, 1)
+                        ! vort_ps(2) = omega(j, k, l, 2) - liutex_mag(j, k, l)*liutex_axis(j, k, l, 2)
+                        ! vort_ps(3) = omega(j, k, l, 3) - liutex_mag(j, k, l)*liutex_axis(j, k, l, 3)
+                        ! A_rr(j, k, l) = 0.5_wp * liutex_mag(j, k, l)**2._wp
+                        ! A_ps(j, k, l) = vort_ps(1)**2._wp + vort_ps(2)**2._wp + vort_ps(3)**2._wp
+                        ! A_ns(j, k, l) = S2 - 0.5_wp*A_ps(j, k, l)
+                        ! A_sr(j, k, l) = W2 - 0.5_wp*A_ps(j, k, l) - 0.5_wp*A_rr(j, k, l)
+                    end do
+                end do
+            end if
+        end do
+
+        ! Liutex core identification
+        liutex_core = 0
+        do k = -offset_y%beg, n + offset_y%end 
+            if (y_cc(k) >= y_cc_glb(y_idx_beg) .and. y_cc(k) <= y_cc_glb(y_idx_end)) then
+                do l = -offset_z%beg, p + offset_z%end
+                    do j = -offset_x%beg, m + offset_x%end
+
+                        if (liutex_mag(j, k, l) > 0._wp) then
+                          ! Get velocity gradient tensor (VGT)
+                          grad_liutex_mag = 0._wp
+
+                          do r = -fd_number, fd_number
+                              ! dR/dx
+                              grad_liutex_mag(1) = &
+                                  grad_liutex_mag(1) + &
+                                  fd_coeff_x(r, j)* &
+                                  liutex_mag(r + j, k, l)
+                              ! dR/dy
+                              grad_liutex_mag(2) = &
+                                  grad_liutex_mag(2) + &
+                                  fd_coeff_y(r, k)* &
+                                  liutex_mag(j, r + k, l)
+                              ! dR/dz
+                              grad_liutex_mag(3) = &
+                                  grad_liutex_mag(3) + &
+                                  fd_coeff_z(r, l)* &
+                                  liutex_mag(j, k, r + l)
+                          end do
+
+                          ! grad R \cdot r
+                          liutex_core_val = sum(grad_liutex_mag(:)*liutex_axis(j, k, l, :))
+                          if (liutex_core_val >= 0._wp) then
+                            liutex_core(j, k, l) = 1
+                          else 
+                            liutex_core(j, k, l) = -1
+                          end if
+                        end if
+
                     end do
                 end do
             end if
@@ -1339,11 +1400,130 @@ contains
         call MPI_BCAST(mixlayer_idx_end, 1, mpi_integer, 0, MPI_COMM_WORLD, ierr)
     end subroutine s_compute_mixlayer_thickenss
 
-    impure subroutine s_detect_qsv(liutex_mag, liutex_axis, y_idx_beg, y_idx_end, q_sf1, q_sf2, q_sf3, q_sf4, q_sf_group)
+    impure subroutine s_detect_qsv(liutex_mag, liutex_axis, liutex_core, y_idx_beg, y_idx_end, q_sf1, q_sf2, q_sf3, q_sf4, q_sf_group)
         real(wp), dimension(-offset_x%beg:m + offset_x%end, &
                             -offset_y%beg:n + offset_y%end, &
                             -offset_z%beg:p + offset_z%end), intent(in) :: liutex_mag
+        integer, dimension(-offset_x%beg:m + offset_x%end, &
+                            -offset_y%beg:n + offset_y%end, &
+                            -offset_z%beg:p + offset_z%end), intent(in) :: liutex_core
+        real(wp), dimension(-offset_x%beg:m + offset_x%end, &
+                            -offset_y%beg:n + offset_y%end, &
+                            -offset_z%beg:p + offset_z%end, 3), intent(in) :: liutex_axis
+
+        integer, intent(in) :: y_idx_beg, y_idx_end
+
+        real(wp), &
+            dimension(-offset_x%beg:m + offset_x%end, &
+                      -offset_y%beg:n + offset_y%end, &
+                      -offset_z%beg:p + offset_z%end), intent(inout) :: q_sf1, q_sf2, q_sf3, q_sf4, q_sf_group
         
+        integer, dimension(0:m, 0:n, 0:p) :: qsv_group
+        logical, dimension(0:m, 0:n, 0:p, 5) :: qsv_flag
+        integer :: id_qsv_group_max
+        integer, dimension(:), allocatable :: num_qsv_group_member, num_qsv_group_member_glb
+        real(wp) :: theta1, theta2
+        integer :: i, j, k, l, ierr
+
+        ! Initialization
+        qsv_flag = .false.
+        q_sf1 = 0._wp
+        q_sf2 = 0._wp
+        q_sf3 = 0._wp
+        q_sf4 = 0._wp
+        q_sf_group = 0._wp
+
+        !
+
+        ! (1,2) Initial filtering
+        do j = 0, n
+            if (y_cc(j) >= y_cc_glb(y_idx_beg) .and. y_cc(j) <= y_cc_glb(y_idx_end)) then
+                do k = 0, p
+                    do i = 0, m
+                        ! (1) liutex_mag
+                        if (liutex_mag(i, j, k) > 3._wp) then
+                            qsv_flag(i, j, k, 1) = .true.
+                            q_sf1(i, j, k) = 1._wp
+                        end if
+
+                        ! (2) liutex axis
+                        if (qsv_flag(i, j, k, 1)) then
+                            theta1 = atan(liutex_axis(i, j, k, 2) / liutex_axis(i, j, k, 1)) / pi * 180._wp
+                            theta2 = atan(liutex_axis(i, j, k, 3) / liutex_axis(i, j, k, 1)) / pi * 180._wp
+                            if (theta1 > 0._wp .and. theta1 < 90._wp .and. &
+                                theta2 > -45._wp .and. theta2 < 45._wp) then
+                                qsv_flag(i, j, k, 2) = .true.
+                                q_sf2(i, j, k) = 2._wp
+                            end if
+                        end if
+                    end do
+                end do
+            end if
+        end do
+
+        ! (3) Remove isolated single point
+        do j = 0, n
+            if (y_cc(j) >= y_cc_glb(y_idx_beg) .and. y_cc(j) <= y_cc_glb(y_idx_end)) then
+                do k = 0, p
+                    do i = 0, m
+                        if (qsv_flag(i, j, k, 2)) then 
+                          call s_remove_isolated_single_point(i, j, k, qsv_flag)
+                        
+                          if (qsv_flag(i, j, k, 3)) then 
+                            q_sf3(i, j, k) = 3._wp
+                          end if
+                        end if
+                    end do
+                end do
+            end if
+        end do
+
+        ! Grouping connected points
+        call s_identify_connected_groups(qsv_flag, qsv_group, id_qsv_group_max, y_idx_beg, y_idx_end)
+        allocate (num_qsv_group_member(1:id_qsv_group_max))
+        allocate (num_qsv_group_member_glb(1:id_qsv_group_max))
+        num_qsv_group_member = 0
+        do l = 1, id_qsv_group_max
+          do k = 0, p
+            do j = 0, n
+              do i = 0, m
+                if (qsv_group(i, j, k) == l) then
+                  num_qsv_group_member(l) = num_qsv_group_member(l) + 1
+                end if
+              end do
+            end do
+          end do
+        end do
+        
+        call MPI_ALLREDUCE(num_qsv_group_member, num_qsv_group_member_glb, id_qsv_group_max, mpi_integer, MPI_SUM, MPI_COMM_WORLD, ierr)
+        q_sf_group(0:m, 0:n, 0:p) = real(qsv_group(0:m, 0:n, 0:p), wp)
+
+        ! (4) Remove too small ones
+        do l = 1, id_qsv_group_max
+          if (num_qsv_group_member_glb(l) >= 20) then
+            do k = 0, p
+              do j = 0, n
+                do i = 0, m
+                  if (qsv_group(i, j, k) == l) then
+                    qsv_flag(i, j, k, 4) = .true.
+                    q_sf4(i, j, k) = 1._wp
+                  end if
+                end do
+              end do
+            end do
+          end if
+        end do
+
+    end subroutine s_detect_qsv
+
+
+    impure subroutine s_detect_qsv_old(liutex_mag, liutex_axis, liutex_core, y_idx_beg, y_idx_end, q_sf1, q_sf2, q_sf3, q_sf4, q_sf_group)
+        real(wp), dimension(-offset_x%beg:m + offset_x%end, &
+                            -offset_y%beg:n + offset_y%end, &
+                            -offset_z%beg:p + offset_z%end), intent(in) :: liutex_mag
+        integer, dimension(-offset_x%beg:m + offset_x%end, &
+                            -offset_y%beg:n + offset_y%end, &
+                            -offset_z%beg:p + offset_z%end), intent(in) :: liutex_core
         real(wp), dimension(-offset_x%beg:m + offset_x%end, &
                             -offset_y%beg:n + offset_y%end, &
                             -offset_z%beg:p + offset_z%end, 3), intent(in) :: liutex_axis
@@ -1449,7 +1629,7 @@ contains
           end if
         end do
 
-    end subroutine s_detect_qsv
+    end subroutine s_detect_qsv_old
 
     impure subroutine s_identify_connected_groups(qsv_flag, qsv_group, id_qsv_group_max, y_idx_beg, y_idx_end)
         logical, dimension(0:m, 0:n, 0:p, 5), intent(inout) :: qsv_flag
