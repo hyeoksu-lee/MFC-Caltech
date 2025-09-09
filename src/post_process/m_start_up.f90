@@ -214,13 +214,11 @@ contains
         integer :: mixlayer_idx_beg, mixlayer_idx_end
         real(wp), dimension(-offset_x%beg:m + offset_x%end, &
                             -offset_y%beg:n + offset_y%end, &
-                            -offset_z%beg:p + offset_z%end) :: liutex_mag, liutex_rrs, liutex_mag_filtered, &
+                            -offset_z%beg:p + offset_z%end) :: liutex_mag, liutex_rrs, liutex_mag_filtered, liutex_core, &
                                                               vort_stretch_proj, vort_stretch_res, &
+                                                              omega_axis, omega_perp, &
                                                               A_rr, A_ps, A_ns, A_sr, &
-                                                              q_sf1, q_sf2, q_sf3, q_sf4, q_sf_group
-        integer, dimension(-offset_x%beg:m + offset_x%end, &
-                            -offset_y%beg:n + offset_y%end, &
-                            -offset_z%beg:p + offset_z%end) ::liutex_core
+                                                              q_sf1, q_sf2, q_sf3, q_sf4, q_sf5, q_sf_group
         real(wp), dimension(-offset_x%beg:m + offset_x%end, &
                             -offset_y%beg:n + offset_y%end, &
                             -offset_z%beg:p + offset_z%end, 3) :: liutex_axis, omega, vort_stretch, vel_filtered    
@@ -625,13 +623,65 @@ contains
             ! Compute Liutex vector and its magnitude
             call s_derive_liutex(q_prim_vf, mixlayer_idx_beg, mixlayer_idx_end, &
                                 liutex_mag, liutex_axis, liutex_rrs, liutex_core, &
-                                omega, vort_stretch, vort_stretch_proj, vort_stretch_res, &
+                                omega, omega_axis, omega_perp, &
+                                vort_stretch, vort_stretch_proj, vort_stretch_res, &
                                 A_rr, A_ps, A_ns, A_sr)
             ! Liutex magnitude
             q_sf = liutex_mag
             write (varname, '(A)') 'liutex_mag'
             call s_write_variable_to_formatted_database_file(varname, t_step)
             varname(:) = ' '
+
+            q_sf = omega_axis
+            write (varname, '(A)') 'omega_axis'
+            call s_write_variable_to_formatted_database_file(varname, t_step)
+            varname(:) = ' '
+
+            q_sf = omega_perp
+            write (varname, '(A)') 'omega_perp'
+            call s_write_variable_to_formatted_database_file(varname, t_step)
+            varname(:) = ' '
+
+            ! QSV detection
+            call s_detect_qsv(liutex_mag, liutex_axis, omega_axis, omega_perp, mixlayer_idx_beg, mixlayer_idx_end, q_sf1, q_sf2, q_sf3, q_sf4, q_sf5, q_sf_group)
+
+            q_sf = q_sf1
+            write (varname, '(A)') 'qsv1'
+            call s_write_variable_to_formatted_database_file(varname, t_step)
+            varname(:) = ' '
+            
+            q_sf = q_sf2
+            write (varname, '(A)') 'qsv2'
+            call s_write_variable_to_formatted_database_file(varname, t_step)
+            varname(:) = ' '
+            
+            q_sf = q_sf3
+            write (varname, '(A)') 'qsv3'
+            call s_write_variable_to_formatted_database_file(varname, t_step)
+            varname(:) = ' '
+            
+            q_sf = q_sf4
+            write (varname, '(A)') 'qsv4'
+            call s_write_variable_to_formatted_database_file(varname, t_step)
+            varname(:) = ' '
+
+            q_sf = q_sf5
+            write (varname, '(A)') 'qsv5'
+            call s_write_variable_to_formatted_database_file(varname, t_step)
+            varname(:) = ' '
+
+            q_sf = q_sf_group
+            write (varname, '(A)') 'qsv_group'
+            call s_write_variable_to_formatted_database_file(varname, t_step)
+            varname(:) = ' '
+
+            ! ! Liutex axis
+            ! do i = 1, 3
+            !     q_sf = liutex_axis(:, :, :, i)
+            !     write (varname, '(A,I0)') 'liutex_axis', i
+            !     call s_write_variable_to_formatted_database_file(varname, t_step)
+            !     varname(:) = ' '
+            ! end do
 
             ! ! Liutex core
             ! q_sf = liutex_core
@@ -644,14 +694,6 @@ contains
             ! write (varname, '(A)') 'liutex_rrs'
             ! call s_write_variable_to_formatted_database_file(varname, t_step)
             ! varname(:) = ' '
-
-            ! ! Liutex axis
-            ! do i = 1, 3
-            !     q_sf = liutex_axis(:, :, :, i)
-            !     write (varname, '(A,I0)') 'liutex_axis', i
-            !     call s_write_variable_to_formatted_database_file(varname, t_step)
-            !     varname(:) = ' '
-            ! end do
 
             ! q_sf = A_rr
             ! write (varname, '(A)') 'A_rr'
@@ -689,34 +731,6 @@ contains
             ! write (varname, '(A)') 'vort_stretch_res'
             ! call s_write_variable_to_formatted_database_file(varname, t_step)
             ! varname(:) = ' '
-
-            ! QSV detection
-            call s_detect_qsv(liutex_mag, liutex_axis, liutex_core, mixlayer_idx_beg, mixlayer_idx_end, q_sf1, q_sf2, q_sf3, q_sf4, q_sf_group)
-            q_sf = q_sf1
-            write (varname, '(A)') 'qsv1'
-            call s_write_variable_to_formatted_database_file(varname, t_step)
-            varname(:) = ' '
-            
-            q_sf = q_sf2
-            write (varname, '(A)') 'qsv2'
-            call s_write_variable_to_formatted_database_file(varname, t_step)
-            varname(:) = ' '
-            
-            q_sf = q_sf3
-            write (varname, '(A)') 'qsv3'
-            call s_write_variable_to_formatted_database_file(varname, t_step)
-            varname(:) = ' '
-            
-            q_sf = q_sf4
-            write (varname, '(A)') 'qsv4'
-            call s_write_variable_to_formatted_database_file(varname, t_step)
-            varname(:) = ' '
-
-            q_sf = q_sf_group
-            write (varname, '(A)') 'qsv_group'
-            call s_write_variable_to_formatted_database_file(varname, t_step)
-            varname(:) = ' '
-
 
             ! ! Compute filtered velocity
             ! call s_apply_gaussian_filter(q_prim_vf(mom_idx%beg    )%sf(0:m, 0:n, 0:p), &
