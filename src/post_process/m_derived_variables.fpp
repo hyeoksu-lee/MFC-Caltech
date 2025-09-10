@@ -679,24 +679,24 @@ contains
                         omega(j, k, l, 2) = vgt(1,3) - vgt(3,1)
                         omega(j, k, l, 3) = vgt(2,1) - vgt(1,2)
 
-                        ! ! Compute vortex stretching term
-                        ! do r = 1, 3
-                        !     vort_stretch(j, k, l, r) = omega(j, k, l, 1)*vgt(r,1) &
-                        !                             + omega(j, k, l, 2)*vgt(r,2) &
-                        !                             + omega(j, k, l, 3)*vgt(r,3)
-                        ! end do
+                        ! Compute vortex stretching term
+                        do r = 1, 3
+                            vort_stretch(j, k, l, r) = omega(j, k, l, 1)*vgt(r,1) &
+                                                    + omega(j, k, l, 2)*vgt(r,2) &
+                                                    + omega(j, k, l, 3)*vgt(r,3)
+                        end do
 
-                        !
-                        ! A_S = 0.5_wp*(vgt + transpose(vgt))
-                        ! A_W = 0.5_wp*(vgt - transpose(vgt))
-                        ! S2 = 0._wp
-                        ! W2 = 0._wp
-                        ! do i = 1, 3
-                        !     do r = 1, 3
-                        !         S2 = S2 + A_S(i, r)**2._wp
-                        !         W2 = W2 + A_W(i, r)**2._wp
-                        !     end do
-                        ! end do
+                        
+                        A_S = 0.5_wp*(vgt + transpose(vgt))
+                        A_W = 0.5_wp*(vgt - transpose(vgt))
+                        S2 = 0._wp
+                        W2 = 0._wp
+                        do i = 1, 3
+                            do r = 1, 3
+                                S2 = S2 + A_S(i, r)**2._wp
+                                W2 = W2 + A_W(i, r)**2._wp
+                            end do
+                        end do
 
                         ! Call appropriate LAPACK routine based on precision
 #ifdef MFC_SINGLE_PRECISION
@@ -760,72 +760,29 @@ contains
                         ! Compute Liutex axis
                         liutex_axis(j, k, l, :) = eigvec(:)
 
-                        ! ! Compute projection of vortex stretching term on Liutex axis
-                        ! vort_stretch_proj(j, k, l) = &
-                        !     abs(liutex_axis(j, k, l, 1)*vort_stretch(j, k, l, 1) + &
-                        !         liutex_axis(j, k, l, 2)*vort_stretch(j, k, l, 2) + &
-                        !         liutex_axis(j, k, l, 3)*vort_stretch(j, k, l, 3))
+                        ! Compute projection of vortex stretching term on Liutex axis
+                        vort_stretch_proj(j, k, l) = &
+                            abs(liutex_axis(j, k, l, 1)*vort_stretch(j, k, l, 1) + &
+                                liutex_axis(j, k, l, 2)*vort_stretch(j, k, l, 2) + &
+                                liutex_axis(j, k, l, 3)*vort_stretch(j, k, l, 3))
 
-                        ! vort_stretch_res(j, k, l) = &
-                        !     sqrt((vort_stretch(j, k, l, 1) - liutex_axis(j, k, l, 1)*vort_stretch_proj(j, k, l))**2._wp + &
-                        !         (vort_stretch(j, k, l, 2) - liutex_axis(j, k, l, 2)*vort_stretch_proj(j, k, l))**2._wp + &
-                        !         (vort_stretch(j, k, l, 3) - liutex_axis(j, k, l, 3)*vort_stretch_proj(j, k, l))**2._wp)
+                        vort_stretch_res(j, k, l) = &
+                            sqrt((vort_stretch(j, k, l, 1) - liutex_axis(j, k, l, 1)*vort_stretch_proj(j, k, l))**2._wp + &
+                                (vort_stretch(j, k, l, 2) - liutex_axis(j, k, l, 2)*vort_stretch_proj(j, k, l))**2._wp + &
+                                (vort_stretch(j, k, l, 3) - liutex_axis(j, k, l, 3)*vort_stretch_proj(j, k, l))**2._wp)
 
-                        ! ! Strength
-                        ! vort_ps(1) = omega(j, k, l, 1) - liutex_mag(j, k, l)*liutex_axis(j, k, l, 1)
-                        ! vort_ps(2) = omega(j, k, l, 2) - liutex_mag(j, k, l)*liutex_axis(j, k, l, 2)
-                        ! vort_ps(3) = omega(j, k, l, 3) - liutex_mag(j, k, l)*liutex_axis(j, k, l, 3)
-                        ! A_rr(j, k, l) = 0.5_wp * liutex_mag(j, k, l)**2._wp
-                        ! A_ps(j, k, l) = vort_ps(1)**2._wp + vort_ps(2)**2._wp + vort_ps(3)**2._wp
-                        ! A_ns(j, k, l) = S2 - 0.5_wp*A_ps(j, k, l)
-                        ! A_sr(j, k, l) = W2 - 0.5_wp*A_ps(j, k, l) - 0.5_wp*A_rr(j, k, l)
+                        ! Strength
+                        vort_ps(1) = omega(j, k, l, 1) - liutex_mag(j, k, l)*liutex_axis(j, k, l, 1)
+                        vort_ps(2) = omega(j, k, l, 2) - liutex_mag(j, k, l)*liutex_axis(j, k, l, 2)
+                        vort_ps(3) = omega(j, k, l, 3) - liutex_mag(j, k, l)*liutex_axis(j, k, l, 3)
+                        A_rr(j, k, l) = 0.5_wp * liutex_mag(j, k, l)**2._wp
+                        A_ps(j, k, l) = vort_ps(1)**2._wp + vort_ps(2)**2._wp + vort_ps(3)**2._wp
+                        A_ns(j, k, l) = S2 - 0.5_wp*A_ps(j, k, l)
+                        A_sr(j, k, l) = W2 - 0.5_wp*A_ps(j, k, l) - 0.5_wp*A_rr(j, k, l)
                     end do
                 end do
             end if
         end do
-
-        ! ! Liutex core identification
-        ! liutex_core = 0._wp
-        ! do k = 1, n - 1 ! -offset_y%beg, n + offset_y%end 
-        !     if (y_cc(k) >= y_cc_glb(y_idx_beg) .and. y_cc(k) <= y_cc_glb(y_idx_end)) then
-        !         do l = 1, p - 1 !-offset_z%beg, p + offset_z%end
-        !             do j = 1, m - 1 !-offset_x%beg, m + offset_x%end
-
-        !                 if (liutex_mag(j, k, l) > 0._wp) then
-        !                   ! Get velocity gradient tensor (VGT)
-        !                   grad_liutex_mag = 0._wp
-
-        !                   do r = -fd_number, fd_number
-        !                       ! dR/dx
-        !                       grad_liutex_mag(1) = &
-        !                           grad_liutex_mag(1) + &
-        !                           fd_coeff_x(r, j)* &
-        !                           liutex_mag(r + j, k, l)
-        !                       ! dR/dy
-        !                       grad_liutex_mag(2) = &
-        !                           grad_liutex_mag(2) + &
-        !                           fd_coeff_y(r, k)* &
-        !                           liutex_mag(j, r + k, l)
-        !                       ! dR/dz
-        !                       grad_liutex_mag(3) = &
-        !                           grad_liutex_mag(3) + &
-        !                           fd_coeff_z(r, l)* &
-        !                           liutex_mag(j, k, r + l)
-        !                   end do
-
-        !                   ! grad R \cdot r
-        !                   liutex_core_val = sum(grad_liutex_mag(:)*liutex_axis(j, k, l, :))
-        !                   if (liutex_core_val >= 0._wp) then
-        !                     liutex_core(j, k, l) = 1._wp
-        !                   else 
-        !                     liutex_core(j, k, l) = -1._wp
-        !                   end if
-        !                 end if
-
-        !             end do
-        !         end do
-        !     end if
-        ! end do
 
     end subroutine s_derive_liutex
 
@@ -1186,167 +1143,6 @@ contains
         end subroutine create_slice_z_type
     end subroutine s_add_paddings_real
 
-    ! impure subroutine s_add_paddings_logical(field_in, pad_size, field_out)
-    !     logical, dimension(0:m, 0:n, 0:p), intent(in) :: field_in
-    !     integer, intent(in) :: pad_size
-    !     logical, dimension(-pad_size:m + pad_size, &
-    !                         -pad_size:n + pad_size, &
-    !                         -pad_size:p + pad_size), intent(out) :: field_out
-    !     integer :: type_slice, pr_pos, pr_neg
-    !     integer :: start_send, start_recv
-    !     integer :: ierr
-
-    !     ! Initialize output array
-    !     field_out(0:m, 0:n, 0:p) = field_in(0:m, 0:n, 0:p)
-
-    !     ! x-direction
-    !     if (num_procs_x > 1) then
-    !         ! Compute left neighbor
-    !         if (proc_rank_x == 0) then
-    !             call s_get_proc_rank(num_procs_x - 1, proc_rank_y, proc_rank_z, pr_neg)
-    !         else
-    !             call s_get_proc_rank(proc_rank_x - 1, proc_rank_y, proc_rank_z, pr_neg)
-    !         end if
-    !         ! Compute right neighbor
-    !         if (proc_rank_x == num_procs_x - 1) then
-    !             call s_get_proc_rank(0, proc_rank_y, proc_rank_z, pr_pos)
-    !         else
-    !             call s_get_proc_rank(proc_rank_x + 1, proc_rank_y, proc_rank_z, pr_pos)
-    !         end if
-
-    !         ! Create MPI_TYPE
-    !         call create_slice_x_type(m + 1 + 2*pad_size, n + 1 + 2*pad_size, p + 1, pad_size, type_slice)
-
-    !         ! Left padding
-    !         start_send = m + 1 - pad_size
-    !         start_recv = -pad_size
-    !         call MPI_SENDRECV(field_out(start_send, -pad_size, 0), 1, type_slice, pr_pos, 0, &
-    !                           field_out(start_recv, -pad_size, 0), 1, type_slice, pr_neg, 0, &
-    !                           MPI_COMM_WORLD, MPI_STATUS_IGNORE, ierr)
-
-    !         ! Right padding
-    !         start_send = 0
-    !         start_recv = m + 1
-    !         call MPI_SENDRECV(field_out(start_send, -pad_size, 0), 1, type_slice, pr_neg, 0, &
-    !                           field_out(start_recv, -pad_size, 0), 1, type_slice, pr_pos, 0, &
-    !                           MPI_COMM_WORLD, MPI_STATUS_IGNORE, ierr)
-            
-    !         ! Free MPI_TYPE
-    !         call MPI_TYPE_FREE(type_slice, ierr)
-    !     else
-    !         ! Left padding
-    !         field_out(-pad_size:-1, 0:n, 0:p) = field_in(m - pad_size + 1:m, 0:n, 0:p)
-    !         ! Right padding
-    !         field_out(m + 1:m + pad_size, 0:n, 0:p) = field_in(0:pad_size - 1, 0:n, 0:p)
-    !     end if
-
-    !     ! y-direction
-    !     if (num_procs_y > 1) then
-    !         ! Compute bottom neighbor
-    !         if (proc_rank_y == 0) then
-    !             call s_get_proc_rank(proc_rank_x, num_procs_y - 1, proc_rank_z, pr_neg)
-    !         else
-    !             call s_get_proc_rank(proc_rank_x, proc_rank_y - 1, proc_rank_z, pr_neg)
-    !         end if
-    !         ! Compute top neighbor
-    !         if (proc_rank_y == num_procs_y - 1) then
-    !             call s_get_proc_rank(proc_rank_x, 0, proc_rank_z, pr_pos)
-    !         else
-    !             call s_get_proc_rank(proc_rank_x, proc_rank_y + 1, proc_rank_z, pr_pos)
-    !         end if
-
-    !         ! Create MPI_TYPE
-    !         call create_slice_y_type(m + 1 + 2*pad_size, n + 1 + 2*pad_size, p + 1, pad_size, type_slice)
-
-    !         ! Bottom padding
-    !         start_send = n + 1 - pad_size
-    !         start_recv = -pad_size
-    !         call MPI_SENDRECV(field_out(-pad_size, start_send, 0), 1, type_slice, pr_pos, 0, &
-    !                           field_out(-pad_size, start_recv, 0), 1, type_slice, pr_neg, 0, &
-    !                           MPI_COMM_WORLD, MPI_STATUS_IGNORE, ierr)
-
-    !         ! Top padding
-    !         start_send = 0
-    !         start_recv = n + 1
-    !         call MPI_SENDRECV(field_out(-pad_size, start_send, 0), 1, type_slice, pr_neg, 0, &
-    !                           field_out(-pad_size, start_recv, 0), 1, type_slice, pr_pos, 0, &
-    !                           MPI_COMM_WORLD, MPI_STATUS_IGNORE, ierr)
-
-    !         ! Free MPI_TYPE
-    !         call MPI_TYPE_FREE(type_slice, ierr)
-    !     else
-    !         ! Bottom padding
-    !         field_out(0:m, -pad_size:-1, 0:p) = field_in(0:m, n - pad_size + 1:n, 0:p)
-    !         ! Top padding
-    !         field_out(0:m, n + 1:n + pad_size, 0:p) = field_in(0:m, 0:pad_size - 1, 0:p)
-    !     end if
-
-    !     ! z-direction
-    !     if (num_procs_z > 1) then
-    !         ! Compute front neighbor
-    !         if (proc_rank_z == 0) then
-    !             call s_get_proc_rank(proc_rank_x, proc_rank_y, num_procs_z - 1, pr_neg)
-    !         else
-    !             call s_get_proc_rank(proc_rank_x, proc_rank_y, proc_rank_z - 1, pr_neg)
-    !         end if
-    !         ! Compute back neighbor
-    !         if (proc_rank_z == num_procs_z - 1) then
-    !             call s_get_proc_rank(proc_rank_x, proc_rank_y, 0, pr_pos)
-    !         else
-    !             call s_get_proc_rank(proc_rank_x, proc_rank_y, proc_rank_z + 1, pr_pos)
-    !         end if
-
-    !         ! Create MPI_TYPE
-    !         call create_slice_z_type(m + 1 + 2*pad_size, n + 1 + 2*pad_size, p + 1 + 2*pad_size, pad_size, type_slice)
-
-    !         ! Bottom padding
-    !         start_send = p + 1 - pad_size
-    !         start_recv = -pad_size
-    !         call MPI_SENDRECV(field_out(-pad_size, -pad_size, start_send), 1, type_slice, pr_pos, 0, &
-    !                           field_out(-pad_size, -pad_size, start_recv), 1, type_slice, pr_neg, 0, &
-    !                           MPI_COMM_WORLD, MPI_STATUS_IGNORE, ierr)
-
-    !         ! Top padding
-    !         start_send = 0
-    !         start_recv = p + 1
-    !         call MPI_SENDRECV(field_out(-pad_size, -pad_size, start_send), 1, type_slice, pr_neg, 0, &
-    !                           field_out(-pad_size, -pad_size, start_recv), 1, type_slice, pr_pos, 0, &
-    !                           MPI_COMM_WORLD, MPI_STATUS_IGNORE, ierr)
-
-    !         ! Free MPI_TYPE
-    !         call MPI_TYPE_FREE(type_slice, ierr)
-    !     else
-    !         ! Front padding
-    !         field_out(0:m, 0:p, -pad_size:-1) = field_in(0:m, 0:n, p - pad_size + 1:p)
-    !         ! Back padding
-    !         field_out(0:m, 0:n, p + 1:p + pad_size) = field_in(0:m, 0:n, 0:pad_size - 1)
-    !     end if
-    ! contains
-    !     subroutine create_slice_x_type(nx, ny, nz, len_slice, type_slice)
-    !         integer, intent(in) :: nx, ny, nz, len_slice
-    !         integer, intent(out) :: type_slice
-    !         integer :: ierr
-    !         call MPI_TYPE_VECTOR(ny*nz, len_slice, nx, mpi_logical, type_slice, ierr)
-    !         call MPI_TYPE_COMMIT(type_slice, ierr)
-    !     end subroutine create_slice_x_type
-
-    !     subroutine create_slice_y_type(nx, ny, nz, len_slice, type_slice)
-    !         integer, intent(in) :: nx, ny, nz, len_slice
-    !         integer, intent(out) :: type_slice
-    !         integer :: ierr
-    !         call MPI_TYPE_VECTOR(nz, len_slice*nx, nx*ny, mpi_logical, type_slice, ierr)
-    !         call MPI_TYPE_COMMIT(type_slice, ierr)
-    !     end subroutine create_slice_y_type
-
-    !     subroutine create_slice_z_type(nx, ny, nz, len_slice, type_slice)
-    !         integer, intent(in) :: nx, ny, nz, len_slice
-    !         integer, intent(out) :: type_slice
-    !         integer :: ierr
-    !         call MPI_TYPE_CONTIGUOUS(nx*ny*len_slice, mpi_logical, type_slice, ierr)
-    !         call MPI_TYPE_COMMIT(type_slice, ierr)
-    !     end subroutine create_slice_z_type        
-    ! end subroutine s_add_paddings_logical
-
     impure subroutine s_get_proc_rank_xyz()
         integer :: proc_rank_tmp
         proc_rank_z = mod(proc_rank, num_procs_z)
@@ -1400,199 +1196,10 @@ contains
         call MPI_BCAST(mixlayer_idx_end, 1, mpi_integer, 0, MPI_COMM_WORLD, ierr)
     end subroutine s_compute_mixlayer_thickenss
 
-    impure subroutine s_detect_qsv_new(liutex_mag, liutex_axis, omega, y_idx_beg, y_idx_end, q_sf1, q_sf2, q_sf3, q_sf4, q_sf_group)
+    impure subroutine s_detect_qsv(liutex_mag, liutex_axis, omega_axis, omega_perp, A_rr, A_ps, y_idx_beg, y_idx_end, qsv_info, q_sf_group)
         real(wp), dimension(-offset_x%beg:m + offset_x%end, &
                             -offset_y%beg:n + offset_y%end, &
-                            -offset_z%beg:p + offset_z%end), intent(in) :: liutex_mag
-        real(wp), dimension(-offset_x%beg:m + offset_x%end, &
-                            -offset_y%beg:n + offset_y%end, &
-                            -offset_z%beg:p + offset_z%end, 3), intent(in) :: liutex_axis, omega
-
-        integer, intent(in) :: y_idx_beg, y_idx_end
-
-        real(wp), &
-            dimension(-offset_x%beg:m + offset_x%end, &
-                      -offset_y%beg:n + offset_y%end, &
-                      -offset_z%beg:p + offset_z%end), intent(inout) :: q_sf1, q_sf2, q_sf3, q_sf4, q_sf_group
-        
-        integer, dimension(0:m, 0:n, 0:p) :: qsv_group
-        logical, dimension(0:m, 0:n, 0:p, 5) :: qsv_flag
-        integer :: id_qsv_group_max
-        integer, dimension(:), allocatable :: num_qsv_group_member, num_qsv_group_member_glb
-        real(wp) :: liutex_thres, qsv_thres
-        real(wp), dimension(-offset_x%beg:m + offset_x%end, &
-                            -offset_y%beg:n + offset_y%end, &
-                            -offset_z%beg:p + offset_z%end) :: omega_xy
-        real(wp) :: theta1, theta2
-        integer :: i, j, k, l, ierr
-
-        ! Initialization
-        qsv_flag = .false.
-        q_sf1 = 0._wp
-        q_sf2 = 0._wp
-        q_sf3 = 0._wp
-        q_sf4 = 0._wp
-        q_sf_group = 0._wp
-
-        !
-        ! WHERE (liutex_mag == 0._wp) liutex_mag = 1.e-16
-        call s_compute_pdf_max(liutex_mag, y_idx_beg, y_idx_end, liutex_thres)
-        ! omega_xy = omega(:, :, :, 1)**2._wp + omega(:, :, :, 2)**2._wp
-        ! call s_compute_pdf_max(omega_xy, y_idx_beg, y_idx_end, qsv_thres)
-
-        ! (1,2) Initial filtering
-        do j = 0, n
-            if (y_cc(j) >= y_cc_glb(y_idx_beg) .and. y_cc(j) <= y_cc_glb(y_idx_end)) then
-                do k = 0, p
-                    do i = 0, m
-                        ! (1) liutex_mag
-                        if (liutex_mag(i, j, k) > 1._wp) then
-                            qsv_flag(i, j, k, 1) = .true.
-                            q_sf1(i, j, k) = 1._wp
-                        end if
-
-                        ! (2) liutex axis
-                        if (qsv_flag(i, j, k, 1)) then
-                            theta1 = atan(liutex_axis(i, j, k, 2) / liutex_axis(i, j, k, 1)) / pi * 180._wp
-                            theta2 = atan(liutex_axis(i, j, k, 3) / liutex_axis(i, j, k, 1)) / pi * 180._wp
-                            if (theta1 > 0._wp .and. theta1 < 90._wp .and. &
-                                theta2 > -45._wp .and. theta2 < 45._wp) then
-                                qsv_flag(i, j, k, 2) = .true.
-                                q_sf2(i, j, k) = 2._wp
-                            end if
-                        end if
-                    end do
-                end do
-            end if
-        end do
-
-        ! (3) Remove isolated single point
-        do j = 0, n
-            if (y_cc(j) >= y_cc_glb(y_idx_beg) .and. y_cc(j) <= y_cc_glb(y_idx_end)) then
-                do k = 0, p
-                    do i = 0, m
-                        if (qsv_flag(i, j, k, 2)) then 
-                          call s_remove_isolated_single_point(i, j, k, qsv_flag)
-                        
-                          if (qsv_flag(i, j, k, 3)) then 
-                            q_sf3(i, j, k) = 3._wp
-                          end if
-                        end if
-                    end do
-                end do
-            end if
-        end do
-
-        ! Grouping connected points
-        call s_identify_connected_groups(qsv_flag, qsv_group, id_qsv_group_max, y_idx_beg, y_idx_end)
-        allocate (num_qsv_group_member(1:id_qsv_group_max))
-        allocate (num_qsv_group_member_glb(1:id_qsv_group_max))
-        num_qsv_group_member = 0
-        do l = 1, id_qsv_group_max
-          do k = 0, p
-            do j = 0, n
-              do i = 0, m
-                if (qsv_group(i, j, k) == l) then
-                  num_qsv_group_member(l) = num_qsv_group_member(l) + 1
-                end if
-              end do
-            end do
-          end do
-        end do
-        
-        call MPI_ALLREDUCE(num_qsv_group_member, num_qsv_group_member_glb, id_qsv_group_max, mpi_integer, MPI_SUM, MPI_COMM_WORLD, ierr)
-        q_sf_group(0:m, 0:n, 0:p) = real(qsv_group(0:m, 0:n, 0:p), wp)
-
-        ! (4) Remove too small ones
-        do l = 1, id_qsv_group_max
-          if (num_qsv_group_member_glb(l) >= 20) then
-            do k = 0, p
-              do j = 0, n
-                do i = 0, m
-                  if (qsv_group(i, j, k) == l) then
-                    qsv_flag(i, j, k, 4) = .true.
-                    q_sf4(i, j, k) = 1._wp
-                  end if
-                end do
-              end do
-            end do
-          end if
-        end do
-
-    end subroutine s_detect_qsv_new
-    
-    impure subroutine s_compute_pdf_max(var_in, y_idx_beg, y_idx_end, var_out)
-        real(wp), dimension(-offset_x%beg:m + offset_x%end, &
-                            -offset_y%beg:n + offset_y%end, &
-                            -offset_z%beg:p + offset_z%end), intent(in) :: var_in
-        integer, intent(in) :: y_idx_beg, y_idx_end
-        real(wp), intent(out) :: var_out
-
-        integer, parameter :: nbin = 500
-        integer, dimension(nbin) :: hist_loc, hist_glb
-
-        real(wp), dimension(nbin) :: bin_left, bin_right
-        real(wp) :: var_max_loc, var_max_glb
-        real(wp) :: var_min_loc, var_min_glb
-        real(wp) :: interval
-        logical :: breakpoint
-        integer :: i, j, k, l, ierr
-
-        ! Liutex max global
-        var_max_loc = maxval(var_in)
-        var_min_loc = minval(var_in)
-        call MPI_ALLREDUCE(var_max_loc, var_max_glb, 1, mpi_p, MPI_MAX, MPI_COMM_WORLD, ierr)
-        call MPI_ALLREDUCE(var_min_loc, var_min_glb, 1, mpi_p, MPI_MIN, MPI_COMM_WORLD, ierr)
-        print *, proc_rank, "liutex_max", var_max_loc, var_max_glb, var_min_loc, var_min_glb
-
-        ! Pdf of Liutex
-        interval = (var_max_glb - var_min_glb) / nbin
-        do i = 1, nbin
-          bin_left(i) = var_min_glb + (i - 1)*interval
-          bin_right(i) = var_min_glb + i*interval
-        end do
-
-        ! Compute pdf
-        hist_loc = 0
-        do k = 0, n
-          if (y_cc(k) >= y_cc_glb(y_idx_beg) .and. y_cc(k) <= y_cc_glb(y_idx_end)) then
-            do l = 0, p
-              do j = 0, m
-                if (var_in(j, k, l) > 0._wp) then
-                  breakpoint = .false.
-                  do i = 1, nbin
-                    if (var_in(j, k, l) > bin_left(i) .and. &
-                        var_in(j, k, l) <= bin_right(i)) then
-                      hist_loc(i) = hist_loc(i) + 1_wp
-                      breakpoint = .true.
-                    end if
-                    if (breakpoint) exit
-                  end do
-                end if
-              end do
-            end do
-          end if
-        end do
-        
-        ! Get global histogram
-        call MPI_ALLREDUCE(hist_loc, hist_glb, nbin, MPI_INTEGER, MPI_SUM, MPI_COMM_WORLD, ierr)
-
-        if (proc_rank == 0) then
-          do i = 1, nbin
-            print *, i, hist_glb(i)
-          end do
-        end if
-
-        ! print *, "maxloc(hist_glb)", maxloc(hist_glb), maxloc(hist_glb) - 0.5_wp, maxloc(hist_glb)*interval
-        ! liutex_thres = (maxloc(hist_glb) - 0.5_wp)*interval
-        if (proc_rank == 0) print *, "liutex_thres", var_out
-
-    end subroutine s_compute_pdf_max
-
-    impure subroutine s_detect_qsv(liutex_mag, liutex_axis, omega_axis, omega_perp, y_idx_beg, y_idx_end, q_sf1, q_sf2, q_sf3, q_sf4, q_sf5, q_sf_group)
-        real(wp), dimension(-offset_x%beg:m + offset_x%end, &
-                            -offset_y%beg:n + offset_y%end, &
-                            -offset_z%beg:p + offset_z%end), intent(in) :: liutex_mag, omega_axis, omega_perp
+                            -offset_z%beg:p + offset_z%end), intent(in) :: liutex_mag, omega_axis, omega_perp, A_rr, A_ps
         real(wp), dimension(-offset_x%beg:m + offset_x%end, &
                             -offset_y%beg:n + offset_y%end, &
                             -offset_z%beg:p + offset_z%end, 3), intent(in) :: liutex_axis
@@ -1602,11 +1209,17 @@ contains
         real(wp), &
             dimension(-offset_x%beg:m + offset_x%end, &
                       -offset_y%beg:n + offset_y%end, &
-                      -offset_z%beg:p + offset_z%end), intent(inout) :: q_sf1, q_sf2, q_sf3, q_sf4, q_sf5, q_sf_group
-        
-        integer, dimension(0:m, 0:n, 0:p) :: qsv_group
+                      -offset_z%beg:p + offset_z%end, 5), intent(out) :: qsv_info
+
+        real(wp), &
+            dimension(-offset_x%beg:m + offset_x%end, &
+                      -offset_y%beg:n + offset_y%end, &
+                      -offset_z%beg:p + offset_z%end), intent(inout) :: q_sf_group
+                      
         logical, dimension(0:m, 0:n, 0:p, 5) :: qsv_flag
-        logical, dimension(-1:m+1, -1:n+1, -1:p+1) :: qsv_flag_padded
+        integer, dimension(0:m, 0:n, 0:p) :: qsv_group
+        integer :: qsv_flag_count
+        logical, dimension(-1:m + 1, -1:n + 1, -1:p + 1) :: qsv_flag_padded
         integer :: id_qsv_group_max
         integer, dimension(:), allocatable :: num_qsv_group_member, num_qsv_group_member_glb
         real(wp) :: theta1, theta2
@@ -1614,11 +1227,8 @@ contains
 
         ! Initialization
         qsv_flag = .false.
-        q_sf1 = 0._wp
-        q_sf2 = 0._wp
-        q_sf3 = 0._wp
-        q_sf4 = 0._wp
-        q_sf5 = 0._wp
+        qsv_flag_count = 1
+        qsv_info = 0._wp
         q_sf_group = 0._wp
 
         ! (1,2,3) Initial filtering
@@ -1629,7 +1239,7 @@ contains
                         ! (1) liutex_mag
                         if (liutex_mag(i, j, k) > 1.e-10_wp) then
                             qsv_flag(i, j, k, 1) = .true.
-                            q_sf1(i, j, k) = 1._wp
+                            qsv_info(i, j, k, 1) = 1._wp
                         end if
 
                         ! (2) liutex axis
@@ -1639,35 +1249,32 @@ contains
                             if (theta1 > 0._wp .and. theta1 < 90._wp .and. &
                                 theta2 > -45._wp .and. theta2 < 45._wp) then
                                 qsv_flag(i, j, k, 2) = .true.
-                                q_sf2(i, j, k) = 1._wp
+                                qsv_info(i, j, k, 2) = 1._wp
                             end if
                         end if
 
-                        ! (3) omega_axis > omega_perp
+                        ! (3) omega_axis > omega_perp and A_rr > A_ps
                         if (qsv_flag(i, j, k, 2) .and. &
-                            abs(omega_axis(i, j, k)) > abs(omega_perp(i, j, k))) then
+                            abs(omega_axis(i, j, k)) > abs(omega_perp(i, j, k)) .and. &
+                            A_rr(i, j, k) > A_ps(i, j, k)) then
                             qsv_flag(i, j, k, 3) = .true.
-                            q_sf3(i, j, k) = 1._wp
+                            qsv_info(i, j, k, 3) = 1._wp
                         end if
                     end do
                 end do
             end if
         end do
 
-        ! (4) Remove isolated single point
-        ! Add paddings
-        call s_add_paddings_logical(qsv_flag(:, :, :, 3), 1, qsv_flag_padded)
-
+        ! (4) Remove isolated single point in each yz plane
         do j = 0, n
             if (y_cc(j) >= y_cc_glb(y_idx_beg) .and. y_cc(j) <= y_cc_glb(y_idx_end)) then
                 do k = 0, p
                     do i = 0, m
                         if (qsv_flag(i, j, k, 3)) then 
-                          ! call s_remove_isolated_single_point(i, j, k, qsv_flag)
-                          call s_remove_isolated_single_point_yzonly(i, j, k, qsv_flag, qsv_flag_padded)
+                          call s_remove_isolated_single_point(i, j, k, qsv_flag(:, :, :, 3), qsv_flag(:, :, :, 4))
 
-                          if (qsv_flag(i, j, k, 4)) then 
-                            q_sf4(i, j, k) = 1._wp
+                          if (qsv_flag(i, j, k, 4)) then
+                            qsv_info(i, j, k, 4) = 1._wp
                           end if
                         end if
                     end do
@@ -1703,7 +1310,7 @@ contains
                 do i = 0, m
                   if (qsv_group(i, j, k) == l) then
                     qsv_flag(i, j, k, 5) = .true.
-                    q_sf5(i, j, k) = 1._wp
+                    qsv_info(i, j, k, 5) = 1._wp
                   end if
                 end do
               end do
@@ -1711,8 +1318,11 @@ contains
           end if
         end do
 
-    end subroutine s_detect_qsv
+        ! (6) PCA
 
+
+    end subroutine s_detect_qsv
+    
     impure subroutine s_identify_connected_groups(qsv_flag, qsv_group, id_qsv_group_max, y_idx_beg, y_idx_end)
         logical, dimension(0:m, 0:n, 0:p, 5), intent(inout) :: qsv_flag
         integer, dimension(0:m, 0:n, 0:p), intent(out) :: qsv_group
@@ -2268,9 +1878,10 @@ contains
         end do
     end subroutine s_merge_groups
 
-    impure subroutine s_remove_isolated_single_point(ibase, jbase, kbase, qsv_flag)
+    impure subroutine s_remove_isolated_single_point(ibase, jbase, kbase, qsv_flag_in, qsv_flag_out)
         integer, intent(in) :: ibase, jbase, kbase
-        logical, dimension(0:m, 0:n, 0:p, 5), intent(inout) :: qsv_flag
+        logical, dimension(0:m, 0:n, 0:p), intent(in) :: qsv_flag_in
+        logical, dimension(0:m, 0:n, 0:p), intent(out) :: qsv_flag_out
         integer :: i, j, k
 
         do k = kbase - 1, kbase + 1
@@ -2280,8 +1891,8 @@ contains
                   j >= 0 .and. j <= n .and. &
                   k >= 0 .and. k <= p) then
                 if (.not. (i == ibase .and. j == jbase .and. k == kbase) &
-                    .and. qsv_flag(i, j, k, 2)) then
-                  qsv_flag(ibase, jbase, kbase, 3) = .true.
+                    .and. qsv_flag_in(i, j, k)) then
+                  qsv_flag_out(ibase, jbase, kbase) = .true.
                   return
                 end if
               end if
@@ -2289,27 +1900,6 @@ contains
           end do
         end do
     end subroutine s_remove_isolated_single_point
-
-    impure subroutine s_remove_isolated_single_point_yzonly(ibase, jbase, kbase, qsv_flag, qsv_flag_padded)
-        integer, intent(in) :: ibase, jbase, kbase
-        logical, dimension(0:m, 0:n, 0:p, 5), intent(inout) :: qsv_flag
-        logical, dimension(-1:m + 1, -1:n + 1, -1:p + 1), intent(in) :: qsv_flag_padded
-        integer :: i, j, k
-
-        do k = kbase - 1, kbase + 1
-          do j = jbase - 1, jbase + 1
-            if (j >= -1 .and. j <= n + 1 .and. &
-                k >= -1 .and. k <= p + 1) then
-              if (.not. (j == jbase .and. k == kbase) &
-                  .and. qsv_flag_padded(ibase, j, k)) then
-                qsv_flag(ibase, jbase, kbase, 4) = .true.
-                return
-              end if
-            end if
-          end do
-        end do
-
-    end subroutine s_remove_isolated_single_point_yzonly
 
     !>  This subroutine gets as inputs the conservative variables
         !!      and density. From those inputs, it proceeds to calculate

@@ -218,10 +218,14 @@ contains
                                                               vort_stretch_proj, vort_stretch_res, &
                                                               omega_axis, omega_perp, &
                                                               A_rr, A_ps, A_ns, A_sr, &
-                                                              q_sf1, q_sf2, q_sf3, q_sf4, q_sf5, q_sf_group
+                                                              q_sf_group
         real(wp), dimension(-offset_x%beg:m + offset_x%end, &
                             -offset_y%beg:n + offset_y%end, &
-                            -offset_z%beg:p + offset_z%end, 3) :: liutex_axis, omega, vort_stretch, vel_filtered    
+                            -offset_z%beg:p + offset_z%end, 3) :: liutex_axis, omega, vort_stretch, vel_filtered
+
+        real(wp), dimension(-offset_x%beg:m + offset_x%end, &
+                            -offset_y%beg:n + offset_y%end, &
+                            -offset_z%beg:p + offset_z%end, 5) :: qsv_info
 
         integer :: i, j, k, l
         integer :: x_beg, x_end, y_beg, y_end, z_beg, z_end
@@ -643,30 +647,31 @@ contains
             varname(:) = ' '
 
             ! QSV detection
-            call s_detect_qsv(liutex_mag, liutex_axis, omega_axis, omega_perp, mixlayer_idx_beg, mixlayer_idx_end, q_sf1, q_sf2, q_sf3, q_sf4, q_sf5, q_sf_group)
+            call s_detect_qsv(liutex_mag, liutex_axis, omega_axis, omega_perp, A_rr, A_ps, &
+                              mixlayer_idx_beg, mixlayer_idx_end, qsv_info, q_sf_group)
 
-            q_sf = q_sf1
-            write (varname, '(A)') 'qsv1'
+            q_sf = qsv_info(:, :, :, 1)
+            write (varname, '(A)') 'qsv_info1'
             call s_write_variable_to_formatted_database_file(varname, t_step)
             varname(:) = ' '
             
-            q_sf = q_sf2
-            write (varname, '(A)') 'qsv2'
+            q_sf = qsv_info(:, :, :, 2)
+            write (varname, '(A)') 'qsv_info2'
             call s_write_variable_to_formatted_database_file(varname, t_step)
             varname(:) = ' '
             
-            q_sf = q_sf3
-            write (varname, '(A)') 'qsv3'
+            q_sf = qsv_info(:, :, :, 3)
+            write (varname, '(A)') 'qsv_info3'
             call s_write_variable_to_formatted_database_file(varname, t_step)
             varname(:) = ' '
             
-            q_sf = q_sf4
-            write (varname, '(A)') 'qsv4'
+            q_sf = qsv_info(:, :, :, 4)
+            write (varname, '(A)') 'qsv_info4'
             call s_write_variable_to_formatted_database_file(varname, t_step)
             varname(:) = ' '
 
-            q_sf = q_sf5
-            write (varname, '(A)') 'qsv5'
+            q_sf = qsv_info(:, :, :, 5)
+            write (varname, '(A)') 'qsv_info5'
             call s_write_variable_to_formatted_database_file(varname, t_step)
             varname(:) = ' '
 
@@ -689,48 +694,48 @@ contains
             ! call s_write_variable_to_formatted_database_file(varname, t_step)
             ! varname(:) = ' '
 
-            ! ! Liutex relative rotation strength
-            ! q_sf = liutex_rrs
-            ! write (varname, '(A)') 'liutex_rrs'
-            ! call s_write_variable_to_formatted_database_file(varname, t_step)
-            ! varname(:) = ' '
+            ! Liutex relative rotation strength
+            q_sf = liutex_rrs
+            write (varname, '(A)') 'liutex_rrs'
+            call s_write_variable_to_formatted_database_file(varname, t_step)
+            varname(:) = ' '
 
-            ! q_sf = A_rr
-            ! write (varname, '(A)') 'A_rr'
-            ! call s_write_variable_to_formatted_database_file(varname, t_step)
-            ! varname(:) = ' '
+            q_sf = A_rr
+            write (varname, '(A)') 'A_rr'
+            call s_write_variable_to_formatted_database_file(varname, t_step)
+            varname(:) = ' '
 
-            ! q_sf = A_ps
-            ! write (varname, '(A)') 'A_ps'
-            ! call s_write_variable_to_formatted_database_file(varname, t_step)
-            ! varname(:) = ' '
+            q_sf = A_ps
+            write (varname, '(A)') 'A_ps'
+            call s_write_variable_to_formatted_database_file(varname, t_step)
+            varname(:) = ' '
 
-            ! q_sf = A_ns
-            ! write (varname, '(A)') 'A_ns'
-            ! call s_write_variable_to_formatted_database_file(varname, t_step)
-            ! varname(:) = ' '
+            q_sf = A_ns
+            write (varname, '(A)') 'A_ns'
+            call s_write_variable_to_formatted_database_file(varname, t_step)
+            varname(:) = ' '
 
-            ! q_sf = A_sr
-            ! write (varname, '(A)') 'A_sr'
-            ! call s_write_variable_to_formatted_database_file(varname, t_step)
-            ! varname(:) = ' '
+            q_sf = A_sr
+            write (varname, '(A)') 'A_sr'
+            call s_write_variable_to_formatted_database_file(varname, t_step)
+            varname(:) = ' '
 
-            ! do i = 1, 3
-            !     q_sf = vort_stretch(:, :, :, i)
-            !     write (varname, '(A,I0)') 'vort_stretch', i
-            !     call s_write_variable_to_formatted_database_file(varname, t_step)
-            !     varname(:) = ' '
-            ! end do
+            do i = 1, 3
+                q_sf = vort_stretch(:, :, :, i)
+                write (varname, '(A,I0)') 'vort_stretch', i
+                call s_write_variable_to_formatted_database_file(varname, t_step)
+                varname(:) = ' '
+            end do
 
-            ! q_sf = vort_stretch_proj
-            ! write (varname, '(A)') 'vort_stretch_proj'
-            ! call s_write_variable_to_formatted_database_file(varname, t_step)
-            ! varname(:) = ' '
+            q_sf = vort_stretch_proj
+            write (varname, '(A)') 'vort_stretch_proj'
+            call s_write_variable_to_formatted_database_file(varname, t_step)
+            varname(:) = ' '
 
-            ! q_sf = vort_stretch_res
-            ! write (varname, '(A)') 'vort_stretch_res'
-            ! call s_write_variable_to_formatted_database_file(varname, t_step)
-            ! varname(:) = ' '
+            q_sf = vort_stretch_res
+            write (varname, '(A)') 'vort_stretch_res'
+            call s_write_variable_to_formatted_database_file(varname, t_step)
+            varname(:) = ' '
 
             ! ! Compute filtered velocity
             ! call s_apply_gaussian_filter(q_prim_vf(mom_idx%beg    )%sf(0:m, 0:n, 0:p), &
