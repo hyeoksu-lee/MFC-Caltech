@@ -90,7 +90,7 @@ contains
             cfl_target, surface_tension, bubbles_lagrange, &
             sim_data, hyperelasticity, Bx0, relativity, cont_damage, &
             num_bc_patches, igr, igr_order, down_sample, recon_type, &
-            muscl_order
+            muscl_order, icsg
 
         ! Inquiring the status of the post_process.inp file
         file_loc = 'post_process.inp'
@@ -703,6 +703,13 @@ contains
             if (adv_n) then
                 q_sf(:, :, :) = q_cons_vf(n_idx)%sf(x_beg:x_end, y_beg:y_end, z_beg:z_end)
                 write (varname, '(A)') 'n'
+                call s_write_variable_to_formatted_database_file(varname, t_step)
+                varname(:) = ' '
+            end if
+
+            if (icsg) then
+                q_sf(:, :, :) = q_cons_vf(alf_idx)%sf(x_beg:x_end, y_beg:y_end, z_beg:z_end)
+                write (varname, '(A)') 'alpha_b'
                 call s_write_variable_to_formatted_database_file(varname, t_step)
                 varname(:) = ' '
             end if
