@@ -51,7 +51,8 @@ contains
 
         if (bubble_model == 1) then
             ! Gilmore bubbles
-            fCpinf = fP - pref
+            ! fCpinf = fP - pref
+            fCpinf = fP - Eu
             fCpbw = f_cpbw(fR0, fR, fV, fpb)
             fH = f_H(fCpbw, fCpinf, fntait, fBtait)
             c_gas = f_cgas(fCpinf, fntait, fBtait, fH)
@@ -263,15 +264,14 @@ contains
         real(wp) :: f_cpbw_KM
 
         if (polytropic) then
-            f_cpbw_KM = Ca*((fR0/fR)**(3._wp*gam)) - Ca + 1._wp
-            if (.not. f_is_default(Web)) f_cpbw_KM = f_cpbw_KM + &
-                                                     (2._wp/(Web*fR0))*((fR0/fR)**(3._wp*gam))
+            f_cpbw_KM = Ca*((fR0/fR)**(3._wp*gam)) - Ca + Eu
+            if (bub_ss) f_cpbw_KM = f_cpbw_KM + (2._wp/(Web*fR0))*((fR0/fR)**(3._wp*gam))
         else
             f_cpbw_KM = fpb
         end if
 
-        if (.not. f_is_default(Web)) f_cpbw_KM = f_cpbw_KM - 2._wp/(fR*Web)
-        if (.not. f_is_default(Re_inv)) f_cpbw_KM = f_cpbw_KM - 4._wp*Re_inv*fV/fR
+        if (bub_ss) f_cpbw_KM = f_cpbw_KM - 2._wp/(fR*Web)
+        if (bub_visc) f_cpbw_KM = f_cpbw_KM - 4._wp*Re_inv*fV/fR
 
     end function f_cpbw_KM
 
@@ -293,24 +293,24 @@ contains
         real(wp) :: f_rddot_KM
         if (polytropic) then
             cdot_star = -3._wp*gam*Ca*((fR0/fR)**(3._wp*gam))*fV/fR
-            if (.not. f_is_default(Web)) cdot_star = cdot_star - &
+            if (bub_ss) cdot_star = cdot_star - &
                                                      3._wp*gam*(2._wp/(Web*fR0))*((fR0/fR)**(3._wp*gam))*fV/fR
         else
             cdot_star = fpbdot
         end if
 
-        if (.not. f_is_default(Web)) cdot_star = cdot_star + (2._wp/Web)*fV/(fR**2._wp)
-        if (.not. f_is_default(Re_inv)) cdot_star = cdot_star + 4._wp*Re_inv*((fV/fR)**2._wp)
+        if (bub_ss) cdot_star = cdot_star + (2._wp/Web)*fV/(fR**2._wp)
+        if (bub_visc) cdot_star = cdot_star + 4._wp*Re_inv*((fV/fR)**2._wp)
 
         tmp1 = fV/fC
         tmp2 = 1.5_wp*(fV**2._wp)*(tmp1/3._wp - 1._wp) + &
                (1._wp + tmp1)*(fCpbw - fCp)/fRho + &
                cdot_star*fR/(fRho*fC)
 
-        if (f_is_default(Re_inv)) then
-            f_rddot_KM = tmp2/(fR*(1._wp - tmp1))
-        else
+        if (bub_visc) then
             f_rddot_KM = tmp2/(fR*(1._wp - tmp1) + 4._wp*Re_inv/(fRho*fC))
+        else
+            f_rddot_KM = tmp2/(fR*(1._wp - tmp1))
         end if
 
     end function f_rddot_KM

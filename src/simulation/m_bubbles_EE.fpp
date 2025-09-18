@@ -167,6 +167,10 @@ contains
         real(wp), dimension(num_fluids) :: myalpha, myalpha_rho
         real(wp) :: nbub !< Bubble number density
 
+        real(wp) :: fpbdot, fCp, fCpbw
+        real(wp) :: fRho, fR, fV, fR0, fC
+        real(wp) :: tmp1, tmp2, cdot_star, f_rddot_KM1
+
         integer :: i, j, k, l, q, ii !< Loop variables
 
         integer :: adap_dt_stop_max, adap_dt_stop !< Fail-safe exit if max iteration count reached
@@ -250,7 +254,6 @@ contains
                                 bub_p_src(j, k, l, q) = 0._wp
                                 bub_m_src(j, k, l, q) = 0._wp
                             end if
-
                         else
                             if (.not. polytropic) then
                                 pb_local = q_prim_vf(ps(q))%sf(j, k, l)
@@ -289,7 +292,6 @@ contains
                             end if
 
                             adap_dt_stop_max = max(adap_dt_stop_max, adap_dt_stop)
-
                         end if
                     end do
                     if (icsg) then

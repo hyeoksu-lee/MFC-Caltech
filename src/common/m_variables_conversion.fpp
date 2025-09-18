@@ -144,14 +144,14 @@ contains
             elseif ((model_eqns /= 4) .and. (bubbles_euler .neqv. .true.)) then
                 pres = (energy - dyn_p - pi_inf - qv)/gamma
             else if ((model_eqns /= 4) .and. bubbles_euler .and. .not. icsg) then
-                pres = ((energy - dyn_p)/(1._wp - alf) - pi_inf - qv)/gamma
+                pres = (energy - dyn_p)/(1._wp - alf)/gamma - pi_inf/gamma - qv/gamma
             else if ((model_eqns /= 4) .and. bubbles_euler .and. icsg) then
-                pres = ((energy - dyn_p) - pi_inf - qv)/gamma
+                pres = (energy - dyn_p)/gamma - pi_inf/gamma - qv/gamma
             else
-                pres = (pref + pi_inf)* &
+                pres = (1._wp + pi_inf)* &
                        (energy/ &
-                        (rhoref*(1 - alf)) &
-                        )**(1/gamma + 1) - pi_inf
+                        ((1._wp - alf)) &
+                        )**(1._wp/gamma + 1._wp) - pi_inf
             end if
 
             if (hypoelasticity .and. present(G)) then
@@ -1385,8 +1385,8 @@ contains
                             !Initialize R3 averaging over R0 and R directions
                             R3tmp = 0._wp
                             do i = 1, nb
-                                R3tmp = R3tmp + weight(i)*0.5_wp*(Rtmp(i) + sigR)**3._wp
-                                R3tmp = R3tmp + weight(i)*0.5_wp*(Rtmp(i) - sigR)**3._wp
+                                R3tmp = R3tmp + weight(i)*0.5_wp*(Rtmp(i) + sigR*(bub_refs%R0ref/bub_refs%x0))**3._wp
+                                R3tmp = R3tmp + weight(i)*0.5_wp*(Rtmp(i) - sigR*(bub_refs%R0ref/bub_refs%x0))**3._wp
                             end do
                             !Initialize nb
                             nbub = 3._wp*q_prim_vf(alf_idx)%sf(j, k, l)/(4._wp*pi*R3tmp)
