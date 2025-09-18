@@ -186,9 +186,9 @@ contains
             surface_tension, bubbles_lagrange, lag_params, bub_refs, &
             hyperelasticity, num_bc_patches, Bx0, powell, &
             cont_damage, tau_star, cont_damage_s, alpha_bar, &
-            alf_factor, num_igr_iters, down_sample, &
-            num_igr_warm_start_iters, &
-            int_comp, ic_eps, ic_beta
+            alf_factor, num_igr_iters, num_igr_warm_start_iters, &
+            int_comp, ic_eps, ic_beta, nv_uvm_out_of_core, &
+            nv_uvm_igr_temps_on_gpu, nv_uvm_pref_gpu, down_sample
 
         ! Checking that an input file has been provided by the user. If it
         ! has, then the input file is read in, otherwise, simulation exits.
@@ -1353,13 +1353,13 @@ contains
             call s_read_data_files(q_cons_ts(1)%vf)
         end if
 
+        ! Populating the buffers of the grid variables using the boundary conditions
+        call s_populate_grid_variables_buffers()
+
         if (model_eqns == 3) call s_initialize_internal_energy_equations(q_cons_ts(1)%vf)
         if (ib) call s_ibm_setup()
         if (bodyForces) call s_initialize_body_forces_module()
         if (acoustic_source) call s_precalculate_acoustic_spatial_sources()
-
-        ! Populating the buffers of the grid variables using the boundary conditions
-        call s_populate_grid_variables_buffers()
 
         ! Initialize the Temperature cache.
         if (chemistry) call s_compute_q_T_sf(q_T_sf, q_cons_ts(1)%vf, idwint)
