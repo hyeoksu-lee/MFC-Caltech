@@ -79,6 +79,9 @@ module m_global_parameters
 
     ! Simulation Algorithm Parameters
     integer :: model_eqns            !< Multicomponent flow model
+    logical :: icsg
+    real(wp) :: icsg_vf
+    integer :: icsg_patch
     logical :: relax                 !< activate phase change
     integer :: relax_model           !< Relax Model
     real(wp) :: palpha_eps           !< trigger parameter for the p relaxation procedure, phase change model
@@ -342,6 +345,9 @@ contains
 
         ! Simulation algorithm parameters
         model_eqns = dflt_int
+        icsg = .false.
+        icsg_vf = dflt_real
+        icsg_patch = dflt_int
         relax = .false.
         relax_model = dflt_int
         palpha_eps = dflt_real
@@ -640,7 +646,12 @@ contains
             sys_size = adv_idx%end
 
             if (bubbles_euler) then
-                alf_idx = adv_idx%end
+                if (icsg) then
+                    alf_idx = adv_idx%end + 1
+                    sys_size = sys_size + 1
+                else
+                    alf_idx = adv_idx%end
+                end if
             else
                 alf_idx = 1
             end if

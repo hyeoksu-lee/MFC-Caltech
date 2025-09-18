@@ -63,8 +63,10 @@ contains
             ! Keller-Miksis bubbles
             fCpinf = fP
             fCpbw = f_cpbw_KM(fR0, fR, fV, fpb)
-            if (bubbles_euler) then
+            if (bubbles_euler .and. .not. icsg) then
                 c_liquid = sqrt(fntait*(fP + fBtait)/(fRho*(1._wp - alf)))
+            else if (bubbles_euler .and. icsg) then
+                c_liquid = sqrt(fntait*(fP + fBtait)/fRho)
             else
                 c_liquid = fCson
             end if
@@ -488,10 +490,10 @@ contains
 
         ! Advancing one step
         t_new = 0._wp
-        iter_count = 0
         adap_dt_stop = 0
 
         do
+            iter_count = 0
 
             if (t_new + h > 0.5_wp*dt) then
                 h = 0.5_wp*dt - t_new
@@ -538,8 +540,8 @@ contains
                 !   Rule 3: abs((myR_tmp1(4) - myR_tmp2(4))/fR) < tol
                 !   Rule 4: abs((myV_tmp1(4) - myV_tmp2(4))/fV) < tol
                 if ((err(1) <= adap_dt_tol) .and. (err(2) <= adap_dt_tol) .and. &
-                    (err(3) <= adap_dt_tol) .and. (err(4) < adap_dt_tol) .and. &
-                    (err(5) < adap_dt_tol) .and. myR_tmp1(4) > 0._wp) then
+                    (err(3) <= adap_dt_tol) .and. (err(4) <= adap_dt_tol) .and. &
+                    (err(5) <= adap_dt_tol) .and. myR_tmp1(4) > 0._wp) then
 
                     ! Accepted. Finalize the sub-step
                     t_new = t_new + h

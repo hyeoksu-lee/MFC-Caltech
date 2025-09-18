@@ -100,6 +100,7 @@ module m_global_parameters
     !> @name Simulation Algorithm Parameters
     !> @{
     integer :: model_eqns      !< Multicomponent flow model
+    logical :: icsg
     integer :: num_fluids      !< Number of different fluids present in the flow
     logical :: relax           !< phase change
     integer :: relax_model     !< Phase change relaxation model
@@ -358,6 +359,7 @@ contains
 
         ! Simulation algorithm parameters
         model_eqns = dflt_int
+        icsg = .false.
         num_fluids = dflt_int
         recon_type = WENO_TYPE
         weno_order = dflt_int
@@ -544,7 +546,12 @@ contains
             sys_size = adv_idx%end
 
             if (bubbles_euler) then
-                alf_idx = adv_idx%end
+                if (icsg) then
+                    alf_idx = adv_idx%end + 1
+                    sys_size = sys_size + 1
+                else
+                    alf_idx = adv_idx%end
+                end if
             else
                 alf_idx = 1
             end if
