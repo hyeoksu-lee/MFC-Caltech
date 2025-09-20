@@ -798,17 +798,6 @@ contains
                                                     momsum = momsum + coeff(j, i1, i2)*(R0(q)**momrhs(3, i1, i2, j, q))*f_quad2D(abscX(:, q), abscY(:, q), wght(:, q), momrhs(:, i1, i2, j, q))
                                                 end if
                                             end select
-                                            if (i1 == 1 .and. i2 == 0 .and. id1 == 50 .and. j == 4) then
-                                              print *, j, momsum*(bub_refs%u0/bub_refs%ub0), &
-                                                          abscY(:, q)*(bub_refs%u0/bub_refs%ub0), &
-                                                          alf, pres, rho, &
-                                                          moms(1), &
-                                                          moms(2)*(bub_refs%x0/bub_refs%R0ref), &
-                                                          moms(3)*(bub_refs%u0/bub_refs%ub0), &
-                                                          moms(4)*(bub_refs%x0/bub_refs%R0ref)**2._wp, &
-                                                          moms(5)*(bub_refs%x0/bub_refs%R0ref)*(bub_refs%u0/bub_refs%ub0), &
-                                                          moms(6)*(bub_refs%u0/bub_refs%ub0)**2._wp
-                                            end if
                                         end do
 
                                         moms3d(i1, i2, q)%sf(id1, id2, id3) = nbub*momsum
