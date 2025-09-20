@@ -714,7 +714,31 @@ contains
             call s_populate_variables_buffers(bc_type, q_prim_qp%vf, pb_in, mv_in)
             call nvtxEndRange
         end if
-        
+
+        write(99,*) &
+                  q_cons_qp%vf(1)%sf(50, 0, 0)*(bub_refs%rho0/bub_refs%rhol0), &
+                  q_cons_qp%vf(2)%sf(50, 0, 0)*(bub_refs%rho0/bub_refs%rhol0)*(bub_refs%u0/bub_refs%ub0), &
+                  q_cons_qp%vf(3)%sf(50, 0, 0)*(bub_refs%p0/bub_refs%p0eq), &
+                  q_cons_qp%vf(4)%sf(50, 0, 0), &
+                  q_cons_qp%vf(5)%sf(50, 0, 0)/(bub_refs%x0/bub_refs%R0ref)**3._wp, &
+                  q_cons_qp%vf(6)%sf(50, 0, 0)/(bub_refs%x0/bub_refs%R0ref)**3._wp*(bub_refs%x0/bub_refs%R0ref), &
+                  q_cons_qp%vf(7)%sf(50, 0, 0)/(bub_refs%x0/bub_refs%R0ref)**3._wp*(bub_refs%u0/bub_refs%ub0), &
+                  q_cons_qp%vf(8)%sf(50, 0, 0)/(bub_refs%x0/bub_refs%R0ref)**3._wp*(bub_refs%x0/bub_refs%R0ref)**2._wp, &
+                  q_cons_qp%vf(9)%sf(50, 0, 0)/(bub_refs%x0/bub_refs%R0ref)**3._wp*(bub_refs%x0/bub_refs%R0ref)*(bub_refs%u0/bub_refs%ub0), &
+                  q_cons_qp%vf(10)%sf(50, 0, 0)/(bub_refs%x0/bub_refs%R0ref)**3._wp*(bub_refs%u0/bub_refs%ub0)**2._wp
+
+        write(98,*) &
+                  q_prim_qp%vf(1)%sf(50, 0, 0)*(bub_refs%rho0/bub_refs%rhol0), &
+                  q_prim_qp%vf(2)%sf(50, 0, 0)*(bub_refs%u0/bub_refs%ub0), &
+                  q_prim_qp%vf(3)%sf(50, 0, 0)*(bub_refs%p0/bub_refs%p0eq), &
+                  q_prim_qp%vf(4)%sf(50, 0, 0), &
+                  q_prim_qp%vf(5)%sf(50, 0, 0)/(bub_refs%x0/bub_refs%R0ref)**3._wp, &
+                  q_prim_qp%vf(6)%sf(50, 0, 0)*(bub_refs%x0/bub_refs%R0ref), &
+                  q_prim_qp%vf(7)%sf(50, 0, 0)*(bub_refs%u0/bub_refs%ub0), &
+                  q_prim_qp%vf(8)%sf(50, 0, 0)*(bub_refs%x0/bub_refs%R0ref)**2._wp, &
+                  q_prim_qp%vf(9)%sf(50, 0, 0)*(bub_refs%x0/bub_refs%R0ref)*(bub_refs%u0/bub_refs%ub0), &
+                  q_prim_qp%vf(10)%sf(50, 0, 0)*(bub_refs%u0/bub_refs%ub0)**2._wp
+
         call nvtxStartRange("RHS-ELASTIC")
         if (hyperelasticity) call s_hyperelastic_rmt_stress_update(q_cons_qp%vf, q_prim_qp%vf)
         call nvtxEndRange
@@ -1023,6 +1047,18 @@ contains
         end if
 
         call nvtxEndRange
+
+        write(97,*) &
+                  rhs_vf(1)%sf(50, 0, 0)*(bub_refs%rho0/bub_refs%rhol0)                         /((bub_refs%x0/bub_refs%u0)/(bub_refs%R0ref/bub_refs%ub0)), &
+                  rhs_vf(2)%sf(50, 0, 0)*(bub_refs%u0/bub_refs%ub0)                             /((bub_refs%x0/bub_refs%u0)/(bub_refs%R0ref/bub_refs%ub0)), &
+                  rhs_vf(3)%sf(50, 0, 0)*(bub_refs%p0/bub_refs%p0eq)                            /((bub_refs%x0/bub_refs%u0)/(bub_refs%R0ref/bub_refs%ub0)), &
+                  rhs_vf(4)%sf(50, 0, 0)                                                        /((bub_refs%x0/bub_refs%u0)/(bub_refs%R0ref/bub_refs%ub0)), &
+                  rhs_vf(5)%sf(50, 0, 0)/(bub_refs%x0/bub_refs%R0ref)**3._wp                    /((bub_refs%x0/bub_refs%u0)/(bub_refs%R0ref/bub_refs%ub0)), &
+                  rhs_vf(6)%sf(50, 0, 0)/(bub_refs%x0/bub_refs%R0ref)**3._wp*(bub_refs%x0/bub_refs%R0ref)                           /((bub_refs%x0/bub_refs%u0)/(bub_refs%R0ref/bub_refs%ub0)), &
+                  rhs_vf(7)%sf(50, 0, 0)/(bub_refs%x0/bub_refs%R0ref)**3._wp*(bub_refs%u0/bub_refs%ub0)                             /((bub_refs%x0/bub_refs%u0)/(bub_refs%R0ref/bub_refs%ub0)), &
+                  rhs_vf(8)%sf(50, 0, 0)/(bub_refs%x0/bub_refs%R0ref)**3._wp*(bub_refs%x0/bub_refs%R0ref)**2._wp                    /((bub_refs%x0/bub_refs%u0)/(bub_refs%R0ref/bub_refs%ub0)), &
+                  rhs_vf(9)%sf(50, 0, 0)/(bub_refs%x0/bub_refs%R0ref)**3._wp*(bub_refs%x0/bub_refs%R0ref)*(bub_refs%u0/bub_refs%ub0)/((bub_refs%x0/bub_refs%u0)/(bub_refs%R0ref/bub_refs%ub0)), &
+                  rhs_vf(10)%sf(50, 0, 0)/(bub_refs%x0/bub_refs%R0ref)**3._wp*(bub_refs%u0/bub_refs%ub0)**2._wp                     /((bub_refs%x0/bub_refs%u0)/(bub_refs%R0ref/bub_refs%ub0))
 
     end subroutine s_compute_rhs
 

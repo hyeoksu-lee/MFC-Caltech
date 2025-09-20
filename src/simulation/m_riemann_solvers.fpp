@@ -2013,7 +2013,6 @@ contains
                                     end if
 
                                     if (qL_prim_rs${XYZ}$_vf(j, k, l, E_idx + num_fluids) < small_alf .or. R3Lbar < small_alf) then
-                                        ptilde_L = qL_prim_rs${XYZ}$_vf(j, k, l, E_idx + num_fluids)*pres_L
                                         ptilde_L = 0._wp
                                     else
                                         ptilde_L = qL_prim_rs${XYZ}$_vf(j, k, l, E_idx + num_fluids)*(pres_L - PbwR3Lbar/R3Lbar - &
@@ -2026,7 +2025,7 @@ contains
                                         ptilde_R = qR_prim_rs${XYZ}$_vf(j + 1, k, l, E_idx + num_fluids)*(pres_R - PbwR3Rbar/R3Rbar - &
                                                                                                           rho_R*R3V2Rbar/R3Rbar)
                                     end if
-
+                                    
                                     if ((.not. f_approx_equal(ptilde_L, ptilde_L)) .or. (.not. f_approx_equal(ptilde_R, ptilde_R))) then
                                       call s_mpi_abort("ptilde_L or ptilde_R is NaN")
                                     end if
@@ -2273,7 +2272,7 @@ contains
                             end do
                         end do
                     end do
-                else if (model_eqns == 2 .and. icsg) then
+                elseif (model_eqns == 2 .and. icsg) then
 
                     ! 5-EQUATION MODEL WITH HLLC
                     $:GPU_PARALLEL_LOOP(collapse=3, private='[vel_L, vel_R, &

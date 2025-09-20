@@ -798,7 +798,19 @@ contains
                                                     momsum = momsum + coeff(j, i1, i2)*(R0(q)**momrhs(3, i1, i2, j, q))*f_quad2D(abscX(:, q), abscY(:, q), wght(:, q), momrhs(:, i1, i2, j, q))
                                                 end if
                                             end select
+                                            if (i1 == 1 .and. i2 == 0 .and. id1 == 50 .and. j == 4) then
+                                              print *, j, momsum*(bub_refs%u0/bub_refs%ub0), &
+                                                          abscY(:, q)*(bub_refs%u0/bub_refs%ub0), &
+                                                          alf, pres, rho, &
+                                                          moms(1), &
+                                                          moms(2)*(bub_refs%x0/bub_refs%R0ref), &
+                                                          moms(3)*(bub_refs%u0/bub_refs%ub0), &
+                                                          moms(4)*(bub_refs%x0/bub_refs%R0ref)**2._wp, &
+                                                          moms(5)*(bub_refs%x0/bub_refs%R0ref)*(bub_refs%u0/bub_refs%ub0), &
+                                                          moms(6)*(bub_refs%u0/bub_refs%ub0)**2._wp
+                                            end if
                                         end do
+
                                         moms3d(i1, i2, q)%sf(id1, id2, id3) = nbub*momsum
                                         msum(r) = momsum
                                         r = r + 1
@@ -854,6 +866,13 @@ contains
                         momsp(3)%sf(id1, id2, id3) = 0._wp
                         momsp(4)%sf(id1, id2, id3) = 0._wp
                     end if
+
+                    ! moms3d(0, 0, 1)%sf(id1, id2, id3) = 0._wp
+                    ! moms3d(1, 0, 1)%sf(id1, id2, id3) = 0._wp
+                    ! moms3d(0, 1, 1)%sf(id1, id2, id3) = 0._wp
+                    ! moms3d(2, 0, 1)%sf(id1, id2, id3) = 0._wp
+                    ! moms3d(1, 1, 1)%sf(id1, id2, id3) = 0._wp
+                    ! moms3d(0, 2, 1)%sf(id1, id2, id3) = 0._wp
                 end do
             end do
         end do
