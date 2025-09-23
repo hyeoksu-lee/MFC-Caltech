@@ -919,8 +919,9 @@ contains
         real(wp), dimension(0:m, 0:n, 0:p), intent(out) :: qsv_info
         integer, dimension(0:m, 0:n, 0:p), intent(out) :: qsv_group
         integer, intent(in) :: y_idx_beg, y_idx_end
-        integer :: id_qsv_group_max
+        integer :: id_qsv_group, id_qsv_group_max
 
+        logical, dimension(:), allocatable :: id_qsv_group_mask, id_qsv_group_mask_glb
         integer, dimension(:), allocatable :: num_qsv_group_member, num_qsv_group_member_glb
         logical, dimension(0:m, 0:n, 0:p) :: qsv_group_mask, qsv_merge_x, qsv_merge_z
         real(wp), dimension(0:m, 0:n, 0:p) :: coord_x, coord_y, coord_z
@@ -952,14 +953,21 @@ contains
 
         ! Grouping connected points
         if (proc_rank == 0) print *, "grouping"
-        call s_identify_connected_groups(qsv_flag, qsv_group, qsv_merge_x, qsv_merge_z, id_qsv_group_max, y_idx_beg, y_idx_end)
+        call s_identify_connected_groups(qsv_flag, qsv_group, qsv_merge_x, qsv_merge_z, id_qsv_group, y_idx_beg, y_idx_end)
+        ! Find max group id
+        call MPI_ALLREDUCE(id_qsv_group, id_qsv_group_max, 1, mpi_integer, MPI_MAX, MPI_COMM_WORLD, ierr)
+        allocate (id_qsv_group_mask(id_qsv_group_max))
+        do l = proc_rank, id_qsv_group, proc_rank
+          id_qsv_group_mask(l) = .true.
+        end do
+        call MPI_ALLREDUCE(id_qsv_group_mask, id_qsv_group_mask_glb, id_qsv_group_max, mpi_logical, MPI_LOR, MPI_COMM_WORLD, ierr)
         if (proc_rank == 0) print *, "grouping done"
     
         if (proc_rank == 0) print *, "counting"
         allocate (num_qsv_group_member(id_qsv_group_max))
         allocate (num_qsv_group_member_glb(id_qsv_group_max))
         do l = 1, id_qsv_group_max
-          num_qsv_group_member(l) = count(qsv_group == l)
+          if (id_qsv_group_mask_glb(l)) num_qsv_group_member(l) = count(qsv_group == l)
         end do
         call MPI_ALLREDUCE(num_qsv_group_member, num_qsv_group_member_glb, id_qsv_group_max, mpi_integer, MPI_SUM, MPI_COMM_WORLD, ierr)
         if (proc_rank == 0) print *, "counting done", id_qsv_group_max
@@ -967,9 +975,8 @@ contains
         ! Perform PCA
         if (proc_rank == 0) print *, "PCA"
         do l = 1, id_qsv_group_max
-          if (proc_rank == 0) print *, "group", l, num_qsv_group_member_glb(l)
-          if (num_qsv_group_member_glb(l) > 3) then
-
+          if (id_qsv_group_mask_glb(l) .and. num_qsv_group_member_glb(l) > 3) then
+            if (proc_rank == 0) print *, "group", l, num_qsv_group_member_glb(l)
             ! Mask
             qsv_group_mask = (qsv_group == l)
             
@@ -1052,16 +1059,16 @@ contains
 
     end subroutine s_classify_groups
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!    
-    impure subroutine s_identify_connected_groups(qsv_flag, qsv_group, qsv_merge_x, qsv_merge_z, id_qsv_group_max, y_idx_beg, y_idx_end)
+    impure subroutine s_identify_connected_groups(qsv_flag, qsv_group, qsv_merge_x, qsv_merge_z, id_qsv_group, y_idx_beg, y_idx_end)
         logical, dimension(0:m, 0:n, 0:p, 5), intent(inout) :: qsv_flag
         integer, dimension(0:m, 0:n, 0:p), intent(out) :: qsv_group
         logical, dimension(0:m, 0:n, 0:p), intent(out) :: qsv_merge_x, qsv_merge_z
-        integer, intent(out) :: id_qsv_group_max
+        integer, intent(out) :: id_qsv_group
         integer, intent(in) :: y_idx_beg, y_idx_end
 
         integer, dimension(-1:m + 1, -1:n + 1, -1:p + 1) :: qsv_group_padded
         logical, dimension(-1:m + 1, -1:n + 1, -1:p + 1) :: qsv_merge_x_padded
-        integer :: id_qsv_group_init, id_qsv_group 
+        integer :: id_qsv_group_init
         integer :: ibase, jbase, kbase, i, j, k, l, ii, jj, kk
         integer :: pr_neg, pr_pos
         integer :: ierr
@@ -1223,10 +1230,6 @@ contains
         ! Set non-grouped points to group 0
         if (proc_rank == 0) print *, "Set non-grouped points to group 0"
         where (qsv_group == id_qsv_group_init) qsv_group = 0
-
-        ! Find max group id
-        if (proc_rank == 0) print *, "Find max group id"
-        call MPI_ALLREDUCE(id_qsv_group, id_qsv_group_max, 1, mpi_integer, MPI_MAX, MPI_COMM_WORLD, ierr)
 
     end subroutine s_identify_connected_groups
 
