@@ -957,6 +957,7 @@ contains
         ! Find max group id
         call MPI_ALLREDUCE(id_qsv_group, id_qsv_group_max, 1, mpi_integer, MPI_MAX, MPI_COMM_WORLD, ierr)
         allocate (id_qsv_group_mask(id_qsv_group_max))
+        allocate (id_qsv_group_mask_glb(id_qsv_group_max))
         do l = proc_rank, id_qsv_group, proc_rank
           id_qsv_group_mask(l) = .true.
         end do
