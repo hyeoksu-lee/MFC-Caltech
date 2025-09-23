@@ -683,6 +683,11 @@ contains
             call s_write_variable_to_formatted_database_file(varname, t_step)
             varname(:) = ' '
 
+            q_sf = qsv_info(:, :, :, 6)
+            write (varname, '(A)') 'qsv_info6'
+            call s_write_variable_to_formatted_database_file(varname, t_step)
+            varname(:) = ' '
+
             q_sf = q_sf_group
             write (varname, '(A)') 'qsv_group'
             call s_write_variable_to_formatted_database_file(varname, t_step)
