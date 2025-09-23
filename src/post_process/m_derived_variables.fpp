@@ -1041,7 +1041,7 @@ contains
             !
             theta1 = atan(pca_axis(2) / pca_axis(1)) / pi * 180._wp
             theta2 = atan(pca_axis(3) / pca_axis(1)) / pi * 180._wp
-            ! if (l == 286) write(99, *) proc_rank_x, proc_rank_z, l, num_qsv_group_member_glb(l), eigval(ndim), pca_axis, theta1, theta2
+            ! if (l == 286) g(99, *) proc_rank_x, proc_rank_z, l, num_qsv_group_member_glb(l), eigval(ndim), pca_axis, theta1, theta2
             if (theta1 > 0._wp .and. theta1 < 90._wp .and. &
                 theta2 > -45._wp .and. theta2 < 45._wp) then
                 where (qsv_group_mask) qsv_flag(:, :, :, 5) = .true.
@@ -1059,8 +1059,7 @@ contains
         integer, intent(out) :: id_qsv_group_max
         integer, intent(in) :: y_idx_beg, y_idx_end
 
-        integer, dimension(-1:m + 1, -1:n + 1, -1:p + 1) :: qsv_group_p
-        added
+        integer, dimension(-1:m + 1, -1:n + 1, -1:p + 1) :: qsv_group_padded
         logical, dimension(-1:m + 1, -1:n + 1, -1:p + 1) :: qsv_merge_x_padded
         integer :: id_qsv_group_init, id_qsv_group 
         integer :: ibase, jbase, kbase, i, j, k, l, ii, jj, kk
