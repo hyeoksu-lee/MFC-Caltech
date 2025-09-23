@@ -969,13 +969,16 @@ contains
         if (proc_rank == 0) print *, "counting done"
 
         ! Perform PCA
+        if (proc_rank == 0) print *, "PCA"
         coord_x = spread(spread(x_cc, dim=2, ncopies=n), dim=3, ncopies=p)
         coord_y = spread(spread(y_cc, dim=1, ncopies=m), dim=3, ncopies=p)
         coord_z = spread(spread(z_cc, dim=1, ncopies=m), dim=2, ncopies=p)
 
         do l = 1, id_qsv_group_max
           if (num_qsv_group_member_glb(l) > 3) then
+            if (proc_rank == 0) print *, "group", l, num_qsv_group_member_glb(l)
             ! Mask
+            if (proc_rank == 0) print *, "mask"
             qsv_group_mask = (qsv_group == l)
             
             !
@@ -989,6 +992,7 @@ contains
             end where
 
             ! Compute mean
+            if (proc_rank == 0) print *, "mean"
             x_mean = sum(x_mask)
             y_mean = sum(y_mask)
             z_mean = sum(z_mask)
@@ -1000,6 +1004,7 @@ contains
             z_mean_glb = z_mean_glb / real(num_qsv_group_member_glb(l), wp)
 
             ! Center the data by subtracting mean
+            if (proc_rank == 0) print *, "center data"
             x_centered = 0._wp
             y_centered = 0._wp
             z_centered = 0._wp
@@ -1010,6 +1015,7 @@ contains
             end where
 
             ! Compute covariance matrix
+            if (proc_rank == 0) print *, "cov"
             cov(1, 1) = sum(x_centered*x_centered)
             cov(1, 2) = sum(x_centered*y_centered)
             cov(1, 3) = sum(x_centered*z_centered)
@@ -1020,11 +1026,13 @@ contains
             cov_glb = cov_glb / real(num_qsv_group_member_glb(l), wp)
 
             ! Compute eigenvalues and eigenvectors of covariance matrix
+            if (proc_rank == 0) print *, "dsyev"
 #ifdef MFC_SINGLE_PRECISION
             call ssyev(jobz, uplo, ndim, cov_glb, ndim, eigval, work, lwork, info)
 #else
             call dsyev(jobz, uplo, ndim, cov_glb, ndim, eigval, work, lwork, info)
 #endif
+            if (proc_rank == 0) print *, "dsyev done"
 
             ! Most significant eigenvector
             pca_axis = cov_glb(:, ndim)
