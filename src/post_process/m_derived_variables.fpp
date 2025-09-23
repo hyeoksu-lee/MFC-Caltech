@@ -956,18 +956,20 @@ contains
         call s_identify_connected_groups(qsv_flag, qsv_group, qsv_merge_x, qsv_merge_z, id_qsv_group, y_idx_beg, y_idx_end)
         ! Find max group id
         call MPI_ALLREDUCE(id_qsv_group, id_qsv_group_max, 1, mpi_integer, MPI_MAX, MPI_COMM_WORLD, ierr)
-        allocate (id_qsv_group_mask(id_qsv_group_max))
-        allocate (id_qsv_group_mask_glb(id_qsv_group_max))
-        do l = proc_rank, id_qsv_group, proc_rank
+        allocate (id_qsv_group_mask(0:id_qsv_group_max))
+        allocate (id_qsv_group_mask_glb(0:id_qsv_group_max))
+        id_qsv_group_mask = .false.
+        do l = proc_rank + num_procs, id_qsv_group, num_procs
           id_qsv_group_mask(l) = .true.
         end do
         call MPI_ALLREDUCE(id_qsv_group_mask, id_qsv_group_mask_glb, id_qsv_group_max, mpi_logical, MPI_LOR, MPI_COMM_WORLD, ierr)
         if (proc_rank == 0) print *, "grouping done"
     
         if (proc_rank == 0) print *, "counting"
-        allocate (num_qsv_group_member(id_qsv_group_max))
-        allocate (num_qsv_group_member_glb(id_qsv_group_max))
-        do l = 1, id_qsv_group_max
+        allocate (num_qsv_group_member(0:id_qsv_group_max))
+        allocate (num_qsv_group_member_glb(0:id_qsv_group_max))
+        num_qsv_group_member = 0
+        do l = num_procs, id_qsv_group_max
           if (id_qsv_group_mask_glb(l)) num_qsv_group_member(l) = count(qsv_group == l)
         end do
         call MPI_ALLREDUCE(num_qsv_group_member, num_qsv_group_member_glb, id_qsv_group_max, mpi_integer, MPI_SUM, MPI_COMM_WORLD, ierr)
@@ -975,7 +977,7 @@ contains
 
         ! Perform PCA
         if (proc_rank == 0) print *, "PCA"
-        do l = 1, id_qsv_group_max
+        do l = num_procs, id_qsv_group_max
           if (id_qsv_group_mask_glb(l) .and. num_qsv_group_member_glb(l) > 3) then
             if (proc_rank == 0) print *, "group", l, num_qsv_group_member_glb(l)
             ! Mask
@@ -1010,7 +1012,6 @@ contains
             call MPI_ALLREDUCE(x_mean, x_mean_glb, 1, mpi_p, MPI_SUM, MPI_COMM_WORLD, ierr)
             call MPI_ALLREDUCE(y_mean, y_mean_glb, 1, mpi_p, MPI_SUM, MPI_COMM_WORLD, ierr)
             call MPI_ALLREDUCE(z_mean, z_mean_glb, 1, mpi_p, MPI_SUM, MPI_COMM_WORLD, ierr)
-            if (l == 286) print *, proc_rank, x_mean, x_mean_glb, x_mean_glb / real(num_qsv_group_member_glb(l), wp)
             x_mean_glb = x_mean_glb / real(num_qsv_group_member_glb(l), wp)
             y_mean_glb = y_mean_glb / real(num_qsv_group_member_glb(l), wp)
             z_mean_glb = z_mean_glb / real(num_qsv_group_member_glb(l), wp)
