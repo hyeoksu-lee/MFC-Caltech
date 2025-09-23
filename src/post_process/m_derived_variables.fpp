@@ -941,7 +941,7 @@ contains
         real(wp), dimension(ndim) :: mean
         real(wp), dimension(ndim, ndim) :: cov, cov_glb
         real(wp), dimension(ndim) :: pca_axis
-        real(wp) :: theta1, theta2
+        real(wp) :: theta1, theta2, aspect_ratio
         
         integer :: ierr
         integer :: i, j, k, l
@@ -978,7 +978,7 @@ contains
         ! Perform PCA
         if (proc_rank == 0) print *, "PCA"
         do l = num_procs, id_qsv_group_max
-          if (id_qsv_group_mask_glb(l) .and. num_qsv_group_member_glb(l) > 3) then
+          if (id_qsv_group_mask_glb(l) .and. num_qsv_group_member_glb(l) > 27) then
             if (proc_rank == 0) print *, "group", l, num_qsv_group_member_glb(l)
             ! Mask
             qsv_group_mask = (qsv_group == l)
@@ -995,16 +995,6 @@ contains
             where (qsv_group_mask .and. qsv_merge_x) x_mask = x_mask + (x_cb_glb(m_glb) - x_cb_glb(-1))
             where (qsv_group_mask .and. qsv_merge_z) z_mask = z_mask + (z_cb_glb(p_glb) - z_cb_glb(-1))
 
-            ! if (l == 286) then
-            !   do k = 0, p
-            !     do j = 0, n
-            !       do i = 0, m
-            !         write(100+proc_rank,*) proc_rank_x, proc_rank_y, proc_rank_z, i, j, k, qsv_group(i, j, k), qsv_group_mask(i, j, k), qsv_merge_x(i, j, k), qsv_merge_z(i, j, k), x_mask(i, j, k), y_mask(i, j, k), z_mask(i, j, k), coord_x(i, j, k), coord_y(i, j, k), coord_z(i, j, k)
-            !       end do
-            !     end do
-            !   end do
-            ! end if
-
             ! Compute mean
             x_mean = sum(x_mask)
             y_mean = sum(y_mask)
@@ -1015,7 +1005,6 @@ contains
             x_mean_glb = x_mean_glb / real(num_qsv_group_member_glb(l), wp)
             y_mean_glb = y_mean_glb / real(num_qsv_group_member_glb(l), wp)
             z_mean_glb = z_mean_glb / real(num_qsv_group_member_glb(l), wp)
-
 
             ! Center the data by subtracting mean
             x_centered = 0._wp
@@ -1031,8 +1020,11 @@ contains
             cov(1, 1) = sum(x_centered*x_centered)
             cov(1, 2) = sum(x_centered*y_centered)
             cov(1, 3) = sum(x_centered*z_centered)
+            cov(2, 1) = cov(1, 2)
             cov(2, 2) = sum(y_centered*y_centered)
             cov(2, 3) = sum(y_centered*z_centered)
+            cov(3, 1) = cov(1, 3)
+            cov(3, 2) = cov(2, 3)
             cov(3, 3) = sum(z_centered*z_centered)
             call MPI_ALLREDUCE(cov, cov_glb, ndim*ndim, mpi_p, MPI_SUM, MPI_COMM_WORLD, ierr)
             cov_glb = cov_glb / real(num_qsv_group_member_glb(l), wp)
@@ -1048,11 +1040,12 @@ contains
             pca_axis = cov_glb(:, ndim)
 
             !
+            aspect_ratio = sqrt(abs(eigval(ndim)) / (abs(eigval(2)) + sgm_eps))
             theta1 = atan(pca_axis(2) / pca_axis(1)) / pi * 180._wp
-            theta2 = atan(pca_axis(3) / pca_axis(1)) / pi * 180._wp
-            ! if (l == 286) g(99, *) proc_rank_x, proc_rank_z, l, num_qsv_group_member_glb(l), eigval(ndim), pca_axis, theta1, theta2
+            theta2 = atan(pca_axis(3) / pca_axis(1)) / pi * 180._wp            
             if (theta1 > 0._wp .and. theta1 < 90._wp .and. &
-                theta2 > -45._wp .and. theta2 < 45._wp) then
+                theta2 > -45._wp .and. theta2 < 45._wp .and. &
+                aspect_ratio > 2._wp) then
                 where (qsv_group_mask) qsv_flag(:, :, :, 5) = .true.
                 where (qsv_group_mask) qsv_info = 1._wp
             end if
