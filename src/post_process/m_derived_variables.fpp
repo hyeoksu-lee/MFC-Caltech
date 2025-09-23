@@ -908,30 +908,21 @@ contains
         end do
 
         if (proc_rank == 0) print *, "criteria 5"
-        call s_classify_groups(qsv_flag(0:m, 0:n, 0:p, 5), qsv_info(0:m, 0:n, 0:p, 5), qsv_group, y_idx_beg, y_idx_end)
-        q_sf_group(0:m, 0:n, 0:p) = real(qsv_group(0:m, 0:n, 0:p), wp)
-
-        ! ! (5) Remove too small ones
-        ! if (proc_rank == 0) print *, "criteria 5"
-        ! do l = 1, id_qsv_group_max
-        !   if (num_qsv_group_member_glb(l) >= 20) then
-        !     where (qsv_group == l) qsv_flag(:, :, :, 5) = .true.
-        !     where (qsv_group == l) qsv_info(:, :, :, 5) = 1._wp
-        !   end if
-        ! end do
-
+        call s_classify_groups(qsv_flag, qsv_info(0:m, 0:n, 0:p, 5), qsv_group, y_idx_beg, y_idx_end)
+        q_sf_group(0:m, 0:n, 0:p) = real(qsv_group, wp)
         if (proc_rank == 0) print *, "s_detect_qsv done"
 
     end subroutine s_detect_qsv
 
     impure subroutine s_classify_groups(qsv_flag, qsv_info, qsv_group, y_idx_beg, y_idx_end)
-        logical, dimension(0:m, 0:n, 0:p), intent(inout) :: qsv_flag
-        real(wp), dimension(0:m, 0:n, 0:p), intent(inout) :: qsv_info
+        logical, dimension(0:m, 0:n, 0:p, 5), intent(inout) :: qsv_flag
+        real(wp), dimension(0:m, 0:n, 0:p), intent(out) :: qsv_info
         integer, dimension(0:m, 0:n, 0:p), intent(out) :: qsv_group
         integer, intent(in) :: y_idx_beg, y_idx_end
         integer :: id_qsv_group_max
+
         integer, dimension(:), allocatable :: num_qsv_group_member, num_qsv_group_member_glb
-        logical, dimension(0:m, 0:n, 0:p) :: qsv_group_mask
+        logical, dimension(0:m, 0:n, 0:p) :: qsv_group_mask, qsv_merge_x, qsv_merge_z
         real(wp), dimension(0:m, 0:n, 0:p) :: coord_x, coord_y, coord_z
         real(wp), dimension(0:m, 0:n, 0:p) :: x_mask, y_mask, z_mask
         real(wp), dimension(0:m, 0:n, 0:p) :: x_centered, y_centered, z_centered
@@ -954,9 +945,14 @@ contains
         integer :: ierr
         integer :: i, j, k, l
 
+        ! Grid
+        coord_x = spread(spread(x_cc(0:m), dim=2, ncopies=n + 1), dim=3, ncopies=p + 1)
+        coord_y = spread(spread(y_cc(0:n), dim=1, ncopies=m + 1), dim=3, ncopies=p + 1)
+        coord_z = spread(spread(z_cc(0:p), dim=1, ncopies=m + 1), dim=2, ncopies=n + 1)
+
         ! Grouping connected points
         if (proc_rank == 0) print *, "grouping"
-        call s_identify_connected_groups(qsv_flag, qsv_group, id_qsv_group_max, y_idx_beg, y_idx_end)
+        call s_identify_connected_groups(qsv_flag, qsv_group, qsv_merge_x, qsv_merge_z, id_qsv_group_max, y_idx_beg, y_idx_end)
         if (proc_rank == 0) print *, "grouping done"
     
         if (proc_rank == 0) print *, "counting"
@@ -966,19 +962,15 @@ contains
           num_qsv_group_member(l) = count(qsv_group == l)
         end do
         call MPI_ALLREDUCE(num_qsv_group_member, num_qsv_group_member_glb, id_qsv_group_max, mpi_integer, MPI_SUM, MPI_COMM_WORLD, ierr)
-        if (proc_rank == 0) print *, "counting done"
+        if (proc_rank == 0) print *, "counting done", id_qsv_group_max
 
         ! Perform PCA
         if (proc_rank == 0) print *, "PCA"
-        coord_x = spread(spread(x_cc, dim=2, ncopies=n), dim=3, ncopies=p)
-        coord_y = spread(spread(y_cc, dim=1, ncopies=m), dim=3, ncopies=p)
-        coord_z = spread(spread(z_cc, dim=1, ncopies=m), dim=2, ncopies=p)
-
         do l = 1, id_qsv_group_max
+          if (proc_rank == 0) print *, "group", l, num_qsv_group_member_glb(l)
           if (num_qsv_group_member_glb(l) > 3) then
-            if (proc_rank == 0) print *, "group", l, num_qsv_group_member_glb(l)
+
             ! Mask
-            if (proc_rank == 0) print *, "mask"
             qsv_group_mask = (qsv_group == l)
             
             !
@@ -990,21 +982,33 @@ contains
               y_mask = coord_y
               z_mask = coord_z
             end where
+            where (qsv_group_mask .and. qsv_merge_x) x_mask = x_mask + (x_cb_glb(m_glb) - x_cb_glb(-1))
+            where (qsv_group_mask .and. qsv_merge_z) z_mask = z_mask + (z_cb_glb(p_glb) - z_cb_glb(-1))
+
+            ! if (l == 286) then
+            !   do k = 0, p
+            !     do j = 0, n
+            !       do i = 0, m
+            !         write(100+proc_rank,*) proc_rank_x, proc_rank_y, proc_rank_z, i, j, k, qsv_group(i, j, k), qsv_group_mask(i, j, k), qsv_merge_x(i, j, k), qsv_merge_z(i, j, k), x_mask(i, j, k), y_mask(i, j, k), z_mask(i, j, k), coord_x(i, j, k), coord_y(i, j, k), coord_z(i, j, k)
+            !       end do
+            !     end do
+            !   end do
+            ! end if
 
             ! Compute mean
-            if (proc_rank == 0) print *, "mean"
             x_mean = sum(x_mask)
             y_mean = sum(y_mask)
             z_mean = sum(z_mask)
             call MPI_ALLREDUCE(x_mean, x_mean_glb, 1, mpi_p, MPI_SUM, MPI_COMM_WORLD, ierr)
             call MPI_ALLREDUCE(y_mean, y_mean_glb, 1, mpi_p, MPI_SUM, MPI_COMM_WORLD, ierr)
             call MPI_ALLREDUCE(z_mean, z_mean_glb, 1, mpi_p, MPI_SUM, MPI_COMM_WORLD, ierr)
+            if (l == 286) print *, proc_rank, x_mean, x_mean_glb, x_mean_glb / real(num_qsv_group_member_glb(l), wp)
             x_mean_glb = x_mean_glb / real(num_qsv_group_member_glb(l), wp)
             y_mean_glb = y_mean_glb / real(num_qsv_group_member_glb(l), wp)
             z_mean_glb = z_mean_glb / real(num_qsv_group_member_glb(l), wp)
 
+
             ! Center the data by subtracting mean
-            if (proc_rank == 0) print *, "center data"
             x_centered = 0._wp
             y_centered = 0._wp
             z_centered = 0._wp
@@ -1015,24 +1019,21 @@ contains
             end where
 
             ! Compute covariance matrix
-            if (proc_rank == 0) print *, "cov"
             cov(1, 1) = sum(x_centered*x_centered)
             cov(1, 2) = sum(x_centered*y_centered)
             cov(1, 3) = sum(x_centered*z_centered)
             cov(2, 2) = sum(y_centered*y_centered)
             cov(2, 3) = sum(y_centered*z_centered)
             cov(3, 3) = sum(z_centered*z_centered)
-            call MPI_ALLREDUCE(cov, cov_glb, (/3, 3/), mpi_p, MPI_SUM, MPI_COMM_WORLD, ierr)
+            call MPI_ALLREDUCE(cov, cov_glb, ndim*ndim, mpi_p, MPI_SUM, MPI_COMM_WORLD, ierr)
             cov_glb = cov_glb / real(num_qsv_group_member_glb(l), wp)
 
             ! Compute eigenvalues and eigenvectors of covariance matrix
-            if (proc_rank == 0) print *, "dsyev"
 #ifdef MFC_SINGLE_PRECISION
             call ssyev(jobz, uplo, ndim, cov_glb, ndim, eigval, work, lwork, info)
 #else
             call dsyev(jobz, uplo, ndim, cov_glb, ndim, eigval, work, lwork, info)
 #endif
-            if (proc_rank == 0) print *, "dsyev done"
 
             ! Most significant eigenvector
             pca_axis = cov_glb(:, ndim)
@@ -1040,9 +1041,10 @@ contains
             !
             theta1 = atan(pca_axis(2) / pca_axis(1)) / pi * 180._wp
             theta2 = atan(pca_axis(3) / pca_axis(1)) / pi * 180._wp
+            ! if (l == 286) write(99, *) proc_rank_x, proc_rank_z, l, num_qsv_group_member_glb(l), eigval(ndim), pca_axis, theta1, theta2
             if (theta1 > 0._wp .and. theta1 < 90._wp .and. &
                 theta2 > -45._wp .and. theta2 < 45._wp) then
-                where (qsv_group_mask) qsv_flag = .true.
+                where (qsv_group_mask) qsv_flag(:, :, :, 5) = .true.
                 where (qsv_group_mask) qsv_info = 1._wp
             end if
           end if
@@ -1050,13 +1052,16 @@ contains
 
     end subroutine s_classify_groups
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!    
-    impure subroutine s_identify_connected_groups(qsv_flag, qsv_group, id_qsv_group_max, y_idx_beg, y_idx_end)
+    impure subroutine s_identify_connected_groups(qsv_flag, qsv_group, qsv_merge_x, qsv_merge_z, id_qsv_group_max, y_idx_beg, y_idx_end)
         logical, dimension(0:m, 0:n, 0:p, 5), intent(inout) :: qsv_flag
         integer, dimension(0:m, 0:n, 0:p), intent(out) :: qsv_group
+        logical, dimension(0:m, 0:n, 0:p), intent(out) :: qsv_merge_x, qsv_merge_z
         integer, intent(out) :: id_qsv_group_max
         integer, intent(in) :: y_idx_beg, y_idx_end
-        
-        integer, dimension(-1:m + 1, -1:n + 1, -1:p + 1) :: qsv_group_padded
+
+        integer, dimension(-1:m + 1, -1:n + 1, -1:p + 1) :: qsv_group_p
+        added
+        logical, dimension(-1:m + 1, -1:n + 1, -1:p + 1) :: qsv_merge_x_padded
         integer :: id_qsv_group_init, id_qsv_group 
         integer :: ibase, jbase, kbase, i, j, k, l, ii, jj, kk
         integer :: pr_neg, pr_pos
@@ -1122,6 +1127,8 @@ contains
 
         ! Merge groups across processors
         if (proc_rank == 0) print *, "Merge groups across processors"
+        qsv_merge_x = .false.
+        qsv_merge_z = .false.
         do l = 0, num_procs - 1
           ! Add paddings
           call s_add_paddings_integer(qsv_group, 1, qsv_group_padded)
@@ -1137,7 +1144,10 @@ contains
                     if (qsv_group_padded(-1, jj, kk) /= pr_neg .and. &
                         qsv_group(0, j, k) /= proc_rank .and. &
                         qsv_group_padded(-1, jj, kk) /= qsv_group(0, j, k)) then
-                      WHERE (qsv_group == qsv_group(0, j, k)) qsv_group = qsv_group_padded(-1, jj, kk)
+                      if (proc_rank_x == 0) then
+                        where (qsv_group == qsv_group(0, j, k)) qsv_merge_x = .true.
+                      end if
+                      where (qsv_group == qsv_group(0, j, k)) qsv_group = qsv_group_padded(-1, jj, kk)
                       breakpoint = .true.
                     end if
                     if (breakpoint) exit
@@ -1150,6 +1160,7 @@ contains
 
           ! Add paddings
           call s_add_paddings_integer(qsv_group, 1, qsv_group_padded)
+          call s_add_paddings_logical(qsv_merge_x, 1, qsv_merge_x_padded)
           ! Get adjecent proc_rank
           call s_get_adjacent_proc_rank(2, pr_neg, pr_pos)
           if (proc_rank == l) then
@@ -1162,6 +1173,9 @@ contains
                     if (qsv_group_padded(ii, -1, kk) /= pr_neg .and. &
                         qsv_group(i, 0, k) /= proc_rank .and. &
                         qsv_group_padded(ii, -1, kk) /= qsv_group(i, 0, k)) then
+                      if (qsv_merge_x_padded(ii, -1, kk)) then
+                        where (qsv_group == qsv_group(i, 0, k)) qsv_merge_x = .true.
+                      end if
                       ! Have to deal with situation where two groups are separate in proc1 but they are connected by a point in proc2
                       WHERE (qsv_group == qsv_group(i, 0, k)) qsv_group = qsv_group_padded(ii, -1, kk)
                       breakpoint = .true.
@@ -1176,6 +1190,7 @@ contains
 
           ! Add paddings
           call s_add_paddings_integer(qsv_group, 1, qsv_group_padded)
+          call s_add_paddings_logical(qsv_merge_x, 1, qsv_merge_x_padded)
           ! Get adjecent proc_rank
           call s_get_adjacent_proc_rank(3, pr_neg, pr_pos)
           if (proc_rank == l) then
@@ -1188,7 +1203,13 @@ contains
                     if (qsv_group_padded(ii, jj, -1) /= pr_neg .and. &
                         qsv_group(i, j, 0) /= proc_rank .and. &
                         qsv_group_padded(ii, jj, -1) /= qsv_group(i, j, 0)) then
-                      WHERE (qsv_group == qsv_group(i, j, 0)) qsv_group = qsv_group_padded(ii, jj, -1)
+                      if (qsv_merge_x_padded(ii, jj, -1)) then
+                        where (qsv_group == qsv_group(i, 0, k)) qsv_merge_x = .true.
+                      end if
+                      if (proc_rank_z == 0) then
+                        where (qsv_group == qsv_group(i, j, 0)) qsv_merge_z = .true.
+                      end if
+                      where (qsv_group == qsv_group(i, j, 0)) qsv_group = qsv_group_padded(ii, jj, -1)
                       breakpoint = .true.
                     end if
                     if (breakpoint) exit
