@@ -242,8 +242,8 @@ contains
         real(wp) :: theta, eta
         integer :: seed, kfac, yfac
 
-        kfac = ik*amplifier
-        yfac = nint((sin(yloc) + 1._wp)*amplifier)
+        kfac = (ik + mixlayer_seed)*amplifier
+        yfac = nint((sin(yloc) + 1._wp + mixlayer_seed)*amplifier)
         seed = nint(0.5_wp*modmul(kfac) + 0.5_wp*modmul(yfac))
 
         call s_prng(theta, seed)

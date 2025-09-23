@@ -156,6 +156,7 @@ module m_global_parameters
     real(wp) :: mixlayer_perturb_k0  !< Peak wavenumber of prescribed energy spectra with mixlayer_perturb flag
                                      !! Default value (k0 = 0.4446) is most unstable mode obtained from linear stability analysis
                                      !! See Michalke (1964, JFM) for details
+    integer :: mixlayer_seed
 
     real(wp) :: pi_fac !< Factor for artificial pi_inf
 
@@ -387,6 +388,7 @@ contains
         mixlayer_perturb = .false.
         mixlayer_perturb_nk = 100
         mixlayer_perturb_k0 = 0.4446_wp
+        mixlayer_seed = 0
         perturb_flow = .false.
         perturb_flow_fluid = dflt_int
         perturb_flow_mag = dflt_real

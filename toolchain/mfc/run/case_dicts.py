@@ -80,6 +80,7 @@ PRE_PROCESS.update({
     'mixlayer_perturb': ParamType.LOG,
     'mixlayer_perturb_nk': ParamType.INT,
     'mixlayer_perturb_k0': ParamType.REAL,
+    'mixlayer_seed': ParamType.INT,
     'perturb_flow': ParamType.LOG,
     'perturb_flow_fluid': ParamType.INT,
     'perturb_flow_mag': ParamType.REAL,
