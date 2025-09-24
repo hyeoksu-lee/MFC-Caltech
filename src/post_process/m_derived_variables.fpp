@@ -948,21 +948,22 @@ contains
         do l = proc_rank + num_procs, id_qsv_group, num_procs
           id_qsv_group_mask(l) = .true.
         end do
-        call MPI_ALLREDUCE(id_qsv_group_mask, id_qsv_group_mask_glb, id_qsv_group_max, mpi_logical, MPI_LOR, MPI_COMM_WORLD, ierr)
+        call MPI_ALLREDUCE(id_qsv_group_mask, id_qsv_group_mask_glb, id_qsv_group_max + 1, mpi_logical, MPI_LOR, MPI_COMM_WORLD, ierr)
         if (proc_rank == 0) print *, "grouping done"
     
-        if (proc_rank == 0) print *, "counting"
+        if (proc_rank == 0) print *, "counting", id_qsv_group_max
         allocate (num_qsv_group_member(0:id_qsv_group_max))
         allocate (num_qsv_group_member_glb(0:id_qsv_group_max))
         num_qsv_group_member = 0
+        num_qsv_group_member_glb = 0
         do l = num_procs, id_qsv_group_max
           if (id_qsv_group_mask_glb(l)) num_qsv_group_member(l) = count(qsv_group == l)
         end do
-        call MPI_ALLREDUCE(num_qsv_group_member, num_qsv_group_member_glb, id_qsv_group_max, mpi_integer, MPI_SUM, MPI_COMM_WORLD, ierr)
-        if (proc_rank == 0) print *, "counting done", id_qsv_group_max
+        call MPI_ALLREDUCE(num_qsv_group_member, num_qsv_group_member_glb, id_qsv_group_max + 1, mpi_integer, MPI_SUM, MPI_COMM_WORLD, ierr)
+        if (proc_rank == 0) print *, "counting done", maxloc(num_qsv_group_member_glb), maxval(num_qsv_group_member_glb)
 
         ! Perform PCA
-        if (proc_rank == 0) print *, "PCA"
+        if (proc_rank == 0) print *, "PCA", id_qsv_group_max
         do l = num_procs, id_qsv_group_max
           if (id_qsv_group_mask_glb(l) .and. num_qsv_group_member_glb(l) > 27) then
             if (proc_rank == 0) print *, "group", l, num_qsv_group_member_glb(l)
