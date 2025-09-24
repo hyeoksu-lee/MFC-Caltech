@@ -837,14 +837,14 @@ contains
         real(wp), &
             dimension(-offset_x%beg:m + offset_x%end, &
                       -offset_y%beg:n + offset_y%end, &
-                      -offset_z%beg:p + offset_z%end, 6), intent(out) :: qsv_info
+                      -offset_z%beg:p + offset_z%end, 5), intent(out) :: qsv_info
 
         real(wp), &
             dimension(-offset_x%beg:m + offset_x%end, &
                       -offset_y%beg:n + offset_y%end, &
                       -offset_z%beg:p + offset_z%end), intent(inout) :: q_sf_group
                       
-        logical, dimension(0:m, 0:n, 0:p, 6) :: qsv_flag
+        logical, dimension(0:m, 0:n, 0:p, 5) :: qsv_flag
         integer, dimension(0:m, 0:n, 0:p) :: qsv_group
         integer :: qsv_flag_count
         logical, dimension(-1:m + 1, -1:n + 1, -1:p + 1) :: qsv_flag_padded
@@ -907,16 +907,16 @@ contains
             end if
         end do
 
-        if (proc_rank == 0) print *, "criteria 5-6"
-        call s_classify_groups(qsv_flag, qsv_info, qsv_group, y_idx_beg, y_idx_end)
+        if (proc_rank == 0) print *, "criteria 5"
+        call s_classify_groups(qsv_flag, qsv_info(0:m, 0:n, 0:p, 5), qsv_group, y_idx_beg, y_idx_end)
         q_sf_group(0:m, 0:n, 0:p) = real(qsv_group, wp)
         if (proc_rank == 0) print *, "s_detect_qsv done"
 
     end subroutine s_detect_qsv
 
     impure subroutine s_classify_groups(qsv_flag, qsv_info, qsv_group, y_idx_beg, y_idx_end)
-        logical, dimension(0:m, 0:n, 0:p, 6), intent(inout) :: qsv_flag
-        real(wp), dimension(0:m, 0:n, 0:p, 6), intent(out) :: qsv_info
+        logical, dimension(0:m, 0:n, 0:p, 5), intent(inout) :: qsv_flag
+        real(wp), dimension(0:m, 0:n, 0:p), intent(out) :: qsv_info
         integer, dimension(0:m, 0:n, 0:p), intent(out) :: qsv_group
         integer, intent(in) :: y_idx_beg, y_idx_end
         integer :: id_qsv_group, id_qsv_group_max
@@ -1039,7 +1039,7 @@ contains
             ! Most significant eigenvector
             pca_axis = cov_glb(:, ndim)
 
-            ! 
+            !
             aspect_ratio = sqrt(abs(eigval(ndim)) / (abs(eigval(2)) + sgm_eps))
             theta1 = atan(pca_axis(2) / pca_axis(1)) / pi * 180._wp
             theta2 = atan(pca_axis(3) / pca_axis(1)) / pi * 180._wp            
@@ -1047,20 +1047,15 @@ contains
                 theta2 > -45._wp .and. theta2 < 45._wp .and. &
                 aspect_ratio > 2._wp) then
                 where (qsv_group_mask) qsv_flag(:, :, :, 5) = .true.
-                where (qsv_group_mask) qsv_info(:, :, :, 5) = 1._wp
-                if (sqrt(abs(eigval(ndim))) < 0.1_wp*(y_cc_glb(y_idx_end) - y_cc_glb(y_idx_beg))) then
-                    where (qsv_group_mask) qsv_flag(:, :, :, 6) = .true.
-                    where (qsv_group_mask) qsv_info(:, :, :, 6) = 1._wp
-                end if
+                where (qsv_group_mask) qsv_info = 1._wp
             end if
-
           end if
         end do
 
     end subroutine s_classify_groups
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!    
     impure subroutine s_identify_connected_groups(qsv_flag, qsv_group, qsv_merge_x, qsv_merge_z, id_qsv_group, y_idx_beg, y_idx_end)
-        logical, dimension(0:m, 0:n, 0:p, 6), intent(inout) :: qsv_flag
+        logical, dimension(0:m, 0:n, 0:p, 5), intent(inout) :: qsv_flag
         integer, dimension(0:m, 0:n, 0:p), intent(out) :: qsv_group
         logical, dimension(0:m, 0:n, 0:p), intent(out) :: qsv_merge_x, qsv_merge_z
         integer, intent(out) :: id_qsv_group

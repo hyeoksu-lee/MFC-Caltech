@@ -225,7 +225,7 @@ contains
 
         real(wp), dimension(-offset_x%beg:m + offset_x%end, &
                             -offset_y%beg:n + offset_y%end, &
-                            -offset_z%beg:p + offset_z%end, 6) :: qsv_info
+                            -offset_z%beg:p + offset_z%end, 5) :: qsv_info
 
         integer :: i, j, k, l
         integer :: x_beg, x_end, y_beg, y_end, z_beg, z_end
