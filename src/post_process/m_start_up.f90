@@ -214,9 +214,8 @@ contains
         integer :: mixlayer_idx_beg, mixlayer_idx_end
         real(wp), dimension(-offset_x%beg:m + offset_x%end, &
                             -offset_y%beg:n + offset_y%end, &
-                            -offset_z%beg:p + offset_z%end) :: liutex_mag, liutex_rrs, liutex_mag_filtered, liutex_core, &
+                            -offset_z%beg:p + offset_z%end) :: liutex_mag, liutex_mag_filtered, &
                                                               vort_stretch_proj, vort_stretch_res, &
-                                                              omega_axis, omega_perp, &
                                                               A_rr, A_ps, A_ns, A_sr, &
                                                               q_sf_group
         real(wp), dimension(-offset_x%beg:m + offset_x%end, &
@@ -630,8 +629,8 @@ contains
             ! Compute Liutex vector and its magnitude
             if (proc_rank == 0) print *, "s_derive_liutex"
             call s_derive_liutex(q_prim_vf, mixlayer_idx_beg, mixlayer_idx_end, &
-                                liutex_mag, liutex_axis, liutex_rrs, liutex_core, &
-                                omega, omega_axis, omega_perp, &
+                                liutex_mag, liutex_axis, &
+                                omega, &
                                 vort_stretch, vort_stretch_proj, vort_stretch_res, &
                                 A_rr, A_ps, A_ns, A_sr)
             if (proc_rank == 0) print *, "s_derive_liutex done"
@@ -642,19 +641,9 @@ contains
             call s_write_variable_to_formatted_database_file(varname, t_step)
             varname(:) = ' '
 
-            q_sf = omega_axis
-            write (varname, '(A)') 'omega_axis'
-            call s_write_variable_to_formatted_database_file(varname, t_step)
-            varname(:) = ' '
-
-            q_sf = omega_perp
-            write (varname, '(A)') 'omega_perp'
-            call s_write_variable_to_formatted_database_file(varname, t_step)
-            varname(:) = ' '
-
             ! QSV detection
             if (proc_rank == 0) print *, "s_detect_qsv"
-            call s_detect_qsv(liutex_mag, liutex_axis, omega_axis, omega_perp, A_rr, A_ps, &
+            call s_detect_qsv(liutex_mag, liutex_axis, A_rr, A_ps, &
                               mixlayer_idx_beg, mixlayer_idx_end, qsv_info, q_sf_group)
             if (proc_rank == 0) print *, "s_detect_qsv done"
 

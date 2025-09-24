@@ -574,8 +574,8 @@ contains
         !!  @param liutex_mag Liutex magnitude
         !!  @param liutex_axis Liutex axis
     impure subroutine s_derive_liutex(q_prim_vf, y_idx_beg, y_idx_end, &
-                                    liutex_mag, liutex_axis, liutex_rrs, liutex_core, &
-                                    omega, omega_axis, omega_perp, &
+                                    liutex_mag, liutex_axis, &
+                                    omega, &
                                     vort_stretch, vort_stretch_proj, vort_stretch_res, &
                                     A_rr, A_ps, A_ns, A_sr)
         integer, parameter :: ndim = 3
@@ -589,7 +589,7 @@ contains
             dimension(-offset_x%beg:m + offset_x%end, &
                       -offset_y%beg:n + offset_y%end, &
                       -offset_z%beg:p + offset_z%end), &
-            intent(out) :: liutex_mag, liutex_rrs, liutex_core, omega_axis, omega_perp
+            intent(out) :: liutex_mag
 
         real(wp), &
             dimension(-offset_x%beg:m + offset_x%end, &
@@ -628,18 +628,12 @@ contains
         real(wp) :: lrr, lcr, lci !< imaginary part of complex eigenvalue
         real(wp) :: alpha, beta
 
-        real(wp), dimension(3) :: grad_liutex_mag
-        real(wp) :: liutex_core_val
-
-        real(wp), dimension(3) :: tmp
-
         integer :: j, k, l, r, i !< Generic loop iterators
         integer :: idx
 
         omega = 0._wp
         liutex_mag = 0._wp
         liutex_axis = 0._wp
-        liutex_rrs = 0._wp 
         vort_stretch_proj = 0._wp 
         vort_stretch_res = 0._wp 
         A_rr = 0._wp
@@ -685,7 +679,6 @@ contains
                                                     + omega(j, k, l, 2)*vgt(r,2) &
                                                     + omega(j, k, l, 3)*vgt(r,3)
                         end do
-
                         
                         A_S = 0.5_wp*(vgt + transpose(vgt))
                         A_W = 0.5_wp*(vgt - transpose(vgt))
@@ -726,11 +719,6 @@ contains
 
                         ! Compute vorticity projected on the eigenvector
                         omega_proj = sum(omega(j, k, l, :)*eigvec(:))
-                        omega_axis(j, k, l) = omega_proj
-
-                        ! Compute vorticity perpendicular to the eigenvector
-                        tmp(:) = omega(j, k, l, :) - omega_proj*eigvec(:)
-                        omega_perp(j, k, l) = sqrt(sum(tmp**2._wp))
 
                         ! As eigenvector can have +/- signs, we can choose the sign
                         ! so that omega_proj is positive
@@ -755,8 +743,6 @@ contains
 
                         ! Compute Liutex magnitude
                         liutex_mag(j, k, l) = 2._wp*(beta - alpha)
-                        ! Compute relative rotation strength
-                        liutex_rrs(j, k, l) = beta**2._wp / (beta**2._wp + alpha**2._wp + lcr**2._wp + 0.5_wp*lrr**2._wp + sgm_eps)
                         ! Compute Liutex axis
                         liutex_axis(j, k, l, :) = eigvec(:)
 
@@ -824,10 +810,10 @@ contains
         call MPI_BCAST(mixlayer_idx_end, 1, mpi_integer, 0, MPI_COMM_WORLD, ierr)
     end subroutine s_compute_mixlayer_thickenss
 
-    impure subroutine s_detect_qsv(liutex_mag, liutex_axis, omega_axis, omega_perp, A_rr, A_ps, y_idx_beg, y_idx_end, qsv_info, q_sf_group)
+    impure subroutine s_detect_qsv(liutex_mag, liutex_axis, A_rr, A_ps, y_idx_beg, y_idx_end, qsv_info, q_sf_group)
         real(wp), dimension(-offset_x%beg:m + offset_x%end, &
                             -offset_y%beg:n + offset_y%end, &
-                            -offset_z%beg:p + offset_z%end), intent(in) :: liutex_mag, omega_axis, omega_perp, A_rr, A_ps
+                            -offset_z%beg:p + offset_z%end), intent(in) :: liutex_mag, A_rr, A_ps
         real(wp), dimension(-offset_x%beg:m + offset_x%end, &
                             -offset_y%beg:n + offset_y%end, &
                             -offset_z%beg:p + offset_z%end, 3), intent(in) :: liutex_axis
@@ -1045,7 +1031,8 @@ contains
             theta2 = atan(pca_axis(3) / pca_axis(1)) / pi * 180._wp            
             if (theta1 > 0._wp .and. theta1 < 90._wp .and. &
                 theta2 > -45._wp .and. theta2 < 45._wp .and. &
-                aspect_ratio > 2._wp) then
+                aspect_ratio > 2._wp .and. &
+                sqrt(abs(eigval(ndim))) > 0.1_wp * (y_cc_glb(y_idx_end) - y_cc_glb(y_idx_beg))) then
                 where (qsv_group_mask) qsv_flag(:, :, :, 5) = .true.
                 where (qsv_group_mask) qsv_info = 1._wp
             end if
