@@ -57,7 +57,7 @@ module m_derived_variables
     real(wp), allocatable, dimension(:, :), public :: fd_coeff_z
     !> @}
 
-    integer :: proc_rank_x, proc_rank_y, proc_rank_z
+    integer :: proc_rank_x, proc_rank_y, proc_rank_tmp, proc_rank_z
 
     integer, private :: flg  !<
     !! Flagging (flg) variable used to annotate the dimensionality of the dataset
@@ -1048,7 +1048,7 @@ contains
                 aspect_ratio > 2._wp) then
                 where (qsv_group_mask) qsv_flag(:, :, :, 5) = .true.
                 where (qsv_group_mask) qsv_info(:, :, :, 5) = 1._wp
-                if (sqrt(abs(eigval(ndim))) > 0.1_wp*(y_cc_glb(y_idx_end) - y_cc_glb(y_idx_beg))) then
+                if (sqrt(abs(eigval(ndim))) < 0.1_wp*(y_cc_glb(y_idx_end) - y_cc_glb(y_idx_beg))) then
                     where (qsv_group_mask) qsv_flag(:, :, :, 6) = .true.
                     where (qsv_group_mask) qsv_info(:, :, :, 6) = 1._wp
                 end if
@@ -1210,7 +1210,7 @@ contains
                         qsv_group(i, j, 0) /= proc_rank .and. &
                         qsv_group_padded(ii, jj, -1) /= qsv_group(i, j, 0)) then
                       if (qsv_merge_x_padded(ii, jj, -1)) then
-                        where (qsv_group == qsv_group(i, j, 0)) qsv_merge_x = .true.
+                        where (qsv_group == qsv_group(i, 0, k)) qsv_merge_x = .true.
                       end if
                       if (proc_rank_z == 0) then
                         where (qsv_group == qsv_group(i, j, 0)) qsv_merge_z = .true.
