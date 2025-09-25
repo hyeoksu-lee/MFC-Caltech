@@ -619,7 +619,8 @@ contains
         if (liutex_wrt) then
 
             if (proc_rank == 0) print *, "start liutex_wrt"
-            call s_get_proc_rank_xyz()
+            ! Get proc_rank in each dimension and adjacent neighbors
+            call s_get_proc_rank_info()
 
             ! Compute mixing layer thickness
             if (proc_rank == 0) print *, "s_compute_mixlayer_thickenss"
