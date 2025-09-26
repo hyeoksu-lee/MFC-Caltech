@@ -54,9 +54,8 @@ module m_derived_variables
     real(wp), allocatable, dimension(:, :), public :: fd_coeff_z
     !> @}
 
-    integer :: proc_rank_x, proc_rank_y, proc_rank_tmp, proc_rank_z
-    integer :: pr_neg_x, pr_neg_y, pr_neg_z
-    integer :: pr_pos_x, pr_pos_y, pr_pos_z
+    integer :: proc_rank_x, proc_rank_y, proc_rank_z
+    integer, dimension(-1:1, -1:1, -1:1) :: pr_adj
 
     integer, private :: flg  !<
     !! Flagging (flg) variable used to annotate the dimensionality of the dataset
@@ -892,7 +891,6 @@ contains
         if (proc_rank == 0) print *, "criteria 5"
         call s_classify_groups(qsv_flag, qsv_info(0:m, 0:n, 0:p, 5), qsv_group, y_idx_beg, y_idx_end)
         q_sf_group(0:m, 0:n, 0:p) = real(qsv_group, wp)
-        if (proc_rank == 0) print *, "s_detect_qsv done"
 
     contains
       subroutine s_remove_isolated_single_point(ibase, jbase, kbase)
@@ -957,7 +955,6 @@ contains
         coord_z = spread(spread(z_cc(0:p), dim=1, ncopies=m + 1), dim=2, ncopies=n + 1)
 
         ! Grouping connected points
-        if (proc_rank == 0) print *, "grouping"
         call s_identify_connected_groups(qsv_flag, qsv_group, qsv_merge_x, qsv_merge_z, id_qsv_group, y_idx_beg, y_idx_end)
         ! Find max group id
         call MPI_ALLREDUCE(id_qsv_group, id_qsv_group_max, 1, mpi_integer, MPI_MAX, MPI_COMM_WORLD, ierr)
@@ -968,7 +965,6 @@ contains
           id_qsv_group_mask(l) = .true.
         end do
         call MPI_ALLREDUCE(id_qsv_group_mask, id_qsv_group_mask_glb, id_qsv_group_max + 1, mpi_logical, MPI_LOR, MPI_COMM_WORLD, ierr)
-        if (proc_rank == 0) print *, "grouping done"
     
         if (proc_rank == 0) print *, "counting", id_qsv_group_max
         allocate (num_qsv_group_member(0:id_qsv_group_max))
@@ -982,10 +978,9 @@ contains
         if (proc_rank == 0) print *, "counting done", maxloc(num_qsv_group_member_glb), maxval(num_qsv_group_member_glb)
 
         ! Perform PCA
-        if (proc_rank == 0) print *, "PCA", id_qsv_group_max
         do l = num_procs, id_qsv_group_max
           if (id_qsv_group_mask_glb(l) .and. num_qsv_group_member_glb(l) > 27) then
-            if (proc_rank == 0) print *, "group", l, num_qsv_group_member_glb(l)
+            if (proc_rank == 0) print *, "evaluate group", l, num_qsv_group_member_glb(l)
             ! Get mask
             qsv_group_mask = (qsv_group == l)
             
@@ -1073,10 +1068,9 @@ contains
         integer :: id_qsv_group_init
         integer :: ibase, jbase, kbase, i, j, k, l, ii, jj, kk
         integer :: ierr
-        logical :: breakpoint
 
-        id_qsv_group_init = proc_rank
-        id_qsv_group = id_qsv_group_init
+        id_qsv_group_init = -1
+        id_qsv_group = proc_rank
         qsv_group = id_qsv_group_init
         qsv_group_padded = id_qsv_group_init
 
@@ -1139,73 +1133,66 @@ contains
         do l = 0, num_procs - 1
           ! x-direction
           ! Add paddings
-          call s_add_paddings_integer(qsv_group, 1, qsv_group_padded)
+          call s_add_paddings_integer(qsv_group, qsv_group_padded)
           ! Merge qsv groups at the boundary in x-direction
           if (proc_rank == l) then
             do k = 0, p
               do j = 0, n
-                breakpoint = .false.
                 do kk = k - 1, k + 1
                   do jj = j - 1, j + 1
-                    if (qsv_group_padded(-1, jj, kk) /= pr_neg_x .and. &
-                        qsv_group(0, j, k) /= proc_rank .and. &
+                    if (qsv_group_padded(-1, jj, kk) /= id_qsv_group_init .and. &
+                        qsv_group(0, j, k) /= id_qsv_group_init .and. &
                         qsv_group_padded(-1, jj, kk) /= qsv_group(0, j, k)) then
                       if (proc_rank_x == 0) then
                         where (qsv_group == qsv_group(0, j, k)) qsv_merge_x = .true.
                       end if
                       where (qsv_group == qsv_group(0, j, k)) qsv_group = qsv_group_padded(-1, jj, kk)
-                      breakpoint = .true.
                     end if
-                    ! if (breakpoint) exit
                   end do
-                  ! if (breakpoint) exit
                 end do
               end do
             end do
           end if
+          call s_mpi_barrier()
 
           ! y-direction
           ! Add paddings
-          call s_add_paddings_integer(qsv_group, 1, qsv_group_padded)
-          call s_add_paddings_logical(qsv_merge_x, 1, qsv_merge_x_padded)
+          call s_add_paddings_integer(qsv_group, qsv_group_padded)
+          call s_add_paddings_logical(qsv_merge_x, qsv_merge_x_padded)
           ! Merge qsv groups at the boundary in y-direction
           if (proc_rank == l) then
             do k = 0, p
               do i = 0, m
-                breakpoint = .false.
                 do kk = k - 1, k + 1
                   do ii = i - 1, i + 1
-                    if (qsv_group_padded(ii, -1, kk) /= pr_neg_y .and. &
-                        qsv_group(i, 0, k) /= proc_rank .and. &
+                    if (qsv_group_padded(ii, -1, kk) /= id_qsv_group_init .and. &
+                        qsv_group(i, 0, k) /= id_qsv_group_init .and. &
                         qsv_group_padded(ii, -1, kk) /= qsv_group(i, 0, k)) then
                       if (qsv_merge_x_padded(ii, -1, kk)) then
                         where (qsv_group == qsv_group(i, 0, k)) qsv_merge_x = .true.
                       end if
                       ! Have to deal with situation where two groups are separate in proc1 but they are connected by a point in proc2
                       WHERE (qsv_group == qsv_group(i, 0, k)) qsv_group = qsv_group_padded(ii, -1, kk)
-                      breakpoint = .true.
                     end if
-                    ! if (breakpoint) exit
                   end do
-                  ! if (breakpoint) exit
                 end do
               end do
             end do
           end if
+          call s_mpi_barrier()
 
           ! z-direction
           ! Add paddings
-          call s_add_paddings_integer(qsv_group, 1, qsv_group_padded)
-          call s_add_paddings_logical(qsv_merge_x, 1, qsv_merge_x_padded)
+          call s_add_paddings_integer(qsv_group, qsv_group_padded)
+          call s_add_paddings_logical(qsv_merge_x, qsv_merge_x_padded)
           ! Merge qsv groups at the boundary in z-direction
           if (proc_rank == l) then
             do j = 0, n
               do i = 0, m
-                breakpoint = .false.
                 do jj = j - 1, j + 1
                   do ii = i - 1, i + 1
-                    if (qsv_group_padded(ii, jj, -1) /= pr_neg_z .and. &
-                        qsv_group(i, j, 0) /= proc_rank .and. &
+                    if (qsv_group_padded(ii, jj, -1) /= id_qsv_group_init .and. &
+                        qsv_group(i, j, 0) /= id_qsv_group_init .and. &
                         qsv_group_padded(ii, jj, -1) /= qsv_group(i, j, 0)) then
                       if (qsv_merge_x_padded(ii, jj, -1)) then
                         where (qsv_group == qsv_group(i, 0, k)) qsv_merge_x = .true.
@@ -1214,20 +1201,14 @@ contains
                         where (qsv_group == qsv_group(i, j, 0)) qsv_merge_z = .true.
                       end if
                       where (qsv_group == qsv_group(i, j, 0)) qsv_group = qsv_group_padded(ii, jj, -1)
-                      breakpoint = .true.
                     end if
-                    ! if (breakpoint) exit
                   end do
-                  ! if (breakpoint) exit
                 end do
               end do
             end do
           end if
+          call s_mpi_barrier()
         end do
-
-        ! Set non-grouped points to group 0
-        if (proc_rank == 0) print *, "Set non-grouped points to group 0"
-        where (qsv_group == id_qsv_group_init) qsv_group = 0
 
     contains
       subroutine s_merge_groups(id_qsv_group1, id_qsv_group2)
@@ -1241,299 +1222,291 @@ contains
       end subroutine s_merge_groups
     end subroutine s_identify_connected_groups
 
-    impure subroutine s_add_paddings_integer(field_in, pad_size, field_out)
+    impure subroutine s_add_paddings_integer(field_in, field_out)
         integer, dimension(0:m, 0:n, 0:p), intent(in) :: field_in
-        integer, intent(in) :: pad_size
-        integer,  dimension(-pad_size:m + pad_size, &
-                            -pad_size:n + pad_size, &
-                            -pad_size:p + pad_size), intent(out) :: field_out
-        integer :: type_slice
-        integer :: start_send, start_recv
-        integer :: ierr
+        integer,  dimension(-1:m + 1, -1:n + 1, -1:p + 1), intent(out) :: field_out
+        integer :: idx_send, idx_recv
+        integer :: i, j, k, ierr
 
         ! Initialize output array
         field_out(0:m, 0:n, 0:p) = field_in(0:m, 0:n, 0:p)
 
         ! x-direction
-        if (num_procs_x > 1) then
-            ! Create MPI_TYPE
-            call create_slice_x_type(m + 1 + 2*pad_size, n + 1 + 2*pad_size, p + 1 + 2*pad_size, pad_size)
+        do i = -1, 1, 2
+          select case (i)
+          case (-1)
+            idx_send = m
+            idx_recv = -1
+          case (1)
+            idx_send = 0
+            idx_recv = m + 1
+          end select
 
-            ! Left padding
-            start_send = m + 1 - pad_size
-            start_recv = -pad_size
-            call MPI_SENDRECV(field_out(start_send, -pad_size, -pad_size), 1, type_slice, pr_pos_x, 0, &
-                              field_out(start_recv, -pad_size, -pad_size), 1, type_slice, pr_neg_x, 0, &
+          ! (i, -1, -1)
+          call MPI_SENDRECV(field_out(idx_send,  n,  p), 1, mpi_integer, pr_adj(-i,  1,  1), 0, &
+                            field_out(idx_recv, -1, -1), 1, mpi_integer, pr_adj( i, -1, -1), 0, &
+                            MPI_COMM_WORLD, MPI_STATUS_IGNORE, ierr)
+          ! (i, -1, 0:p)
+          do k = 0, p
+            call MPI_SENDRECV(field_out(idx_send,  n, k), 1, mpi_integer, pr_adj(-i,  1, 0), 0, &
+                              field_out(idx_recv, -1, k), 1, mpi_integer, pr_adj( i, -1, 0), 0, &
                               MPI_COMM_WORLD, MPI_STATUS_IGNORE, ierr)
-
-            ! Right padding
-            start_send = 0
-            start_recv = m + 1
-            call MPI_SENDRECV(field_out(start_send, -pad_size, -pad_size), 1, type_slice, pr_neg_x, 0, &
-                              field_out(start_recv, -pad_size, -pad_size), 1, type_slice, pr_pos_x, 0, &
+          end do   
+          ! (i, -1, p + 1)
+          call MPI_SENDRECV(field_out(idx_send,  n, 0    ), 1, mpi_integer, pr_adj(-i,  1, -1), 0, &
+                            field_out(idx_recv, -1, p + 1), 1, mpi_integer, pr_adj( i, -1,  1), 0, &
+                            MPI_COMM_WORLD, MPI_STATUS_IGNORE, ierr)
+          do j = 0, n
+            ! (i, 0:n, -1)
+            call MPI_SENDRECV(field_out(idx_send, j,  p), 1, mpi_integer, pr_adj(-i, 0,  1), 0, &
+                              field_out(idx_recv, j, -1), 1, mpi_integer, pr_adj( i, 0, -1), 0, &
                               MPI_COMM_WORLD, MPI_STATUS_IGNORE, ierr)
-            
-            ! Free MPI_TYPE
-            call MPI_TYPE_FREE(type_slice, ierr)
-        else
-            ! Left padding
-            field_out(-pad_size:-1, 0:n, 0:p) = field_in(m - pad_size + 1:m, 0:n, 0:p)
-            ! Right padding
-            field_out(m + 1:m + pad_size, 0:n, 0:p) = field_in(0:pad_size - 1, 0:n, 0:p)
-        end if
-
+            ! (i, 0:n, 0:p)
+            do k = 0, p
+              call MPI_SENDRECV(field_out(idx_send, j, k), 1, mpi_integer, pr_adj(-i, 0, 0), 0, &
+                                field_out(idx_recv, j, k), 1, mpi_integer, pr_adj( i, 0, 0), 0, &
+                                MPI_COMM_WORLD, MPI_STATUS_IGNORE, ierr)
+            end do   
+            ! (i, 0:n, p + 1)
+            call MPI_SENDRECV(field_out(idx_send, j, 0    ), 1, mpi_integer, pr_adj(-i, 0, -1), 0, &
+                              field_out(idx_recv, j, p + 1), 1, mpi_integer, pr_adj( i, 0,  1), 0, &
+                              MPI_COMM_WORLD, MPI_STATUS_IGNORE, ierr)
+          end do
+          ! (i, n + 1, -1)
+          call MPI_SENDRECV(field_out(idx_send, 0    ,  p), 1, mpi_integer, pr_adj(-i, -1,  1), 0, &
+                            field_out(idx_recv, n + 1, -1), 1, mpi_integer, pr_adj( i,  1, -1), 0, &
+                            MPI_COMM_WORLD, MPI_STATUS_IGNORE, ierr)
+          ! (i, n + 1, 0:p)
+          do k = 0, p
+            call MPI_SENDRECV(field_out(idx_send, 0    , k), 1, mpi_integer, pr_adj(-i, -1, 0), 0, &
+                              field_out(idx_recv, n + 1, k), 1, mpi_integer, pr_adj( i,  1, 0), 0, &
+                              MPI_COMM_WORLD, MPI_STATUS_IGNORE, ierr)
+          end do   
+          ! (i, n + 1, p + 1)
+          call MPI_SENDRECV(field_out(idx_send, 0    , 0    ), 1, mpi_integer, pr_adj(-i, -1, -1), 0, &
+                            field_out(idx_recv, n + 1, p + 1), 1, mpi_integer, pr_adj( i,  1,  1), 0, &
+                            MPI_COMM_WORLD, MPI_STATUS_IGNORE, ierr)
+        end do
+        
         ! y-direction
-        if (num_procs_y > 1) then
-            ! Create MPI_TYPE
-            call create_slice_y_type(m + 1 + 2*pad_size, n + 1 + 2*pad_size, p + 1 + 2*pad_size, pad_size)
+        do j = -1, 1, 2
+          select case (j)
+          case (-1)
+            idx_send = n
+            idx_recv = -1
+          case (1)
+            idx_send = 0
+            idx_recv = n + 1
+          end select
 
-            ! Bottom padding
-            start_send = n + 1 - pad_size
-            start_recv = -pad_size
-            call MPI_SENDRECV(field_out(-pad_size, start_send, -pad_size), 1, type_slice, pr_pos_y, 0, &
-                              field_out(-pad_size, start_recv, -pad_size), 1, type_slice, pr_neg_y, 0, &
+          do i = 0, m
+            ! (i, j, -1)
+            call MPI_SENDRECV(field_out(i, idx_send,  p), 1, mpi_integer, pr_adj(0, -j,  1), 0, &
+                              field_out(i, idx_recv, -1), 1, mpi_integer, pr_adj(0,  j, -1), 0, &
                               MPI_COMM_WORLD, MPI_STATUS_IGNORE, ierr)
-
-            ! Top padding
-            start_send = 0
-            start_recv = n + 1
-            call MPI_SENDRECV(field_out(-pad_size, start_send, -pad_size), 1, type_slice, pr_neg_y, 0, &
-                              field_out(-pad_size, start_recv, -pad_size), 1, type_slice, pr_pos_y, 0, &
+            do k = 0, p
+              ! (i, j, k)
+              call MPI_SENDRECV(field_out(i, idx_send, k), 1, mpi_integer, pr_adj(0, -j, 0), 0, &
+                                field_out(i, idx_recv, k), 1, mpi_integer, pr_adj(0,  j, 0), 0, &
+                                MPI_COMM_WORLD, MPI_STATUS_IGNORE, ierr)
+            end do   
+            ! (i, j, p + 1)
+            call MPI_SENDRECV(field_out(i, idx_send, 0    ), 1, mpi_integer, pr_adj(0, -j, -1), 0, &
+                              field_out(i, idx_recv, p + 1), 1, mpi_integer, pr_adj(0,  j,  1), 0, &
                               MPI_COMM_WORLD, MPI_STATUS_IGNORE, ierr)
-
-            ! Free MPI_TYPE
-            call MPI_TYPE_FREE(type_slice, ierr)
-        else
-            ! Bottom padding
-            field_out(0:m, -pad_size:-1, 0:p) = field_in(0:m, n - pad_size + 1:n, 0:p)
-            ! Top padding
-            field_out(0:m, n + 1:n + pad_size, 0:p) = field_in(0:m, 0:pad_size - 1, 0:p)
-        end if
+          end do
+        end do        
 
         ! z-direction
-        if (num_procs_z > 1) then
-            ! Create MPI_TYPE
-            call create_slice_z_type(m + 1 + 2*pad_size, n + 1 + 2*pad_size, p + 1 + 2*pad_size, pad_size)
+        do k = -1, 1, 2
+          select case (k)
+          case (-1)
+            idx_send = p
+            idx_recv = -1
+          case (1)
+            idx_send = 0
+            idx_recv = p + 1
+          end select
+          do j = 0, n
+            do i = 0, m
+              call MPI_SENDRECV(field_out(i, j, idx_send), 1, mpi_integer, pr_adj(0, 0, -k), 0, &
+                                field_out(i, j, idx_recv), 1, mpi_integer, pr_adj(0, 0,  k), 0, &
+                                MPI_COMM_WORLD, MPI_STATUS_IGNORE, ierr)
+            end do
+          end do
+        end do
 
-            ! Bottom padding
-            start_send = p + 1 - pad_size
-            start_recv = -pad_size
-            call MPI_SENDRECV(field_out(-pad_size, -pad_size, start_send), 1, type_slice, pr_pos_z, 0, &
-                              field_out(-pad_size, -pad_size, start_recv), 1, type_slice, pr_neg_z, 0, &
-                              MPI_COMM_WORLD, MPI_STATUS_IGNORE, ierr)
-
-            ! Top padding
-            start_send = 0
-            start_recv = p + 1
-            call MPI_SENDRECV(field_out(-pad_size, -pad_size, start_send), 1, type_slice, pr_neg_z, 0, &
-                              field_out(-pad_size, -pad_size, start_recv), 1, type_slice, pr_pos_z, 0, &
-                              MPI_COMM_WORLD, MPI_STATUS_IGNORE, ierr)
-
-            ! Free MPI_TYPE
-            call MPI_TYPE_FREE(type_slice, ierr)
-        else
-            ! Front padding
-            field_out(0:m, 0:p, -pad_size:-1) = field_in(0:m, 0:n, p - pad_size + 1:p)
-            ! Back padding
-            field_out(0:m, 0:n, p + 1:p + pad_size) = field_in(0:m, 0:n, 0:pad_size - 1)
-        end if
-
-    contains
-        subroutine create_slice_x_type(nx, ny, nz, len_slice)
-            integer, intent(in) :: nx, ny, nz, len_slice
-            call MPI_TYPE_VECTOR(ny*nz, len_slice, nx, mpi_integer, type_slice, ierr)
-            call MPI_TYPE_COMMIT(type_slice, ierr)
-        end subroutine create_slice_x_type
-
-        subroutine create_slice_y_type(nx, ny, nz, len_slice)
-            integer, intent(in) :: nx, ny, nz, len_slice
-            call MPI_TYPE_VECTOR(nz, len_slice*nx, nx*ny, mpi_integer, type_slice, ierr)
-            call MPI_TYPE_COMMIT(type_slice, ierr)
-        end subroutine create_slice_y_type
-
-        subroutine create_slice_z_type(nx, ny, nz, len_slice)
-            integer, intent(in) :: nx, ny, nz, len_slice
-            call MPI_TYPE_CONTIGUOUS(nx*ny*len_slice, mpi_integer, type_slice, ierr)
-            call MPI_TYPE_COMMIT(type_slice, ierr)
-        end subroutine create_slice_z_type
     end subroutine s_add_paddings_integer
 
-    impure subroutine s_add_paddings_logical(field_in, pad_size, field_out)
+    impure subroutine s_add_paddings_logical(field_in, field_out)
         logical, dimension(0:m, 0:n, 0:p), intent(in) :: field_in
-        integer, intent(in) :: pad_size
-        logical,  dimension(-pad_size:m + pad_size, &
-                            -pad_size:n + pad_size, &
-                            -pad_size:p + pad_size), intent(out) :: field_out
-        integer :: type_slice
-        integer :: start_send, start_recv
-        integer :: ierr
+        logical,  dimension(-1:m + 1, -1:n + 1, -1:p + 1), intent(out) :: field_out
+        integer :: idx_send, idx_recv
+        integer :: i, j, k, ierr
 
         ! Initialize output array
         field_out(0:m, 0:n, 0:p) = field_in(0:m, 0:n, 0:p)
 
         ! x-direction
-        if (num_procs_x > 1) then
-            ! Create MPI_TYPE
-            call create_slice_x_type(m + 1 + 2*pad_size, n + 1 + 2*pad_size, p + 1 + 2*pad_size, pad_size)
+        do i = -1, 1, 2
+          select case (i)
+          case (-1)
+            idx_send = m
+            idx_recv = -1
+          case (1)
+            idx_send = 0
+            idx_recv = m + 1
+          end select
 
-            ! Left padding
-            start_send = m + 1 - pad_size
-            start_recv = -pad_size
-            call MPI_SENDRECV(field_out(start_send, -pad_size, -pad_size), 1, type_slice, pr_pos_x, 0, &
-                              field_out(start_recv, -pad_size, -pad_size), 1, type_slice, pr_neg_x, 0, &
+          ! (i, -1, -1)
+          call MPI_SENDRECV(field_out(idx_send,  n,  p), 1, mpi_logical, pr_adj(-i,  1,  1), 0, &
+                            field_out(idx_recv, -1, -1), 1, mpi_logical, pr_adj( i, -1, -1), 0, &
+                            MPI_COMM_WORLD, MPI_STATUS_IGNORE, ierr)
+          ! (i, -1, 0:p)
+          do k = 0, p
+            call MPI_SENDRECV(field_out(idx_send,  n, k), 1, mpi_logical, pr_adj(-i,  1, 0), 0, &
+                              field_out(idx_recv, -1, k), 1, mpi_logical, pr_adj( i, -1, 0), 0, &
                               MPI_COMM_WORLD, MPI_STATUS_IGNORE, ierr)
-
-            ! Right padding
-            start_send = 0
-            start_recv = m + 1
-            call MPI_SENDRECV(field_out(start_send, -pad_size, -pad_size), 1, type_slice, pr_neg_x, 0, &
-                              field_out(start_recv, -pad_size, -pad_size), 1, type_slice, pr_pos_x, 0, &
+          end do   
+          ! (i, -1, p + 1)
+          call MPI_SENDRECV(field_out(idx_send,  n, 0    ), 1, mpi_logical, pr_adj(-i,  1, -1), 0, &
+                            field_out(idx_recv, -1, p + 1), 1, mpi_logical, pr_adj( i, -1,  1), 0, &
+                            MPI_COMM_WORLD, MPI_STATUS_IGNORE, ierr)
+          do j = 0, n
+            ! (i, 0:n, -1)
+            call MPI_SENDRECV(field_out(idx_send, j,  p), 1, mpi_logical, pr_adj(-i, 0,  1), 0, &
+                              field_out(idx_recv, j, -1), 1, mpi_logical, pr_adj( i, 0, -1), 0, &
                               MPI_COMM_WORLD, MPI_STATUS_IGNORE, ierr)
-            
-            ! Free MPI_TYPE
-            call MPI_TYPE_FREE(type_slice, ierr)
-        else
-            ! Left padding
-            field_out(-pad_size:-1, 0:n, 0:p) = field_in(m - pad_size + 1:m, 0:n, 0:p)
-            ! Right padding
-            field_out(m + 1:m + pad_size, 0:n, 0:p) = field_in(0:pad_size - 1, 0:n, 0:p)
-        end if
-
+            ! (i, 0:n, 0:p)
+            do k = 0, p
+              call MPI_SENDRECV(field_out(idx_send, j, k), 1, mpi_logical, pr_adj(-i, 0, 0), 0, &
+                                field_out(idx_recv, j, k), 1, mpi_logical, pr_adj( i, 0, 0), 0, &
+                                MPI_COMM_WORLD, MPI_STATUS_IGNORE, ierr)
+            end do   
+            ! (i, 0:n, p + 1)
+            call MPI_SENDRECV(field_out(idx_send, j, 0    ), 1, mpi_logical, pr_adj(-i, 0, -1), 0, &
+                              field_out(idx_recv, j, p + 1), 1, mpi_logical, pr_adj( i, 0,  1), 0, &
+                              MPI_COMM_WORLD, MPI_STATUS_IGNORE, ierr)
+          end do
+          ! (i, n + 1, -1)
+          call MPI_SENDRECV(field_out(idx_send, 0    ,  p), 1, mpi_logical, pr_adj(-i, -1,  1), 0, &
+                            field_out(idx_recv, n + 1, -1), 1, mpi_logical, pr_adj( i,  1, -1), 0, &
+                            MPI_COMM_WORLD, MPI_STATUS_IGNORE, ierr)
+          ! (i, n + 1, 0:p)
+          do k = 0, p
+            call MPI_SENDRECV(field_out(idx_send, 0    , k), 1, mpi_logical, pr_adj(-i, -1, 0), 0, &
+                              field_out(idx_recv, n + 1, k), 1, mpi_logical, pr_adj( i,  1, 0), 0, &
+                              MPI_COMM_WORLD, MPI_STATUS_IGNORE, ierr)
+          end do   
+          ! (i, n + 1, p + 1)
+          call MPI_SENDRECV(field_out(idx_send, 0    , 0    ), 1, mpi_logical, pr_adj(-i, -1, -1), 0, &
+                            field_out(idx_recv, n + 1, p + 1), 1, mpi_logical, pr_adj( i,  1,  1), 0, &
+                            MPI_COMM_WORLD, MPI_STATUS_IGNORE, ierr)
+        end do
+        
         ! y-direction
-        if (num_procs_y > 1) then
-            ! Create MPI_TYPE
-            call create_slice_y_type(m + 1 + 2*pad_size, n + 1 + 2*pad_size, p + 1 + 2*pad_size, pad_size)
+        do j = -1, 1, 2
+          select case (j)
+          case (-1)
+            idx_send = n
+            idx_recv = -1
+          case (1)
+            idx_send = 0
+            idx_recv = n + 1
+          end select
 
-            ! Bottom padding
-            start_send = n + 1 - pad_size
-            start_recv = -pad_size
-            call MPI_SENDRECV(field_out(-pad_size, start_send, -pad_size), 1, type_slice, pr_pos_y, 0, &
-                              field_out(-pad_size, start_recv, -pad_size), 1, type_slice, pr_neg_y, 0, &
+          do i = 0, m
+            ! (i, j, -1)
+            call MPI_SENDRECV(field_out(i, idx_send,  p), 1, mpi_logical, pr_adj(0, -j,  1), 0, &
+                              field_out(i, idx_recv, -1), 1, mpi_logical, pr_adj(0,  j, -1), 0, &
                               MPI_COMM_WORLD, MPI_STATUS_IGNORE, ierr)
-
-            ! Top padding
-            start_send = 0
-            start_recv = n + 1
-            call MPI_SENDRECV(field_out(-pad_size, start_send, -pad_size), 1, type_slice, pr_neg_y, 0, &
-                              field_out(-pad_size, start_recv, -pad_size), 1, type_slice, pr_pos_y, 0, &
+            do k = 0, p
+              ! (i, j, k)
+              call MPI_SENDRECV(field_out(i, idx_send, k), 1, mpi_logical, pr_adj(0, -j, 0), 0, &
+                                field_out(i, idx_recv, k), 1, mpi_logical, pr_adj(0,  j, 0), 0, &
+                                MPI_COMM_WORLD, MPI_STATUS_IGNORE, ierr)
+            end do   
+            ! (i, j, p + 1)
+            call MPI_SENDRECV(field_out(i, idx_send, 0    ), 1, mpi_logical, pr_adj(0, -j, -1), 0, &
+                              field_out(i, idx_recv, p + 1), 1, mpi_logical, pr_adj(0,  j,  1), 0, &
                               MPI_COMM_WORLD, MPI_STATUS_IGNORE, ierr)
-
-            ! Free MPI_TYPE
-            call MPI_TYPE_FREE(type_slice, ierr)
-        else
-            ! Bottom padding
-            field_out(0:m, -pad_size:-1, 0:p) = field_in(0:m, n - pad_size + 1:n, 0:p)
-            ! Top padding
-            field_out(0:m, n + 1:n + pad_size, 0:p) = field_in(0:m, 0:pad_size - 1, 0:p)
-        end if
+          end do
+        end do        
 
         ! z-direction
-        if (num_procs_z > 1) then
-            ! Create MPI_TYPE
-            call create_slice_z_type(m + 1 + 2*pad_size, n + 1 + 2*pad_size, p + 1 + 2*pad_size, pad_size)
+        do k = -1, 1, 2
+          select case (k)
+          case (-1)
+            idx_send = p
+            idx_recv = -1
+          case (1)
+            idx_send = 0
+            idx_recv = p + 1
+          end select
+          do j = 0, n
+            do i = 0, m
+              call MPI_SENDRECV(field_out(i, j, idx_send), 1, mpi_logical, pr_adj(0, 0, -k), 0, &
+                                field_out(i, j, idx_recv), 1, mpi_logical, pr_adj(0, 0,  k), 0, &
+                                MPI_COMM_WORLD, MPI_STATUS_IGNORE, ierr)
+            end do
+          end do
+        end do
 
-            ! Bottom padding
-            start_send = p + 1 - pad_size
-            start_recv = -pad_size
-            call MPI_SENDRECV(field_out(-pad_size, -pad_size, start_send), 1, type_slice, pr_pos_z, 0, &
-                              field_out(-pad_size, -pad_size, start_recv), 1, type_slice, pr_neg_z, 0, &
-                              MPI_COMM_WORLD, MPI_STATUS_IGNORE, ierr)
-
-            ! Top padding
-            start_send = 0
-            start_recv = p + 1
-            call MPI_SENDRECV(field_out(-pad_size, -pad_size, start_send), 1, type_slice, pr_neg_z, 0, &
-                              field_out(-pad_size, -pad_size, start_recv), 1, type_slice, pr_pos_z, 0, &
-                              MPI_COMM_WORLD, MPI_STATUS_IGNORE, ierr)
-
-            ! Free MPI_TYPE
-            call MPI_TYPE_FREE(type_slice, ierr)
-        else
-            ! Front padding
-            field_out(0:m, 0:p, -pad_size:-1) = field_in(0:m, 0:n, p - pad_size + 1:p)
-            ! Back padding
-            field_out(0:m, 0:n, p + 1:p + pad_size) = field_in(0:m, 0:n, 0:pad_size - 1)
-        end if
-
-    contains
-        subroutine create_slice_x_type(nx, ny, nz, len_slice)
-            integer, intent(in) :: nx, ny, nz, len_slice
-            call MPI_TYPE_VECTOR(ny*nz, len_slice, nx, mpi_logical, type_slice, ierr)
-            call MPI_TYPE_COMMIT(type_slice, ierr)
-        end subroutine create_slice_x_type
-
-        subroutine create_slice_y_type(nx, ny, nz, len_slice)
-            integer, intent(in) :: nx, ny, nz, len_slice
-            call MPI_TYPE_VECTOR(nz, len_slice*nx, nx*ny, mpi_logical, type_slice, ierr)
-            call MPI_TYPE_COMMIT(type_slice, ierr)
-        end subroutine create_slice_y_type
-
-        subroutine create_slice_z_type(nx, ny, nz, len_slice)
-            integer, intent(in) :: nx, ny, nz, len_slice
-            call MPI_TYPE_CONTIGUOUS(nx*ny*len_slice, mpi_logical, type_slice, ierr)
-            call MPI_TYPE_COMMIT(type_slice, ierr)
-        end subroutine create_slice_z_type
     end subroutine s_add_paddings_logical
 
     impure subroutine s_get_proc_rank_info()
+      integer :: i, j, k, proc_rank_tmp, pr_x, pr_y, pr_z
+
+      ! proc_rank in each dimension
       proc_rank_z = mod(proc_rank, num_procs_z)
       proc_rank_tmp = (proc_rank - proc_rank_z)/num_procs_z
       proc_rank_y = mod(proc_rank_tmp, num_procs_y)
       proc_rank_x = (proc_rank_tmp - proc_rank_y)/num_procs_y
 
-      if (num_procs_x > 1) then
-        ! Compute left neighbor
-        if (proc_rank_x == 0) then
-            call s_get_proc_rank(num_procs_x - 1, proc_rank_y, proc_rank_z, pr_neg_x)
-        else
-            call s_get_proc_rank(proc_rank_x - 1, proc_rank_y, proc_rank_z, pr_neg_x)
-        end if
-        ! Compute right neighbor
-        if (proc_rank_x == num_procs_x - 1) then
-            call s_get_proc_rank(0, proc_rank_y, proc_rank_z, pr_pos_x)
-        else
-            call s_get_proc_rank(proc_rank_x + 1, proc_rank_y, proc_rank_z, pr_pos_x)
-        end if
-      else
-        pr_neg_x = 0
-        pr_pos_x = 0
-      end if
-
-      if (num_procs_y > 1) then
-          ! Compute bottom neighbor
-          if (proc_rank_y == 0) then
-              call s_get_proc_rank(proc_rank_x, num_procs_y - 1, proc_rank_z, pr_neg_y)
+      ! Adjacent proc_rank
+      pr_adj = proc_rank
+      do k = -1, 1
+        ! z-direction
+        if (num_procs_z > 0) then
+          if (proc_rank_z + k < 0) then
+            pr_z = num_procs_z - 1
+          else if (proc_rank_z + k > num_procs_z - 1) then
+            pr_z = 0
           else
-              call s_get_proc_rank(proc_rank_x, proc_rank_y - 1, proc_rank_z, pr_neg_y)
+            pr_z = proc_rank_z + k
           end if
-          ! Compute top neighbor
-          if (proc_rank_y == num_procs_y - 1) then
-              call s_get_proc_rank(proc_rank_x, 0, proc_rank_z, pr_pos_y)
+        else
+          pr_z = 0
+        end if
+        do j = -1, 1
+          ! y-direction
+          if (num_procs_y > 0) then
+            if (proc_rank_y + j < 0) then
+              pr_y = num_procs_y - 1
+            else if (proc_rank_y + j > num_procs_y - 1) then
+              pr_y = 0
+            else
+              pr_y = proc_rank_y + j
+            end if
           else
-              call s_get_proc_rank(proc_rank_x, proc_rank_y + 1, proc_rank_z, pr_pos_y)
+            pr_y = 0
           end if
-      else
-        pr_neg_y = 0
-        pr_pos_y = 0
-      end if
-
-      if (num_procs_z > 1) then
-        ! Compute front neighbor
-        if (proc_rank_z == 0) then
-            call s_get_proc_rank(proc_rank_x, proc_rank_y, num_procs_z - 1, pr_neg_z)
-        else
-            call s_get_proc_rank(proc_rank_x, proc_rank_y, proc_rank_z - 1, pr_neg_z)
-        end if
-        ! Compute back neighbor
-        if (proc_rank_z == num_procs_z - 1) then
-            call s_get_proc_rank(proc_rank_x, proc_rank_y, 0, pr_pos_z)
-        else
-            call s_get_proc_rank(proc_rank_x, proc_rank_y, proc_rank_z + 1, pr_pos_z)
-        end if
-      else
-        pr_neg_z = 0
-        pr_pos_z = 0
-      end if
+          do i = -1, 1
+            if (num_procs_x > 0) then
+              if (proc_rank_x + i < 0) then
+                pr_x = num_procs_x - 1
+              else if (proc_rank_x + i > num_procs_x - 1) then
+                pr_x = 0
+              else
+                pr_x = proc_rank_x + i
+              end if
+            else
+              pr_x = 0
+            end if
+            call s_get_proc_rank(pr_x, pr_y, pr_z, pr_adj(i, j, k))
+          end do
+        end do
+      end do
     contains
       subroutine s_get_proc_rank(prx, pry, prz, pr)
           integer, intent(in) :: prx, pry, prz 

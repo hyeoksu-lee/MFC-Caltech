@@ -618,23 +618,18 @@ contains
         ! Adding Liutex magnitude to the formatted database file
         if (liutex_wrt) then
 
-            if (proc_rank == 0) print *, "start liutex_wrt"
             ! Get proc_rank in each dimension and adjacent neighbors
             call s_get_proc_rank_info()
 
             ! Compute mixing layer thickness
-            if (proc_rank == 0) print *, "s_compute_mixlayer_thickenss"
             call s_compute_mixlayer_thickenss(q_prim_vf(mom_idx%beg)%sf(0:m, 0:n, 0:p), mixlayer_thickness, mixlayer_idx_beg, mixlayer_idx_end)
-            if (proc_rank == 0) print *, "s_compute_mixlayer_thickenss done"
 
             ! Compute Liutex vector and its magnitude
-            if (proc_rank == 0) print *, "s_derive_liutex"
             call s_derive_liutex(q_prim_vf, mixlayer_idx_beg, mixlayer_idx_end, &
                                 liutex_mag, liutex_axis, &
                                 omega, &
                                 vort_stretch, vort_stretch_proj, vort_stretch_res, &
                                 A_rr, A_ps, A_ns, A_sr)
-            if (proc_rank == 0) print *, "s_derive_liutex done"
 
             ! Liutex magnitude
             q_sf = liutex_mag
@@ -643,10 +638,8 @@ contains
             varname(:) = ' '
 
             ! QSV detection
-            if (proc_rank == 0) print *, "s_detect_qsv"
             call s_detect_qsv(liutex_mag, liutex_axis, A_rr, A_ps, &
                               mixlayer_idx_beg, mixlayer_idx_end, qsv_info, q_sf_group)
-            if (proc_rank == 0) print *, "s_detect_qsv done"
 
             q_sf = qsv_info(:, :, :, 1)
             write (varname, '(A)') 'qsv_info1'
@@ -678,140 +671,15 @@ contains
             call s_write_variable_to_formatted_database_file(varname, t_step)
             varname(:) = ' '
 
-            ! ! Liutex axis
-            ! do i = 1, 3
-            !     q_sf = liutex_axis(:, :, :, i)
-            !     write (varname, '(A,I0)') 'liutex_axis', i
-            !     call s_write_variable_to_formatted_database_file(varname, t_step)
-            !     varname(:) = ' '
-            ! end do
+            q_sf = A_rr
+            write (varname, '(A)') 'A_rr'
+            call s_write_variable_to_formatted_database_file(varname, t_step)
+            varname(:) = ' '
 
-            ! ! Liutex core
-            ! q_sf = liutex_core
-            ! write (varname, '(A)') 'liutex_core'
-            ! call s_write_variable_to_formatted_database_file(varname, t_step)
-            ! varname(:) = ' '
-
-            ! ! Liutex relative rotation strength
-            ! q_sf = liutex_rrs
-            ! write (varname, '(A)') 'liutex_rrs'
-            ! call s_write_variable_to_formatted_database_file(varname, t_step)
-            ! varname(:) = ' '
-
-            ! do i = 1, 3
-            !     q_sf = vort_stretch(:, :, :, i)
-            !     write (varname, '(A,I0)') 'vort_stretch', i
-            !     call s_write_variable_to_formatted_database_file(varname, t_step)
-            !     varname(:) = ' '
-            ! end do
-
-            ! q_sf = vort_stretch_proj
-            ! write (varname, '(A)') 'vort_stretch_proj'
-            ! call s_write_variable_to_formatted_database_file(varname, t_step)
-            ! varname(:) = ' '
-
-            ! q_sf = vort_stretch_res
-            ! write (varname, '(A)') 'vort_stretch_res'
-            ! call s_write_variable_to_formatted_database_file(varname, t_step)
-            ! varname(:) = ' '
-
-            ! q_sf = A_rr
-            ! write (varname, '(A)') 'A_rr'
-            ! call s_write_variable_to_formatted_database_file(varname, t_step)
-            ! varname(:) = ' '
-
-            ! q_sf = A_ps
-            ! write (varname, '(A)') 'A_ps'
-            ! call s_write_variable_to_formatted_database_file(varname, t_step)
-            ! varname(:) = ' '
-
-            ! q_sf = A_ns
-            ! write (varname, '(A)') 'A_ns'
-            ! call s_write_variable_to_formatted_database_file(varname, t_step)
-            ! varname(:) = ' '
-
-            ! q_sf = A_sr
-            ! write (varname, '(A)') 'A_sr'
-            ! call s_write_variable_to_formatted_database_file(varname, t_step)
-            ! varname(:) = ' '
-
-            ! ! Compute filtered velocity
-            ! if (proc_rank == 0) print *, "s_apply_gaussian_filter in vel1"
-            ! call s_apply_gaussian_filter(q_prim_vf(mom_idx%beg    )%sf(0:m, 0:n, 0:p), &
-            !                              q_prim_ft(mom_idx%beg    )%sf(0:m, 0:n, 0:p), &
-            !                              mixlayer_thickness, mixlayer_idx_beg - 1, mixlayer_idx_end + 1)
-            ! if (proc_rank == 0) print *, "s_apply_gaussian_filter in vel2"
-            ! call s_apply_gaussian_filter(q_prim_vf(mom_idx%beg + 1)%sf(0:m, 0:n, 0:p), &
-            !                              q_prim_ft(mom_idx%beg + 1)%sf(0:m, 0:n, 0:p), &
-            !                              mixlayer_thickness, mixlayer_idx_beg - 1, mixlayer_idx_end + 1)
-            ! if (proc_rank == 0) print *, "s_apply_gaussian_filter in vel3"
-            ! call s_apply_gaussian_filter(q_prim_vf(mom_idx%beg + 2)%sf(0:m, 0:n, 0:p), &
-            !                              q_prim_ft(mom_idx%beg + 2)%sf(0:m, 0:n, 0:p), &
-            !                              mixlayer_thickness, mixlayer_idx_beg - 1, mixlayer_idx_end + 1)
-            ! if (proc_rank == 0) print *, "s_apply_gaussian_filter done"
-            ! if (buff_size > 0) then
-            !     call s_populate_variables_buffers(bc_type, q_prim_ft)
-            ! end if
-
-            ! q_sf = q_prim_ft(mom_idx%beg)%sf(-offset_x%beg:m + offset_x%end, & 
-            !                                  -offset_y%beg:n + offset_y%end, &
-            !                                  -offset_z%beg:p + offset_z%end)
-            ! write (varname, '(A)') 'vel1_filtered'
-            ! call s_write_variable_to_formatted_database_file(varname, t_step)
-            ! varname(:) = ' '
-
-            ! q_sf = q_prim_ft(mom_idx%beg + 1)%sf(-offset_x%beg:m + offset_x%end, & 
-            !                                      -offset_y%beg:n + offset_y%end, &
-            !                                      -offset_z%beg:p + offset_z%end)
-            ! write (varname, '(A)') 'vel2_filtered'
-            ! call s_write_variable_to_formatted_database_file(varname, t_step)
-            ! varname(:) = ' '
-
-            ! q_sf = q_prim_ft(mom_idx%beg + 2)%sf(-offset_x%beg:m + offset_x%end, & 
-            !                                      -offset_y%beg:n + offset_y%end, &
-            !                                      -offset_z%beg:p + offset_z%end)
-            ! write (varname, '(A)') 'vel3_filtered'
-            ! call s_write_variable_to_formatted_database_file(varname, t_step)
-            ! varname(:) = ' '
-
-            ! ! Compute liutex using filtered velocity
-            ! if (proc_rank == 0) print *, "s_derive_liutex"
-            ! call s_derive_liutex(q_prim_ft, mixlayer_idx_beg, mixlayer_idx_end, &
-            !                     liutex_mag, liutex_axis, liutex_rrs, liutex_core, &
-            !                     omega, omega_axis, omega_perp, &
-            !                     vort_stretch, vort_stretch_proj, vort_stretch_res, &
-            !                     A_rr, A_ps, A_ns, A_sr)
-            ! if (proc_rank == 0) print *, "s_derive_liutex done"
-            ! q_sf = omega_axis
-            ! write (varname, '(A)') 'omega_axis_filtered'
-            ! call s_write_variable_to_formatted_database_file(varname, t_step)
-            ! varname(:) = ' '
-
-            ! q_sf = omega_perp
-            ! write (varname, '(A)') 'omega_perp_filtered'
-            ! call s_write_variable_to_formatted_database_file(varname, t_step)
-            ! varname(:) = ' '
-
-            ! q_sf = omega(:,:,:,1)
-            ! write (varname, '(A)') 'omega1_filtered'
-            ! call s_write_variable_to_formatted_database_file(varname, t_step)
-            ! varname(:) = ' '
-
-            ! q_sf = omega(:,:,:,2)
-            ! write (varname, '(A)') 'omega2_filtered'
-            ! call s_write_variable_to_formatted_database_file(varname, t_step)
-            ! varname(:) = ' '
-
-            ! q_sf = omega(:,:,:,3)
-            ! write (varname, '(A)') 'omega3_filtered'
-            ! call s_write_variable_to_formatted_database_file(varname, t_step)
-            ! varname(:) = ' '
-
-            ! q_sf = liutex_mag
-            ! write (varname, '(A)') 'liutex_mag_filtered'
-            ! call s_write_variable_to_formatted_database_file(varname, t_step)
-            ! varname(:) = ' '
-
+            q_sf = A_ps
+            write (varname, '(A)') 'A_ps'
+            call s_write_variable_to_formatted_database_file(varname, t_step)
+            varname(:) = ' '
         end if
 
         ! Adding numerical Schlieren function to formatted database file
