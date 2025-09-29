@@ -54,7 +54,6 @@ module m_derived_variables
     real(wp), allocatable, dimension(:, :), public :: fd_coeff_z
     !> @}
 
-    integer :: proc_rank_x, proc_rank_y, proc_rank_z
     integer, dimension(-1:1, -1:1, -1:1) :: pr_adj
 
     integer, private :: flg  !<

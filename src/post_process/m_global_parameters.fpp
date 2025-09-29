@@ -31,6 +31,7 @@ module m_global_parameters
     ! Computational Domain Parameters
 
     integer :: proc_rank !< Rank of the local processor
+    integer :: proc_rank_x, proc_rank_y, proc_rank_z
 
     !> @name Number of cells in the x-, y- and z-coordinate directions
     !> @{
