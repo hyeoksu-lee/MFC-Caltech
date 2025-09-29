@@ -670,23 +670,14 @@ contains
             write (varname, '(A)') 'qsv_group'
             call s_write_variable_to_formatted_database_file(varname, t_step)
             varname(:) = ' '
-              
-            do k = 0, p
-              do j = 0, n
-                do i = 0, m
-                  ii = i + proc_rank_x*(m + 1)
-                  jj = j + proc_rank_y*(n + 1)
-                  kk = k + proc_rank_z*(p + 1)
-                  write(99,*) ii, jj, kk, qsv_info(i, j, k, :), &
-                              q_prim_vf(E_idx)%sf(i, j, k), &
-                              liutex_mag(i, j, k), &
-                              omega(i, j, k, :), &
-                              vort_stretch(i, j, k, :), &
-                              vort_stretch_proj(i, j, k), vort_stretch_res(i, j, k), &
-                              A_rr(i, j, k), A_ps(i, j, k), A_ns(i, j, k), A_sr(i, j, k)
-                end do
-              end do
-            end do
+            
+            call s_write_qsv_data_file(qsv_info(0:m, 0:n, 0:p, 1:5), &
+                                      liutex_mag(0:m, 0:n, 0:p), & 
+                                      q_prim_vf(E_idx)%sf(0:m, 0:n, 0:p), &
+                                      omega(0:m, 0:n, 0:p, 3), &
+                                      vort_stretch_proj(0:m, 0:n, 0:p), &
+                                      vort_stretch_res(0:m, 0:n, 0:p))
+
         end if
 
         ! Adding numerical Schlieren function to formatted database file

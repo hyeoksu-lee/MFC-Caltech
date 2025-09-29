@@ -33,6 +33,7 @@ module m_data_output
  s_write_lag_bubbles_results, &
  s_write_intf_data_file, &
  s_write_energy_data_file, &
+ s_write_qsv_data_file, &
  s_close_formatted_database_file, &
  s_close_intf_data_file, &
  s_close_energy_data_file, &
@@ -1386,6 +1387,49 @@ contains
 
     end subroutine s_write_energy_data_file
 
+    impure subroutine s_write_qsv_data_file(qsv_info, liutex_mag, pres, omega, vort_stretch_proj, vort_stretch_res)
+
+        real(wp), dimension(0:m, 0:n, 0:p, 5), intent(in) :: qsv_info
+        real(wp), dimension(0:m, 0:n, 0:p, 3), intent(in) :: omega
+        real(wp), dimension(0:m, 0:n, 0:p), intent(in) :: liutex_mag, pres, vort_stretch_proj, vort_stretch_res
+        real(wp), dimension(:), allocatable :: buffer
+        integer :: ndata
+        integer :: i, j, k, l, ii, jj, kk
+        integer :: amode, fh, ierr
+        
+        character(LEN=path_len + 3*name_len) :: file_path !<
+              !! Relative path to a file in the case directory
+
+        ndata = (m + 1)*(n + 1)*(p + 1)*9
+        allocate (buffer(ndata))
+
+        l = 0
+        do k = 0, p
+          do j = 0, n
+            do i = 0, m
+              buffer(l*9 + 1) = qsv_info(i, j, k, 1)
+              buffer(l*9 + 2) = qsv_info(i, j, k, 5)
+              buffer(l*9 + 3) = pres(i, j, k)
+              buffer(l*9 + 4) = liutex_mag(i, j, k)
+              buffer(l*9 + 5) = omega(i, j, k, 1)
+              buffer(l*9 + 6) = omega(i, j, k, 2)
+              buffer(l*9 + 7) = omega(i, j, k, 3)
+              buffer(l*9 + 8) = vort_stretch_proj(i, j, k)
+              buffer(l*9 + 9) = vort_stretch_res(i, j, k)
+              l = l + 1
+            end do
+          end do
+        end do
+
+        write (file_path, '(A)') '/qsv_data.dat'
+        file_path = trim(case_dir)//trim(file_path)
+        amode = MPI_MODE_WRONLY + MPI_MODE_CREATE
+        call MPI_FILE_OPEN(MPI_COMM_WORLD, trim(file_path), amode, MPI_INFO_NULL, fh, ierr)
+        call MPI_FILE_WRITE_ORDERED(fh, buffer, size(buffer), mpi_p, MPI_STATUS_IGNORE, ierr)
+        call MPI_FILE_CLOSE(fh, ierr)
+
+    end subroutine s_write_qsv_data_file
+
     impure subroutine s_close_formatted_database_file()
         ! Description: The purpose of this subroutine is to close any formatted
         !              database file(s) that may be opened at the time-step that
@@ -1426,7 +1470,7 @@ contains
         close (251)
 
     end subroutine s_close_energy_data_file
-
+    
     impure subroutine s_finalize_data_output_module()
         ! Description: Deallocation procedures for the module
 
