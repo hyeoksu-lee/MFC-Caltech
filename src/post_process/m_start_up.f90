@@ -226,7 +226,7 @@ contains
                             -offset_y%beg:n + offset_y%end, &
                             -offset_z%beg:p + offset_z%end, 5) :: qsv_info
 
-        integer :: i, j, k, l
+        integer :: i, j, k, l, ii, jj, kk
         integer :: x_beg, x_end, y_beg, y_end, z_beg, z_end
 
         if (output_partial_domain) then
@@ -670,16 +670,23 @@ contains
             write (varname, '(A)') 'qsv_group'
             call s_write_variable_to_formatted_database_file(varname, t_step)
             varname(:) = ' '
-
-            q_sf = A_rr
-            write (varname, '(A)') 'A_rr'
-            call s_write_variable_to_formatted_database_file(varname, t_step)
-            varname(:) = ' '
-
-            q_sf = A_ps
-            write (varname, '(A)') 'A_ps'
-            call s_write_variable_to_formatted_database_file(varname, t_step)
-            varname(:) = ' '
+              
+            do k = 0, p
+              do j = 0, n
+                do i = 0, m
+                  ii = i + proc_rank_x*(m + 1)
+                  jj = j + proc_rank_y*(n + 1)
+                  kk = k + proc_rank_z*(p + 1)
+                  write(99,*) ii, jj, kk, qsv_info(i, j, k, :), &
+                              q_prim_vf(E_idx)%sf(i, j, k), &
+                              liutex_mag(i, j, k), &
+                              omega(i, j, k, :), &
+                              vort_stretch(i, j, k, :), &
+                              vort_stretch_proj(i, j, k), vort_stretch_res(i, j, k), &
+                              A_rr(i, j, k), A_ps(i, j, k), A_ns(i, j, k), A_sr(i, j, k)
+                end do
+              end do
+            end do
         end if
 
         ! Adding numerical Schlieren function to formatted database file

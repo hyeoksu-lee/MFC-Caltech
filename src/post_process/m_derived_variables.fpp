@@ -832,7 +832,7 @@ contains
         integer, dimension(0:m, 0:n, 0:p) :: qsv_group
         logical, dimension(-1:m + 1, -1:n + 1, -1:p + 1) :: qsv_flag_padded
         real(wp) :: theta1, theta2
-        integer :: i, j, k, l, ierr
+        integer :: i, j, k, l, ii, jj, kk, ierr
 
         ! Initialization
         qsv_flag = .false.
