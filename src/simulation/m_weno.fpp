@@ -291,7 +291,7 @@ contains
                     ! END: Computing WENO3 Coefficients
 
                     ! Computing WENO5 Coefficients
-                elseif (weno_order == 5) then
+                elseif (weno_order == 5 .and. .not. wcnsld) then
 
                     do i = is%beg - 1 + weno_polyn, is%end - 1 - weno_polyn
 
@@ -438,6 +438,47 @@ contains
                             d_cbL_${XYZ}$ (0:1, s) = 0._wp; d_cbL_${XYZ}$ (2, s) = 1._wp
                         end if
                     end if
+
+                elseif (weno_order == 5 .and. wcnsld) then
+
+                    
+                    poly_coef_cbL_${XYZ}$ (j, 0, 0) = -1._wp/3._wp
+                    poly_coef_cbL_${XYZ}$ (j, 0, 1) = 5._wp/6._wp
+                    poly_coef_cbL_${XYZ}$ (j, 1, 0) = 1._wp/6._wp
+                    poly_coef_cbL_${XYZ}$ (j, 1, 1) = 1._wp/3._wp
+                    poly_coef_cbL_${XYZ}$ (j, 2, 0) = 2._wp/3._wp
+                    poly_coef_cbL_${XYZ}$ (j, 2, 1) = -1._wp/6._wp
+                    poly_coef_cbL_${XYZ}$ (j, 3, 0) = -5._wp/6._wp
+                    poly_coef_cbL_${XYZ}$ (j, 3, 1) = 1._wp/3._wp
+
+                    beta_coef_${XYZ}$ (j, 0, 0) = 1._wp/4._wp
+                    beta_coef_${XYZ}$ (j, 0, 1) = 13._wp/12._wp
+                    beta_coef_${XYZ}$ (j, 1, 0) = 1._wp/4._wp
+                    beta_coef_${XYZ}$ (j, 1, 1) = 13._wp/12._wp
+                    beta_coef_${XYZ}$ (j, 2, 0) = 1._wp/4._wp
+                    beta_coef_${XYZ}$ (j, 2, 1) = 13._wp/12._wp
+                    beta_coef_${XYZ}$ (j, 3, 0) = 271779._wp/120960._wp
+                    beta_coef_${XYZ}$ (j, 3, 1) = -2380800._wp/120960._wp
+                    beta_coef_${XYZ}$ (j, 3, 2) = 4086352._wp/120960._wp
+                    beta_coef_${XYZ}$ (j, 3, 3) = -3462252._wp/120960._wp
+                    beta_coef_${XYZ}$ (j, 3, 4) = 1458762._wp/120960._wp
+                    beta_coef_${XYZ}$ (j, 3, 5) = -245620._wp/120960._wp
+                    beta_coef_${XYZ}$ (j, 3, 6) = 5653317._wp/120960._wp
+                    beta_coef_${XYZ}$ (j, 3, 7) = -20427884._wp/120960._wp
+                    beta_coef_${XYZ}$ (j, 3, 8) = 17905032._wp/120960._wp
+                    beta_coef_${XYZ}$ (j, 3, 9) = -7727988._wp/120960._wp
+                    beta_coef_${XYZ}$ (j, 3, 10) = 1325006._wp/120960._wp
+                    beta_coef_${XYZ}$ (j, 3, 11) = -35817664._wp/120960._wp
+                    beta_coef_${XYZ}$ (j, 3, 12) = 15929912._wp/120960._wp
+                    beta_coef_${XYZ}$ (j, 3, 13) = -2792660._wp/120960._wp
+                    beta_coef_${XYZ}$ (j, 3, 14) = 17195652._wp/120960._wp
+                    beta_coef_${XYZ}$ (j, 3, 15) = -15880404._wp/120960._wp
+                    beta_coef_${XYZ}$ (j, 3, 16) = 2863984._wp/120960._wp
+                    beta_coef_${XYZ}$ (j, 3, 17) = 3824847._wp/120960._wp
+                    beta_coef_${XYZ}$ (j, 3, 18) = -1429976._wp/120960._wp
+                    beta_coef_${XYZ}$ (j, 3, 19) = 139633._wp/120960._wp
+
+
 
                 else ! WENO7
 
@@ -998,49 +1039,48 @@ contains
                                     dvd2(-3,-2) = -dvd2(-2,-3)
 
                                     ! reconstruct from left side
-                                    poly(0) = -(1._wp/3._wp)*dvd2(1,2) &
-                                            + (5._wp/6._wp)*dvd2(0,1) &
-                                            + v_rs_ws_${XYZ}$ (j, k, l, i)
-                                    poly(1) = (1._wp/6._wp)*dvd2(0,1) &
-                                            + (1._wp/3._wp)*dvd2(-1,0) &
-                                            + v_rs_ws_${XYZ}$ (j, k, l, i)
-                                    poly(2) = (2._wp/3._wp)*dvd2(-1,0) &
-                                            - (1._wp/6._wp)*dvd2(-2,-1) &
-                                            + v_rs_ws_${XYZ}$ (j, k, l, i)
-                                    poly(3) = -(5._wp/6._wp)*dvd2(-2,-1) &
-                                            + (1._wp/3._wp)*dvd2(-3,-2) &
-                                            + v_rs_ws_${XYZ}$ (j - 1, k, l, i)
+                                    poly(0) = v_rs_ws_${XYZ}$ (j, k, l, i) &
+                                            + poly_coef_cbL_${XYZ}$ (j, 0, 0)*dvd2(1,2) &
+                                            + poly_coef_cbL_${XYZ}$ (j, 0, 1)*dvd2(0,1)
+                                    poly(1) = v_rs_ws_${XYZ}$ (j, k, l, i) &
+                                            + poly_coef_cbL_${XYZ}$ (j, 1, 0)*dvd2(0,1) &
+                                            + poly_coef_cbL_${XYZ}$ (j, 1, 1)*dvd2(-1,0)
+                                    poly(2) = v_rs_ws_${XYZ}$ (j, k, l, i) &
+                                            + poly_coef_cbL_${XYZ}$ (j, 2, 0)*dvd2(-1,0) &
+                                            + poly_coef_cbL_${XYZ}$ (j, 2, 1)*dvd2(-2,-1)
+                                    poly(3) = v_rs_ws_${XYZ}$ (j - 1, k, l, i) &
+                                            + poly_coef_cbL_${XYZ}$ (j, 3, 0)*dvd2(-2,-1) &
+                                            + poly_coef_cbL_${XYZ}$ (j, 3, 1)*dvd2(-3,-2)
                                     
-                                    beta(0) = (1._wp/4._wp) * (3._wp*dvd2(0,1) - dvd2(1,2))**2._wp &
-                                            + (13._wp/12._wp) * (dvd2(0,1) - dvd2(1,2))**2._wp &
+                                    beta(0) = beta_coef_${XYZ}$ (j, 0, 0) * (3._wp*dvd2(0,1) - dvd2(1,2))**2._wp &
+                                            + beta_coef_${XYZ}$ (j, 0, 1) * (dvd2(0,1) - dvd2(1,2))**2._wp &
                                             + weno_eps
-                                    beta(1) = (1._wp/4._wp) * (dvd2(-1,0) + dvd2(0,1))**2._wp &
-                                            + (13._wp/12._wp) * (dvd2(-1,0) - dvd2(0,1))**2._wp &
+                                    beta(1) = beta_coef_${XYZ}$ (j, 1, 0) * (dvd2(-1,0) + dvd2(0,1))**2._wp &
+                                            + beta_coef_${XYZ}$ (j, 1, 1) * (dvd2(-1,0) - dvd2(0,1))**2._wp &
                                             + weno_eps
-                                    beta(2) = (1._wp/4._wp) * (dvd2(-2,-1) - 3._wp*dvd2(-1,0))**2._wp &
-                                            + (13._wp/12._wp) * (dvd2(-2,-1) - dvd2(-1,0))**2._wp &
+                                    beta(2) = beta_coef_${XYZ}$ (j, 2, 0) * (dvd2(-2,-1) - 3._wp*dvd2(-1,0))**2._wp &
+                                            + beta_coef_${XYZ}$ (j, 2, 1) * (dvd2(-2,-1) - dvd2(-1,0))**2._wp &
                                             + weno_eps
-                                    beta(3) =((  271779._wp)*(-(dvd2( 0,2) + dvd2( 0,2))*v_rs_ws_${XYZ}$ (j, k, l, i) + dvd2(0,2)*dvd2(0,2)) &
-                                            - ( 2380800._wp)*(-(dvd2( 0,1) + dvd2( 0,2))*v_rs_ws_${XYZ}$ (j, k, l, i) + dvd2(0,1)*dvd2(0,2)) &
-                                            + ( 4086352._wp)*(             - dvd2( 0,2) *v_rs_ws_${XYZ}$ (j, k, l, i)) &
-                                            - ( 3462252._wp)*( (dvd2(-1,0) - dvd2( 0,2))*v_rs_ws_${XYZ}$ (j, k, l, i) - dvd2(-1,0)*dvd2(0,2)) &
-                                            + ( 1458762._wp)*( (dvd2(-2,0) - dvd2( 0,2))*v_rs_ws_${XYZ}$ (j, k, l, i) - dvd2(-2,0)*dvd2(0,2)) &
-                                            - (  245620._wp)*( (dvd2(-3,0) - dvd2( 0,2))*v_rs_ws_${XYZ}$ (j, k, l, i) - dvd2(-3,0)*dvd2(0,2)) &
-                                            + ( 5653317._wp)*(-(dvd2( 0,1) + dvd2( 0,1))*v_rs_ws_${XYZ}$ (j, k, l, i) + dvd2(0,1)*dvd2(0,1)) &
-                                            - (20427884._wp)*(             - dvd2( 0,1) *v_rs_ws_${XYZ}$ (j, k, l, i)) &
-                                            + (17905032._wp)*( (dvd2(-1,0) - dvd2( 0,1))*v_rs_ws_${XYZ}$ (j, k, l, i) - dvd2(-1,0)*dvd2(0,1)) &
-                                            - ( 7727988._wp)*( (dvd2(-2,0) - dvd2( 0,1))*v_rs_ws_${XYZ}$ (j, k, l, i) - dvd2(-2,0)*dvd2(0,1)) &
-                                            + ( 1325006._wp)*( (dvd2(-3,0) - dvd2( 0,1))*v_rs_ws_${XYZ}$ (j, k, l, i) - dvd2(-3,0)*dvd2(0,1)) &
-                                            - (35817664._wp)*(               dvd2(-1,0) *v_rs_ws_${XYZ}$ (j, k, l, i)) &
-                                            + (15929912._wp)*(               dvd2(-2,0) *v_rs_ws_${XYZ}$ (j, k, l, i)) &
-                                            - ( 2792660._wp)*(               dvd2(-3,0) *v_rs_ws_${XYZ}$ (j, k, l, i)) &
-                                            + (17195652._wp)*( (dvd2(-1,0) + dvd2(-1,0))*v_rs_ws_${XYZ}$ (j, k, l, i) + dvd2(-1,0)*dvd2(-1,0)) &
-                                            - (15880404._wp)*( (dvd2(-2,0) + dvd2(-1,0))*v_rs_ws_${XYZ}$ (j, k, l, i) + dvd2(-2,0)*dvd2(-1,0)) &
-                                            + ( 2863984._wp)*( (dvd2(-3,0) + dvd2(-1,0))*v_rs_ws_${XYZ}$ (j, k, l, i) + dvd2(-3,0)*dvd2(-1,0)) &
-                                            + ( 3824847._wp)*( (dvd2(-2,0) + dvd2(-2,0))*v_rs_ws_${XYZ}$ (j, k, l, i) + dvd2(-2,0)*dvd2(-2,0)) &
-                                            - ( 1429976._wp)*( (dvd2(-3,0) + dvd2(-2,0))*v_rs_ws_${XYZ}$ (j, k, l, i) + dvd2(-3,0)*dvd2(-2,0)) &
-                                            + (  139633._wp)*( (dvd2(-3,0) + dvd2(-3,0))*v_rs_ws_${XYZ}$ (j, k, l, i) + dvd2(-3,0)*dvd2(-3,0))) &
-                                            / 120960._wp &
+                                    beta(3) =(beta_coef_${XYZ}$ (j, 3, 0)*(-(dvd2( 0,2) + dvd2( 0,2))*v_rs_ws_${XYZ}$ (j, k, l, i) + dvd2(0,2)*dvd2(0,2)) &
+                                            + beta_coef_${XYZ}$ (j, 3, 1)*(-(dvd2( 0,1) + dvd2( 0,2))*v_rs_ws_${XYZ}$ (j, k, l, i) + dvd2(0,1)*dvd2(0,2)) &
+                                            + beta_coef_${XYZ}$ (j, 3, 2)*(             - dvd2( 0,2) *v_rs_ws_${XYZ}$ (j, k, l, i)) &
+                                            + beta_coef_${XYZ}$ (j, 3, 3)*( (dvd2(-1,0) - dvd2( 0,2))*v_rs_ws_${XYZ}$ (j, k, l, i) - dvd2(-1,0)*dvd2(0,2)) &
+                                            + beta_coef_${XYZ}$ (j, 3, 4)*( (dvd2(-2,0) - dvd2( 0,2))*v_rs_ws_${XYZ}$ (j, k, l, i) - dvd2(-2,0)*dvd2(0,2)) &
+                                            + beta_coef_${XYZ}$ (j, 3, 5)*( (dvd2(-3,0) - dvd2( 0,2))*v_rs_ws_${XYZ}$ (j, k, l, i) - dvd2(-3,0)*dvd2(0,2)) &
+                                            + beta_coef_${XYZ}$ (j, 3, 6)*(-(dvd2( 0,1) + dvd2( 0,1))*v_rs_ws_${XYZ}$ (j, k, l, i) + dvd2(0,1)*dvd2(0,1)) &
+                                            + beta_coef_${XYZ}$ (j, 3, 7)*(             - dvd2( 0,1) *v_rs_ws_${XYZ}$ (j, k, l, i)) &
+                                            + beta_coef_${XYZ}$ (j, 3, 8)*( (dvd2(-1,0) - dvd2( 0,1))*v_rs_ws_${XYZ}$ (j, k, l, i) - dvd2(-1,0)*dvd2(0,1)) &
+                                            + beta_coef_${XYZ}$ (j, 3, 9)*( (dvd2(-2,0) - dvd2( 0,1))*v_rs_ws_${XYZ}$ (j, k, l, i) - dvd2(-2,0)*dvd2(0,1)) &
+                                            + beta_coef_${XYZ}$ (j, 3, 10)*( (dvd2(-3,0) - dvd2( 0,1))*v_rs_ws_${XYZ}$ (j, k, l, i) - dvd2(-3,0)*dvd2(0,1)) &
+                                            + beta_coef_${XYZ}$ (j, 3, 11)*(               dvd2(-1,0) *v_rs_ws_${XYZ}$ (j, k, l, i)) &
+                                            + beta_coef_${XYZ}$ (j, 3, 12)*(               dvd2(-2,0) *v_rs_ws_${XYZ}$ (j, k, l, i)) &
+                                            + beta_coef_${XYZ}$ (j, 3, 13)*(               dvd2(-3,0) *v_rs_ws_${XYZ}$ (j, k, l, i)) &
+                                            + beta_coef_${XYZ}$ (j, 3, 14)*( (dvd2(-1,0) + dvd2(-1,0))*v_rs_ws_${XYZ}$ (j, k, l, i) + dvd2(-1,0)*dvd2(-1,0)) &
+                                            + beta_coef_${XYZ}$ (j, 3, 15)*( (dvd2(-2,0) + dvd2(-1,0))*v_rs_ws_${XYZ}$ (j, k, l, i) + dvd2(-2,0)*dvd2(-1,0)) &
+                                            + beta_coef_${XYZ}$ (j, 3, 16)*( (dvd2(-3,0) + dvd2(-1,0))*v_rs_ws_${XYZ}$ (j, k, l, i) + dvd2(-3,0)*dvd2(-1,0)) &
+                                            + beta_coef_${XYZ}$ (j, 3, 17)*( (dvd2(-2,0) + dvd2(-2,0))*v_rs_ws_${XYZ}$ (j, k, l, i) + dvd2(-2,0)*dvd2(-2,0)) &
+                                            + beta_coef_${XYZ}$ (j, 3, 18)*( (dvd2(-3,0) + dvd2(-2,0))*v_rs_ws_${XYZ}$ (j, k, l, i) + dvd2(-3,0)*dvd2(-2,0)) &
+                                            + beta_coef_${XYZ}$ (j, 3, 19)*( (dvd2(-3,0) + dvd2(-3,0))*v_rs_ws_${XYZ}$ (j, k, l, i) + dvd2(-3,0)*dvd2(-3,0))) &
                                             + weno_eps
 
                                     beta_avg = (beta(0) + 4._wp*beta(1) + beta(2))/6._wp
@@ -1069,8 +1109,6 @@ contains
                                     end if
 
                                     if (rtau > 35._wp) then
-                                        ! write(98,*) proc_rank, i, j, k, l, x_cc(j), y_cc(k), z_cc(l), rtau
-
                                         tau = abs(beta(2) - beta(0))
 
                                         dk(0) = 1._wp/10._wp
@@ -1162,8 +1200,6 @@ contains
                                     end if
 
                                     if (rtau > 35._wp) then
-                                        ! write(99,*) proc_rank, i, j, k, l, x_cc(j), y_cc(k), z_cc(l), rtau
-                                        
                                         tau = abs(beta(2) - beta(0))
     
                                         dk(0) = 1._wp/10._wp
