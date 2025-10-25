@@ -153,7 +153,7 @@ contains
             t_step_start, t_step_stop, t_step_save, t_step_print, &
             model_eqns, mpp_lim, time_stepper, weno_eps, &
             rdma_mpi, teno_CT, mp_weno, weno_avg, &
-            riemann_solver, low_Mach, wave_speeds, avg_state, &
+            riemann_solver, low_Mach, wave_speeds, avg_state, preconditioning, &
             bc_x, bc_y, bc_z, &
             x_a, y_a, z_a, x_b, y_b, z_b, &
             x_domain, y_domain, z_domain, &
@@ -1151,6 +1151,8 @@ contains
         ! Total-variation-diminishing (TVD) Runge-Kutta (RK) time-steppers
         if (any(time_stepper == (/1, 2, 3/))) then
             call s_tvd_rk(t_step, time_avg, time_stepper)
+        else if (time_stepper == 4) then
+            call s_implicit_rk2(t_step, time_avg)
         end if
 
         if (relax) call s_infinite_relaxation_k(q_cons_ts(1)%vf)
@@ -1493,7 +1495,7 @@ contains
         $:GPU_UPDATE(device='[nb,R0ref,Ca,Web,Re_inv,weight,R0, &
             & bubbles_euler,polytropic,polydisperse,qbmm, &
             & ptil,bubble_model,thermal,poly_sigma,adv_n,adap_dt, &
-            & adap_dt_tol,adap_dt_max_iters,n_idx,pi_fac,low_Mach]')
+            & adap_dt_tol,adap_dt_max_iters,n_idx,pi_fac,low_Mach,preconditioning]')
         $:GPU_UPDATE(device='[R_n,R_v,phi_vn,phi_nv,Pe_c,Tw,pv,M_n, &
             & M_v,k_n,k_v,pb0,mass_n0,mass_v0,Pe_T,Re_trans_T, &
             & Re_trans_c,Im_trans_T,Im_trans_c,omegaN,mul0,ss, &

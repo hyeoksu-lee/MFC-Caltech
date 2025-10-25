@@ -1160,6 +1160,7 @@ contains
         real(wp) :: pres_SL, pres_SR, Ms_L, Ms_R
         real(wp) :: flux_ene_e
         real(wp) :: zcoef, pcorr !< low Mach number correction
+        real(wp) :: beta2_L, beta2_R, u_L, u_R
 
         integer :: i, j, k, l, q !< Generic loop iterators
         integer :: idx1, idxi
@@ -2525,12 +2526,29 @@ contains
                                                rho_R*vel_R(idx1)*(s_R - vel_R(idx1)))/(rho_L*(s_L - vel_L(idx1)) - &
                                                                                        rho_R*(s_R - vel_R(idx1)))
                                     else
+                                        ! if (preconditioning) then
+                                        !     beta2_L = min(max(sgm_eps, vel_L_rms/c_L**2._wp), 1._wp)
+                                        !     beta2_R = min(max(sgm_eps, vel_R_rms/c_R**2._wp), 1._wp)
+                                        !     u_L = vel_L(dir_idx(1))
+                                        !     u_R = vel_R(dir_idx(1))
+                                        !     s_L = min(0.5_wp*((beta2_L + 1._wp)*u_L - sqrt(((beta2_L + 1._wp)*u_L)**2._wp + 4._wp*(u_L**2._wp - c_L**2._wp)*beta2_L)), &
+                                        !               0.5_wp*((beta2_R + 1._wp)*u_R - sqrt(((beta2_R + 1._wp)*u_R)**2._wp + 4._wp*(u_R**2._wp - c_R**2._wp)*beta2_R)))
+                                        !     s_R = max(0.5_wp*((beta2_L + 1._wp)*u_L + sqrt(((beta2_L + 1._wp)*u_L)**2._wp + 4._wp*(u_L**2._wp - c_L**2._wp)*beta2_L)), &
+                                        !               0.5_wp*((beta2_R + 1._wp)*u_R + sqrt(((beta2_R + 1._wp)*u_R)**2._wp + 4._wp*(u_R**2._wp - c_R**2._wp)*beta2_R)))
+                                        ! else
+                                            ! s_L = min(vel_L(dir_idx(1)) - c_L, vel_R(dir_idx(1)) - c_R)
+                                            ! s_R = max(vel_R(dir_idx(1)) + c_R, vel_L(dir_idx(1)) + c_L)
+                                        ! end if
                                         s_L = min(vel_L(dir_idx(1)) - c_L, vel_R(dir_idx(1)) - c_R)
                                         s_R = max(vel_R(dir_idx(1)) + c_R, vel_L(dir_idx(1)) + c_L)
                                         s_S = (pres_R - pres_L + rho_L*vel_L(dir_idx(1))* &
                                                (s_L - vel_L(dir_idx(1))) - rho_R*vel_R(dir_idx(1))*(s_R - vel_R(dir_idx(1)))) &
                                               /(rho_L*(s_L - vel_L(dir_idx(1))) - rho_R*(s_R - vel_R(dir_idx(1))))
-
+                                        ! if (preconditioning) then
+                                        !   print *, j, k, l, beta2_L, beta2_R, s_L, s_R, s_S
+                                        ! else
+                                          ! print *, j, k, l, s_L, s_R, s_S
+                                        ! end if
                                     end if
                                 elseif (wave_speeds == 2) then
                                     pres_SL = 5.e-1_wp*(pres_L + pres_R + rho_avg*c_avg* &

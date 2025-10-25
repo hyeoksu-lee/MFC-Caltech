@@ -298,6 +298,7 @@ SIMULATION.update({
     't_save': ParamType.REAL,
     'cfl_target': ParamType.REAL,
     'low_Mach': ParamType.INT,
+    'preconditioning': ParamType.LOG,
     'surface_tension': ParamType.LOG,
     'viscous': ParamType.LOG,
     'bubbles_lagrange': ParamType.LOG,

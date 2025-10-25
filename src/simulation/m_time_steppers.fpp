@@ -51,6 +51,9 @@ module m_time_steppers
     type(vector_field), allocatable, dimension(:) :: q_cons_ts !<
     !! Cell-average conservative variables at each time-stage (TS)
 
+    type(vector_field), allocatable, dimension(:) :: q_cons_pts !<
+    !! Cell-average conservative variables at each pseudo-time-stage (PTS)
+
     type(scalar_field), allocatable, dimension(:) :: q_prim_vf !<
     !! Cell-average primitive variables at the current time-stage
 
@@ -78,12 +81,13 @@ module m_time_steppers
     integer :: stor !< storage index
     real(wp), allocatable, dimension(:, :) :: rk_coef
 
-    $:GPU_DECLARE(create='[q_cons_ts,q_prim_vf,q_T_sf,rhs_vf,q_prim_ts,rhs_mv,rhs_pb,max_dt,rk_coef]')
+    $:GPU_DECLARE(create='[q_cons_ts,q_cons_pts,q_prim_vf,q_T_sf,rhs_vf,q_prim_ts,rhs_mv,rhs_pb,max_dt,rk_coef]')
 
 #if defined(__NVCOMPILER_GPU_UNIFIED_MEM)
-    real(wp), allocatable, dimension(:, :, :, :), pinned, target :: q_cons_ts_pool_host
+    real(wp), allocatable, dimension(:, :, :, :), pinned, target :: q_cons_ts_pool_host, q_cons_pts_pool_host
 #elif defined(FRONTIER_UNIFIED)
     real(wp), pointer, contiguous, dimension(:, :, :, :) :: q_cons_ts_pool_host, q_cons_ts_pool_device
+    real(wp), pointer, contiguous, dimension(:, :, :, :) :: q_cons_pts_pool_host, q_cons_pts_pool_device
     integer(kind=8) :: pool_dims(4), pool_starts(4)
 #endif
 
@@ -104,23 +108,32 @@ contains
         ! Setting number of time-stages for selected time-stepping scheme
         if (time_stepper == 1) then
             num_ts = 1
-        elseif (any(time_stepper == (/2, 3/))) then
+        elseif (any(time_stepper == (/2, 3, 4/))) then
             num_ts = 2
         end if
 
         ! Allocating the cell-average conservative variables
         @:ALLOCATE(q_cons_ts(1:num_ts))
         @:PREFER_GPU(q_cons_ts)
+        @:ALLOCATE(q_cons_pts(1:num_ts))
+        @:PREFER_GPU(q_cons_pts)
 
         do i = 1, num_ts
             @:ALLOCATE(q_cons_ts(i)%vf(1:sys_size))
             @:PREFER_GPU(q_cons_ts(i)%vf)
+            @:ALLOCATE(q_cons_pts(i)%vf(1:sys_size))
+            @:PREFER_GPU(q_cons_pts(i)%vf)
         end do
 
 #if defined(__NVCOMPILER_GPU_UNIFIED_MEM)
         if (num_ts == 2 .and. nv_uvm_out_of_core) then
             ! host allocation for q_cons_ts(2)%vf(j)%sf for all j
             allocate (q_cons_ts_pool_host(idwbuff(1)%beg:idwbuff(1)%end, &
+                                          idwbuff(2)%beg:idwbuff(2)%end, &
+                                          idwbuff(3)%beg:idwbuff(3)%end, &
+                                          1:sys_size))
+            ! host allocation for q_cons_pts(2)%vf(j)%sf for all j
+            allocate (q_cons_pts_pool_host(idwbuff(1)%beg:idwbuff(1)%end, &
                                           idwbuff(2)%beg:idwbuff(2)%end, &
                                           idwbuff(3)%beg:idwbuff(3)%end, &
                                           1:sys_size))
@@ -132,23 +145,37 @@ contains
                 idwbuff(2)%beg:idwbuff(2)%end, &
                 idwbuff(3)%beg:idwbuff(3)%end))
             @:PREFER_GPU(q_cons_ts(1)%vf(j)%sf)
+            ! q_cons_pts(1) lives on the device
+            @:ALLOCATE(q_cons_pts(1)%vf(j)%sf(idwbuff(1)%beg:idwbuff(1)%end, &
+                idwbuff(2)%beg:idwbuff(2)%end, &
+                idwbuff(3)%beg:idwbuff(3)%end))
+            @:PREFER_GPU(q_cons_pts(1)%vf(j)%sf)
             if (num_ts == 2) then
                 if (nv_uvm_out_of_core) then
                     ! q_cons_ts(2) lives on the host
                     q_cons_ts(2)%vf(j)%sf(idwbuff(1)%beg:idwbuff(1)%end, &
                                           idwbuff(2)%beg:idwbuff(2)%end, &
                                           idwbuff(3)%beg:idwbuff(3)%end) => q_cons_ts_pool_host(:, :, :, j)
+                    ! q_cons_pts(2) lives on the host
+                    q_cons_pts(2)%vf(j)%sf(idwbuff(1)%beg:idwbuff(1)%end, &
+                                          idwbuff(2)%beg:idwbuff(2)%end, &
+                                          idwbuff(3)%beg:idwbuff(3)%end) => q_cons_pts_pool_host(:, :, :, j)
                 else
                     @:ALLOCATE(q_cons_ts(2)%vf(j)%sf(idwbuff(1)%beg:idwbuff(1)%end, &
                         idwbuff(2)%beg:idwbuff(2)%end, &
                         idwbuff(3)%beg:idwbuff(3)%end))
                     @:PREFER_GPU(q_cons_ts(2)%vf(j)%sf)
+                    @:ALLOCATE(q_cons_pts(2)%vf(j)%sf(idwbuff(1)%beg:idwbuff(1)%end, &
+                        idwbuff(2)%beg:idwbuff(2)%end, &
+                        idwbuff(3)%beg:idwbuff(3)%end))
+                    @:PREFER_GPU(q_cons_pts(2)%vf(j)%sf)
                 end if
             end if
         end do
 
         do i = 1, num_ts
             @:ACC_SETUP_VFs(q_cons_ts(i))
+            @:ACC_SETUP_VFs(q_cons_pts(i))
         end do
 #elif defined(FRONTIER_UNIFIED)
         ! Allocate to memory regions using hip calls
@@ -177,18 +204,28 @@ contains
             q_cons_ts(1)%vf(j)%sf(idwbuff(1)%beg:idwbuff(1)%end, &
                                   idwbuff(2)%beg:idwbuff(2)%end, &
                                   idwbuff(3)%beg:idwbuff(3)%end) => q_cons_ts_pool_device(:, :, :, j)
+            ! q_cons_pts(1) lives on the device
+            q_cons_pts(1)%vf(j)%sf(idwbuff(1)%beg:idwbuff(1)%end, &
+                                  idwbuff(2)%beg:idwbuff(2)%end, &
+                                  idwbuff(3)%beg:idwbuff(3)%end) => q_cons_pts_pool_device(:, :, :, j)
             if (num_ts == 2) then
                 ! q_cons_ts(2) lives on the host
                 q_cons_ts(2)%vf(j)%sf(idwbuff(1)%beg:idwbuff(1)%end, &
                                       idwbuff(2)%beg:idwbuff(2)%end, &
                                       idwbuff(3)%beg:idwbuff(3)%end) => q_cons_ts_pool_host(:, :, :, j)
+                ! q_cons_pts(2) lives on the host
+                q_cons_pts(2)%vf(j)%sf(idwbuff(1)%beg:idwbuff(1)%end, &
+                                      idwbuff(2)%beg:idwbuff(2)%end, &
+                                      idwbuff(3)%beg:idwbuff(3)%end) => q_cons_pts_pool_host(:, :, :, j)
             end if
         end do
 
         do i = 1, num_ts
             @:ACC_SETUP_VFs(q_cons_ts(i))
+            @:ACC_SETUP_VFs(q_cons_pts(i))
             do j = 1, sys_size
                 $:GPU_UPDATE(device='[q_cons_ts(i)%vf(j)]')
+                $:GPU_UPDATE(device='[q_cons_pts(i)%vf(j)]')
             end do
         end do
 #else
@@ -197,8 +234,12 @@ contains
                 @:ALLOCATE(q_cons_ts(i)%vf(j)%sf(idwbuff(1)%beg:idwbuff(1)%end, &
                     idwbuff(2)%beg:idwbuff(2)%end, &
                     idwbuff(3)%beg:idwbuff(3)%end))
+                @:ALLOCATE(q_cons_pts(i)%vf(j)%sf(idwbuff(1)%beg:idwbuff(1)%end, &
+                    idwbuff(2)%beg:idwbuff(2)%end, &
+                    idwbuff(3)%beg:idwbuff(3)%end))
             end do
             @:ACC_SETUP_VFs(q_cons_ts(i))
+            @:ACC_SETUP_VFs(q_cons_pts(i))
         end do
 #endif
 
@@ -441,7 +482,7 @@ contains
             end do
         end do
 
-        if (any(time_stepper == (/1, 2, 3/))) then
+        if (any(time_stepper == (/1, 2, 3, 4/))) then
             ! temporary array index for TVD RK
             if (time_stepper == 1) then
                 stor = 1
@@ -589,6 +630,189 @@ contains
         end if
 
     end subroutine s_tvd_rk
+
+    subroutine s_implicit_rk2(t_step, time_avg)
+        real(wp), parameter :: pts_tol = 1e-4_wp
+
+        integer, intent(in) :: t_step
+        real(wp), intent(inout) :: time_avg
+
+        real(wp) :: rho        !< Cell-avg. density
+        real(wp), dimension(num_vels) :: vel        !< Cell-avg. velocity
+        real(wp) :: vel_sum    !< Cell-avg. velocity sum
+        real(wp) :: pres       !< Cell-avg. pressure
+        real(wp), dimension(num_fluids) :: alpha      !< Cell-avg. volume fraction
+        real(wp) :: gamma      !< Cell-avg. sp. heat ratio
+        real(wp) :: pi_inf     !< Cell-avg. liquid stiffness function
+        real(wp) :: c          !< Cell-avg. sound speed
+        real(wp) :: H          !< Cell-avg. enthalpy
+        real(wp), dimension(2) :: Re         !< Cell-avg. Reynolds numbers
+        real(wp) :: rho_K, gamma_K, pi_inf_K, vel_sum_K
+
+        real(wp) :: start, finish
+        integer :: iter
+        real(wp) :: dtau
+        real(wp) :: dq, max_dq
+        logical :: check_pts_err
+
+        integer :: i, j, k, l, q, s !< Generic loop iterator
+
+        call cpu_time(start)
+        call nvtxStartRange("TIMESTEP")
+
+        dtau = 0.1_wp*dt
+        
+        ! Initialize q_cons_pts = q_cons_ts(1)
+        $:GPU_PARALLEL_LOOP(collapse=4)
+        do i = 1, sys_size
+            do l = idwbuff(3)%beg, idwbuff(3)%end
+                do k = idwbuff(2)%beg, idwbuff(2)%end
+                    do j = idwbuff(1)%beg, idwbuff(1)%end
+                        q_cons_pts(2)%vf(i)%sf(j, k, l) = q_cons_ts(1)%vf(i)%sf(j, k, l)
+                    end do
+                end do
+            end do
+        end do
+
+        ! Stage 1
+        call s_compute_rhs(q_cons_pts(2)%vf, q_T_sf, q_prim_vf, bc_type, rhs_vf, pb_ts(1)%sf, rhs_pb, mv_ts(1)%sf, rhs_mv, t_step, time_avg, 1)
+
+        ! Stage 1
+        $:GPU_PARALLEL_LOOP(collapse=4)
+        do i = 1, sys_size
+            do l = 0, p
+                do k = 0, n
+                    do j = 0, m
+                        ! Update q_cons_pts
+                        q_cons_pts(1)%vf(i)%sf(j, k, l) = q_cons_pts(2)%vf(i)%sf(j, k, l) + 0.5_wp*dt*rhs_vf(i)%sf(j, k, l)
+                        ! Initial guess
+                        q_cons_pts(2)%vf(i)%sf(j, k, l) = q_cons_pts(1)%vf(i)%sf(j, k, l)
+                    end do
+                end do
+            end do
+        end do
+
+        ! Stage 2: Run pseudo-time-steps
+        iter = 0
+        check_pts_err = .true. 
+        do while(.true.)
+            check_pts_err = .true. 
+            max_dq = 0._wp
+
+            ! Get primitive variables
+            call s_convert_conservative_to_primitive_variables( &
+                q_cons_pts(2)%vf, &
+                q_T_sf, &
+                q_prim_vf, &
+                idwint)
+
+            $:GPU_PARALLEL_LOOP(collapse=4)
+            do i = 1, sys_size
+                do l = 0, p
+                    do k = 0, n
+                        do j = 0, m
+
+                            ! Compute RHS for pseudo time step
+                            dq = dtau * (rhs_vf(i)%sf(j, k, l) - 2._wp*(q_cons_pts(2)%vf(i)%sf(j, k, l) - q_cons_pts(1)%vf(i)%sf(j, k, l))/dt)
+
+                            ! Multiply preconditioner
+                            if (preconditioning .and. i == E_idx) then
+                                call s_compute_enthalpy(q_cons_pts(2)%vf, pres, rho, gamma, pi_inf, Re, H, alpha, vel, vel_sum, j, k, l)
+                                call s_compute_speed_of_sound(pres, rho, gamma, pi_inf, H, alpha, vel_sum, 0._wp, c)
+                                dq = (vel_sum/c**2._wp)*dq
+                            end if
+
+                            ! Update variables
+                            q_prim_vf(i)%sf(j, k, l) = q_prim_vf(i)%sf(j, k, l) + dq
+
+                            ! Check exit condition
+                            if (abs(dq) > max_dq) then
+                              max_dq = abs(dq)
+                            end if
+                            if (abs(dq) > pts_tol) then
+                              check_pts_err = .false.
+                            end if
+                            if (dq /= dq) then
+                              print *, i, j, k, l, iter, rhs_vf(i)%sf(j, k, l), q_cons_pts(2)%vf(i)%sf(j, k, l), q_cons_pts(1)%vf(i)%sf(j, k, l)
+                              call s_mpi_abort("dq is NaN")
+                            end if
+                        end do
+                    end do
+                end do
+            end do
+
+            ! Convert into conservative variables
+            $:GPU_PARALLEL_LOOP(collapse=3)  
+            do l = 0, p
+                do k = 0, n
+                    do j = 0, m
+                      ! Mixture rules
+                      rho_K = 0._wp
+                      gamma_K = 0._wp
+                      pi_inf_K = 0._wp
+                      do i = 1, num_fluids
+                          rho_K = rho_K + q_prim_vf(i)%sf(j, k, l)
+                          gamma_K = gamma_K + q_prim_vf(E_idx + i)%sf(j, k, l)*gammas(i)
+                          pi_inf_K = pi_inf_K + q_prim_vf(E_idx + i)%sf(j, k, l)*pi_infs(i)
+                      end do
+
+                      ! Partial density
+                      do i = contxb, contxe
+                          q_cons_pts(2)%vf(i)%sf(j, k, l) = q_prim_vf(i)%sf(j, k, l)
+                      end do
+
+                      ! Momentum
+                      vel_sum_K = 0._wp
+                      do i = momxb, momxe
+                          q_cons_pts(2)%vf(i)%sf(j, k, l) = rho_K*q_prim_vf(i)%sf(j, k, l)
+                          vel_sum_K = vel_sum_K + q_prim_vf(i)%sf(j, k, l)**2._wp
+                      end do
+
+                      ! Energy
+                      q_cons_pts(2)%vf(E_idx)%sf(j, k, l) = gamma_K*q_prim_vf(E_idx)%sf(j, k, l) + pi_inf_K + 0.5_wp*rho_K*vel_sum_K
+
+                      ! Volume fraction
+                      do i = advxb, advxe
+                          q_cons_pts(2)%vf(i)%sf(j, k, l) = q_prim_vf(i)%sf(j, k, l)
+                      end do
+                    end do
+                end do
+            end do
+        
+            ! Check max error
+            if (check_pts_err) then
+              print *, "max_err < pts_tol at pseudo-time iteration: ", iter
+              $:GPU_PARALLEL_LOOP(collapse=4)
+              do i = 1, sys_size
+                  do l = 0, p
+                      do k = 0, n
+                          do j = 0, m
+                              q_cons_ts(1)%vf(i)%sf(j, k, l) = q_cons_pts(2)%vf(i)%sf(j, k, l)
+                          end do
+                      end do
+                  end do
+              end do
+              exit
+            else if (iter > 1000) then
+              call s_mpi_abort("pseudo time iteraiton reached maximum of 1000")
+            else
+              iter = iter + 1
+            end if
+        end do
+        
+        !
+        call nvtxEndRange
+        call cpu_time(finish)
+
+        wall_time = abs(finish - start)
+
+        if (t_step >= 2) then
+            wall_time_avg = (wall_time + (t_step - 2)*wall_time_avg)/(t_step - 1)
+        else
+            wall_time_avg = 0._wp
+        end if
+
+    end subroutine s_implicit_rk2
 
     !> Bubble source part in Strang operator splitting scheme
         !! @param t_step Current time-step
@@ -800,38 +1024,48 @@ contains
 #if defined(__NVCOMPILER_GPU_UNIFIED_MEM)
         do j = 1, sys_size
             @:DEALLOCATE(q_cons_ts(1)%vf(j)%sf)
+            @:DEALLOCATE(q_cons_pts(1)%vf(j)%sf)
             if (num_ts == 2) then
                 if (nv_uvm_out_of_core) then
                     nullify (q_cons_ts(2)%vf(j)%sf)
+                    nullify (q_cons_pts(2)%vf(j)%sf)
                 else
                     @:DEALLOCATE(q_cons_ts(2)%vf(j)%sf)
+                    @:DEALLOCATE(q_cons_pts(2)%vf(j)%sf)
                 end if
             end if
         end do
         if (num_ts == 2 .and. nv_uvm_out_of_core) then
             deallocate (q_cons_ts_pool_host)
+            deallocate (q_cons_pts_pool_host)
         end if
 #elif defined(FRONTIER_UNIFIED)
         do i = 1, num_ts
             do j = 1, sys_size
                 nullify (q_cons_ts(i)%vf(j)%sf)
+                nullify (q_cons_pts(i)%vf(j)%sf)
             end do
         end do
 
         call hipCheck(hipHostFree(q_cons_ts_pool_host))
         call hipCheck(hipFree(q_cons_ts_pool_device))
+        call hipCheck(hipHostFree(q_cons_pts_pool_host))
+        call hipCheck(hipFree(q_cons_pts_pool_device))
 #else
         do i = 1, num_ts
             do j = 1, sys_size
                 @:DEALLOCATE(q_cons_ts(i)%vf(j)%sf)
+                @:DEALLOCATE(q_cons_pts(i)%vf(j)%sf)
             end do
         end do
 #endif
         do i = 1, num_ts
             @:DEALLOCATE(q_cons_ts(i)%vf)
+            @:DEALLOCATE(q_cons_pts(i)%vf)
         end do
 
         @:DEALLOCATE(q_cons_ts)
+        @:DEALLOCATE(q_cons_pts)
 
         ! Deallocating the cell-average primitive ts variables
         if (probe_wrt) then

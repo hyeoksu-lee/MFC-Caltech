@@ -174,6 +174,7 @@ module m_global_parameters
     logical :: weno_Re_flux   !< WENO reconstruct velocity gradients for viscous stress tensor
     integer :: riemann_solver !< Riemann solver algorithm
     integer :: low_Mach       !< Low Mach number fix to HLLC Riemann solver
+    logical :: preconditioning
     integer :: wave_speeds    !< Wave speeds estimation method
     integer :: avg_state      !< Average state evaluation method
     logical :: alt_soundspeed !< Alternate mixture sound speed
@@ -219,7 +220,7 @@ module m_global_parameters
 
     $:GPU_DECLARE(create='[mpp_lim,model_eqns,mixture_err,alt_soundspeed]')
     $:GPU_DECLARE(create='[avg_state,mp_weno,weno_eps,teno_CT,hypoelasticity]')
-    $:GPU_DECLARE(create='[hyperelasticity,hyper_model,elasticity,low_Mach]')
+    $:GPU_DECLARE(create='[hyperelasticity,hyper_model,elasticity,low_Mach,preconditioning]')
     $:GPU_DECLARE(create='[shear_stress,bulk_stress,cont_damage]')
 
     logical :: relax          !< activate phase change
@@ -599,6 +600,7 @@ contains
         weno_Re_flux = .false.
         riemann_solver = dflt_int
         low_Mach = 0
+        preconditioning = .false.
         wave_speeds = dflt_int
         avg_state = dflt_int
         alt_soundspeed = .false.
@@ -1308,7 +1310,7 @@ contains
             & avg_state,num_fluids,model_eqns,num_dims,num_vels, &
             & mixture_err,grid_geometry,cyl_coord,mp_weno,weno_eps, &
             & teno_CT,hyperelasticity,hyper_model,elasticity,xi_idx, &
-            & B_idx,low_Mach]')
+            & B_idx,low_Mach,preconditioning]')
 
         $:GPU_UPDATE(device='[Bx0, powell]')
 

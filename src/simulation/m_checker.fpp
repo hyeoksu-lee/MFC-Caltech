@@ -166,7 +166,7 @@ contains
         if (.not. cfl_dt) then
             @:PROHIBIT(dt <= 0)
         end if
-        @:PROHIBIT(time_stepper < 1 .or. time_stepper > 3)
+        @:PROHIBIT(time_stepper < 1 .or. time_stepper > 4)
     end subroutine s_check_inputs_time_stepping
 
     !> Checks constraints on parameters related to 6-equation model
