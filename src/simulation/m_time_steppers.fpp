@@ -632,7 +632,7 @@ contains
     end subroutine s_tvd_rk
 
     subroutine s_implicit_rk2(t_step, time_avg)
-        real(wp), parameter :: pts_tol = 1e-6_wp
+        real(wp), parameter :: pts_tol = 1e-4_wp
 
         integer, intent(in) :: t_step
         real(wp), intent(inout) :: time_avg
@@ -661,7 +661,7 @@ contains
         call cpu_time(start)
         call nvtxStartRange("TIMESTEP")
 
-        dtau = 0.1_wp*dt
+        dtau = 0.01_wp*dt
         
         ! Initialize q_cons_pts = q_cons_ts(1)
         $:GPU_PARALLEL_LOOP(collapse=4)
@@ -770,15 +770,6 @@ contains
                 end do
             end do
 
-            if (ib) then
-                if (qbmm .and. .not. polytropic) then
-                    call s_ibm_correct_state(q_cons_pts(2)%vf, q_prim_vf, pb_ts(1)%sf, mv_ts(1)%sf)
-                else
-                    call s_ibm_correct_state(q_cons_pts(2)%vf, q_prim_vf)
-                end if
-            end if
-
-
 #ifdef MFC_MPI
             call s_mpi_allreduce_max(max_dq, max_dq_glb)
 #else
@@ -787,24 +778,33 @@ contains
 
             ! Check max error
             if (max_dq_glb < pts_tol) then
-              print *, proc_rank, max_dq, max_dq_glb
-              if (proc_rank == 0) print *, "max_err < pts_tol at pseudo-time iteration: ", iter
-              $:GPU_PARALLEL_LOOP(collapse=4)
-              do i = 1, sys_size
-                  do l = 0, p
-                      do k = 0, n
-                          do j = 0, m
-                              q_cons_ts(1)%vf(i)%sf(j, k, l) = q_cons_pts(2)%vf(i)%sf(j, k, l)
-                          end do
-                      end do
-                  end do
-              end do
-              exit
+                if (proc_rank == 0) print *, "max_err < pts_tol at pseudo-time iteration: ", iter
+                $:GPU_PARALLEL_LOOP(collapse=4)
+                do i = 1, sys_size
+                    do l = 0, p
+                        do k = 0, n
+                            do j = 0, m
+                                q_cons_ts(1)%vf(i)%sf(j, k, l) = q_cons_pts(2)%vf(i)%sf(j, k, l)
+                            end do
+                        end do
+                    end do
+                end do
+
+                ! IBM
+                if (ib) then
+                    if (qbmm .and. .not. polytropic) then
+                        call s_ibm_correct_state(q_cons_ts(1)%vf, q_prim_vf, pb_ts(1)%sf, mv_ts(1)%sf)
+                    else
+                        call s_ibm_correct_state(q_cons_ts(1)%vf, q_prim_vf)
+                    end if
+                end if
+
+                exit
             else if (iter > 1000) then
-              print *, "max_dq_glb", max_dq_glb
-              call s_mpi_abort("pseudo time iteraiton reached maximum of 1000")
+                print *, "max_dq_glb", max_dq_glb, max_dq, proc_rank
+                call s_mpi_abort("pseudo time iteraiton reached maximum of 1000")
             else
-              iter = iter + 1
+                iter = iter + 1
             end if
         end do
         
