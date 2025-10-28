@@ -196,7 +196,7 @@ contains
             "mixlayer_vel_profile requires n > 0")
 
         ! Instability wave
-        @:PROHIBIT(mixlayer_perturb .and. p == 0, "mixlayer_perturb requires p > 0")
+        ! @:PROHIBIT(mixlayer_perturb .and. p == 0, "mixlayer_perturb requires p > 0")
         @:PROHIBIT(elliptic_smoothing .and. elliptic_smoothing_iters < 1, &
             "elliptic_smoothing_iters must be positive")
 
