@@ -685,14 +685,33 @@ contains
                 do k = 0, n
                     do j = 0, m
                         ! Update q_cons_pts
-                        q_cons_pts(1)%vf(i)%sf(j, k, l) = q_cons_pts(2)%vf(i)%sf(j, k, l) + 0.5_wp*dt*rhs_vf(i)%sf(j, k, l)
-                        ! Initial guess
-                        q_cons_pts(2)%vf(i)%sf(j, k, l) = q_cons_pts(1)%vf(i)%sf(j, k, l)
+                        q_cons_pts(1)%vf(i)%sf(j, k, l) = q_cons_pts(2)%vf(i)%sf(j, k, l) + 0.5_wp*dt*rhs_vf(i)%sf(j, k, l)           
                     end do
                 end do
             end do
         end do
 
+        ! IBM
+        if (ib) then
+            if (qbmm .and. .not. polytropic) then
+                call s_ibm_correct_state(q_cons_pts(1)%vf, q_prim_vf, pb_ts(1)%sf, mv_ts(1)%sf)
+            else
+                call s_ibm_correct_state(q_cons_pts(1)%vf, q_prim_vf)
+            end if
+        end if
+
+        ! Initial guess
+        $:GPU_PARALLEL_LOOP(collapse=4)
+        do i = 1, sys_size
+            do l = 0, p
+                do k = 0, n
+                    do j = 0, m
+                        q_cons_pts(2)%vf(i)%sf(j, k, l) = q_cons_pts(1)%vf(i)%sf(j, k, l)
+                    end do
+                end do
+            end do
+        end do
+        
         ! Stage 2: Run pseudo-time-steps
         iter = 0
         do while(.true.)
@@ -751,6 +770,15 @@ contains
                 end do
             end do
 
+            if (ib) then
+                if (qbmm .and. .not. polytropic) then
+                    call s_ibm_correct_state(q_cons_pts(2)%vf, q_prim_vf, pb_ts(1)%sf, mv_ts(1)%sf)
+                else
+                    call s_ibm_correct_state(q_cons_pts(2)%vf, q_prim_vf)
+                end if
+            end if
+
+
 #ifdef MFC_MPI
             call s_mpi_allreduce_max(max_dq, max_dq_glb)
 #else
@@ -759,6 +787,7 @@ contains
 
             ! Check max error
             if (max_dq_glb < pts_tol) then
+              print *, proc_rank, max_dq, max_dq_glb
               if (proc_rank == 0) print *, "max_err < pts_tol at pseudo-time iteration: ", iter
               $:GPU_PARALLEL_LOOP(collapse=4)
               do i = 1, sys_size
