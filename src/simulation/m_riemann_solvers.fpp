@@ -2527,6 +2527,16 @@ contains
                                                                                        rho_R*(s_R - vel_R(idx1)))
                                     else
                                         if (preconditioning) then
+                                            ! if (vel_L_rms/c_L**2._wp > 0.3**2._wp) then
+                                            !   beta2_L = 1._wp
+                                            ! else 
+                                            !   beta2_L = max(sgm_eps, vel_L_rms/c_L**2._wp)
+                                            ! end if
+                                            ! if (vel_R_rms/c_R**2._wp > 0.3**2._wp) then
+                                            !   beta2_R = 1._wp
+                                            ! else 
+                                            !   beta2_R = max(sgm_eps, vel_R_rms/c_R**2._wp)
+                                            ! end if
                                             beta2_L = min(max(sgm_eps, vel_L_rms/c_L**2._wp), 1._wp)
                                             beta2_R = min(max(sgm_eps, vel_R_rms/c_R**2._wp), 1._wp)
                                             u_L = vel_L(dir_idx(1))
