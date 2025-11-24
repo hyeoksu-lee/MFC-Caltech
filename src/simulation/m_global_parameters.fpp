@@ -100,6 +100,7 @@ module m_global_parameters
 
     ! Simulation Algorithm Parameters
     integer :: model_eqns     !< Multicomponent flow model
+    logical :: icsg
     #:if MFC_CASE_OPTIMIZATION
         integer, parameter :: num_dims = ${num_dims}$       !< Number of spatial dimensions
         integer, parameter :: num_vels = ${num_vels}$       !< Number of velocity components (different from num_dims for mhd)
@@ -214,7 +215,7 @@ module m_global_parameters
         $:GPU_DECLARE(create='[recon_type, muscl_order, muscl_polyn, muscl_lim]')
     #:endif
 
-    $:GPU_DECLARE(create='[mpp_lim,model_eqns,mixture_err,alt_soundspeed]')
+    $:GPU_DECLARE(create='[mpp_lim,model_eqns,icsg,mixture_err,alt_soundspeed]')
     $:GPU_DECLARE(create='[avg_state,mp_weno,weno_eps,teno_CT,hypoelasticity]')
     $:GPU_DECLARE(create='[hyperelasticity,hyper_model,elasticity,low_Mach]')
     $:GPU_DECLARE(create='[shear_stress,bulk_stress,cont_damage]')
@@ -385,12 +386,6 @@ module m_global_parameters
     type(vec3_dt), dimension(num_probes_max) :: probe
     type(integral_parameters), dimension(num_probes_max) :: integral
 
-    !> @name Reference density and pressure for Tait EOS
-    !> @{
-    real(wp) :: rhoref, pref
-    !> @}
-    $:GPU_DECLARE(create='[rhoref,pref]')
-
     !> @name Immersed Boundaries
     !> @{
     logical :: ib
@@ -407,28 +402,23 @@ module m_global_parameters
     $:GPU_DECLARE(create='[ib,num_ibs,patch_ib]')
     !> @}
 
-    !> @name Bubble modeling
+    !> @name Bubble modeling - EE/EL
     !> @{
-    #:if MFC_CASE_OPTIMIZATION
-        integer, parameter :: nb = ${nb}$ !< Number of eq. bubble sizes
-    #:else
-        integer :: nb       !< Number of eq. bubble sizes
-    #:endif
+    type(bubbles_ref_scales) :: bub_refs     !< Bubble reference scales
+    $:GPU_DECLARE(create='[bub_refs]')
 
-    real(wp) :: R0ref    !< Reference bubble size
+    real(wp) :: Eu       !< Euler number
     real(wp) :: Ca       !< Cavitation number
     real(wp) :: Web      !< Weber number
     real(wp) :: Re_inv   !< Inverse Reynolds number
-    $:GPU_DECLARE(create='[R0ref,Ca,Web,Re_inv]')
+    $:GPU_DECLARE(create='[Eu,Ca,Web,Re_inv]')
 
-    real(wp), dimension(:), allocatable :: weight !< Simpson quadrature weights
-    real(wp), dimension(:), allocatable :: R0     !< Bubble sizes
-    $:GPU_DECLARE(create='[weight,R0]')
+    logical :: bub_ss    !< Surface tension switch
+    logical :: bub_visc  !< Viscous effect switch
+    $:GPU_DECLARE(create='[bub_ss,bub_visc]')
 
-    logical :: bubbles_euler      !< Bubbles euler on/off
     logical :: polytropic   !< Polytropic  switch
-    logical :: polydisperse !< Polydisperse bubbles
-    $:GPU_DECLARE(create='[bubbles_euler,polytropic,polydisperse]')
+    $:GPU_DECLARE(create='[polytropic]')
 
     logical :: adv_n        !< Solve the number density equation and compute alpha from number density
     logical :: adap_dt      !< Adaptive step size control
@@ -439,51 +429,75 @@ module m_global_parameters
     integer :: bubble_model !< Gilmore or Keller--Miksis bubble model
     integer :: thermal      !< Thermal behavior. 1 = adiabatic, 2 = isotherm, 3 = transfer
     $:GPU_DECLARE(create='[bubble_model,thermal]')
+    !> @}
 
-    real(wp), allocatable, dimension(:, :, :) :: ptil  !< Pressure modification
+    !> @name Bubble modeling - EE specific
+    !> @{
+    logical :: bubbles_euler      !< Bubbles euler on/off
+    logical :: polydisperse !< Polydisperse bubbles
+    $:GPU_DECLARE(create='[bubbles_euler,polydisperse]')
+
+    #:if MFC_CASE_OPTIMIZATION
+        integer, parameter :: nb = ${nb}$ !< Number of eq. bubble sizes
+    #:else
+        integer :: nb       !< Number of eq. bubble sizes
+        $:GPU_DECLARE(create='[nb]')
+    #:endif
+
+    real(wp), dimension(:), allocatable :: weight !< Simpson quadrature weights
+    real(wp), dimension(:), allocatable :: R0     !< Bubble sizes
+    $:GPU_DECLARE(create='[weight,R0]')
 
     real(wp) :: poly_sigma  !< log normal sigma for polydisperse PDF
-    $:GPU_DECLARE(create='[ptil, poly_sigma]')
+    $:GPU_DECLARE(create='[poly_sigma]')
+
+    real(wp), allocatable, dimension(:, :, :) :: ptil  !< Pressure modification - should be removed
+    $:GPU_DECLARE(create='[ptil]')
 
     logical :: qbmm      !< Quadrature moment method
     integer, parameter :: nmom = 6 !< Number of carried moments per R0 location
     integer :: nmomsp    !< Number of moments required by ensemble-averaging
     integer :: nmomtot   !< Total number of carried moments moments/transport equations
-
-    real(wp) :: pi_fac   !< Factor for artificial pi_inf
-    $:GPU_DECLARE(create='[qbmm, nmomsp,nmomtot,pi_fac]')
-
-    #:if not MFC_CASE_OPTIMIZATION
-        $:GPU_DECLARE(create='[nb]')
-    #:endif
+    $:GPU_DECLARE(create='[qbmm,nmomsp,nmomtot]')
 
     type(scalar_field), allocatable, dimension(:) :: mom_sp
     type(scalar_field), allocatable, dimension(:, :, :) :: mom_3d
     $:GPU_DECLARE(create='[mom_sp,mom_3d]')
 
+    type(pres_field), allocatable, dimension(:) :: pb_ts
+    type(pres_field), allocatable, dimension(:) :: mv_ts
+    $:GPU_DECLARE(create='[pb_ts,mv_ts]')
+
+    real(wp) :: pi_fac   !< Factor for artificial pi_inf
+    $:GPU_DECLARE(create='[pi_fac]')
     !> @}
 
-    type(chemistry_parameters) :: chem_params
-    $:GPU_DECLARE(create='[chem_params]')
+    !> @name Bubble modeling - EL specific
+    !> @{
+    logical :: bubbles_lagrange                         !< Lagrangian subgrid bubble model switch
+    type(bubbles_lagrange_parameters) :: lag_params     !< Lagrange bubbles' parameters
+    $:GPU_DECLARE(create='[bubbles_lagrange,lag_params]')
+    !> @}
 
     !> @name Physical bubble parameters (see Ando 2010, Preston 2007)
     !> @{
-
     real(wp) :: R_n, R_v, phi_vn, phi_nv, Pe_c, Tw, pv, M_n, M_v, k_vl, k_nl, cp_n, cp_v
     $:GPU_DECLARE(create='[R_n,R_v,phi_vn,phi_nv,Pe_c,Tw]')
-    $:GPU_DECLARE(create='[pv,M_n, M_v,k_vl,k_nl,cp_n,cp_v]')
+    $:GPU_DECLARE(create='[pv,M_n,M_v,k_vl,k_nl,cp_n,cp_v]')
 
     real(wp), dimension(:), allocatable :: k_n, k_v, pb0, mass_n0, mass_v0, Pe_T
-    real(wp), dimension(:), allocatable :: Re_trans_T, Re_trans_c, Im_trans_T, Im_trans_c, omegaN
+    real(wp), dimension(:), allocatable :: Re_trans_T, Re_trans_c, Im_trans_T, Im_trans_c
     $:GPU_DECLARE(create='[k_n,k_v,pb0,mass_n0,mass_v0,Pe_T]')
-    $:GPU_DECLARE(create='[Re_trans_T,Re_trans_c,Im_trans_T,Im_trans_c,omegaN]')
+    $:GPU_DECLARE(create='[Re_trans_T,Re_trans_c,Im_trans_T,Im_trans_c]')
 
     real(wp) :: mul0, ss, gamma_v, mu_v
     real(wp) :: gamma_m, gamma_n, mu_n
     real(wp) :: gam
+    $:GPU_DECLARE(create='[mul0,ss,gamma_v,mu_v,gamma_m,gamma_n,mu_n,gam]')
     !> @}
 
-    $:GPU_DECLARE(create='[mul0,ss,gamma_v,mu_v,gamma_m,gamma_n,mu_n,gam]')
+    type(chemistry_parameters) :: chem_params
+    $:GPU_DECLARE(create='[chem_params]')
 
     !> @name Acoustic acoustic_source parameters
     !> @{
@@ -495,7 +509,6 @@ module m_global_parameters
 
     !> @name Surface tension parameters
     !> @{
-
     real(wp) :: sigma
     logical :: surface_tension
     $:GPU_DECLARE(create='[sigma,surface_tension]')
@@ -521,19 +534,6 @@ module m_global_parameters
     real(wp) :: finaltime    !< Final simulation time
 
     logical :: rdma_mpi
-
-    type(pres_field), allocatable, dimension(:) :: pb_ts
-
-    type(pres_field), allocatable, dimension(:) :: mv_ts
-
-    $:GPU_DECLARE(create='[pb_ts,mv_ts]')
-
-    !> @name lagrangian subgrid bubble parameters
-    !> @{!
-    logical :: bubbles_lagrange                         !< Lagrangian subgrid bubble model switch
-    type(bubbles_lagrange_parameters) :: lag_params     !< Lagrange bubbles' parameters
-    $:GPU_DECLARE(create='[bubbles_lagrange,lag_params]')
-    !> @}
 
     real(wp) :: Bx0 !< Constant magnetic field in the x-direction (1D)
     logical :: powell !< Powell‐correction for div B = 0
@@ -592,6 +592,7 @@ contains
 
         ! Simulation algorithm parameters
         model_eqns = dflt_int
+        icsg = .false.
         mpp_lim = .false.
         time_stepper = dflt_int
         weno_eps = dflt_real
@@ -682,11 +683,8 @@ contains
             fluid_pp(i)%k_v = dflt_real
             fluid_pp(i)%cp_v = dflt_real
             fluid_pp(i)%G = 0._wp
+            fluid_pp(i)%D = dflt_real
         end do
-
-        ! Tait EOS
-        rhoref = dflt_real
-        pref = dflt_real
 
         ! Immersed Boundaries
         ib = .false.
@@ -698,7 +696,18 @@ contains
         polytropic = .true.
         polydisperse = .false.
         thermal = dflt_int
-        R0ref = dflt_real
+
+        bub_refs%rho0 = dflt_real
+        bub_refs%x0 = dflt_real
+        bub_refs%u0 = dflt_real
+        bub_refs%p0 = dflt_real
+        bub_refs%T0 = dflt_real
+        bub_refs%Tw = dflt_real
+        bub_refs%rhol0 = dflt_real
+        bub_refs%R0ref = dflt_real
+        bub_refs%ub0 = dflt_real
+        bub_refs%p0eq = dflt_real
+        bub_refs%rescale = .false.
 
         #:if not MFC_CASE_OPTIMIZATION
             nb = 1
@@ -719,9 +728,14 @@ contains
         ! User inputs for qbmm for simulation code
         qbmm = .false.
 
+        Eu = dflt_real
         Ca = dflt_real
         Re_inv = dflt_real
         Web = dflt_real
+
+        bub_ss = .false.
+        bub_visc = .false.
+
         poly_sigma = dflt_real
 
         ! Acoustic source
@@ -814,12 +828,6 @@ contains
         lag_params%epsilonb = 1._wp
         lag_params%charwidth = dflt_real
         lag_params%valmaxvoid = dflt_real
-        lag_params%c0 = dflt_real
-        lag_params%rho0 = dflt_real
-        lag_params%T0 = dflt_real
-        lag_params%Thost = dflt_real
-        lag_params%x0 = dflt_real
-        lag_params%diffcoefvap = dflt_real
 
         ! Continuum damage model
         tau_star = dflt_real
@@ -921,7 +929,12 @@ contains
                 sys_size = adv_idx%end
 
                 if (bubbles_euler) then
-                    alf_idx = adv_idx%end
+                    if (icsg) then
+                        alf_idx = adv_idx%end + 1
+                        sys_size = sys_size + 1
+                    else
+                        alf_idx = adv_idx%end
+                    end if
                 else
                     alf_idx = 1
                 end if
@@ -943,8 +956,6 @@ contains
                         end if
                     end if
                     sys_size = bub_idx%end
-                    ! print*, 'alf idx', alf_idx
-                    ! print*, 'bub -idx beg end', bub_idx%beg, bub_idx%end
 
                     if (adv_n) then
                         n_idx = bub_idx%end + 1
@@ -987,36 +998,6 @@ contains
                                 bub_idx%ms(i) = bub_idx%ps(i) + 1
                             end if
                         end do
-                    end if
-
-                    if (nb == 1) then
-                        weight(:) = 1._wp
-                        R0(:) = 1._wp
-                    else if (nb < 1) then
-                        stop 'Invalid value of nb'
-                    end if
-
-                    !Initialize pref,rhoref for polytropic qbmm (done in s_initialize_nonpoly for non-polytropic)
-                    if (.not. qbmm) then
-                        if (polytropic) then
-                            rhoref = 1._wp
-                            pref = 1._wp
-                        end if
-                    end if
-
-                    !Initialize pb0, pv, pref, rhoref for polytropic qbmm (done in s_initialize_nonpoly for non-polytropic)
-                    if (qbmm) then
-                        if (polytropic) then
-                            pv = fluid_pp(1)%pv
-                            pv = pv/pref
-                            @:ALLOCATE(pb0(nb))
-                            if ((f_is_default(Web))) then
-                                pb0 = pref
-                                pb0 = pb0/pref
-                                pref = 1._wp
-                            end if
-                            rhoref = 1._wp
-                        end if
                     end if
                 end if
 
@@ -1081,17 +1062,6 @@ contains
                             bub_idx%ms(i) = bub_idx%ps(i) + 1
                         end if
                     end do
-                    if (nb == 1) then
-                        weight(:) = 1._wp
-                        R0(:) = 1._wp
-                    else if (nb < 1) then
-                        stop 'Invalid value of nb'
-                    end if
-
-                    if (polytropic) then
-                        rhoref = 1._wp
-                        pref = 1._wp
-                    end if
                 end if
             end if
 
@@ -1306,10 +1276,10 @@ contains
         $:GPU_UPDATE(device='[cfl_target,m,n,p]')
 
         $:GPU_UPDATE(device='[alt_soundspeed,acoustic_source,num_source]')
-        $:GPU_UPDATE(device='[dt,sys_size,buff_size,pref,rhoref, &
+        $:GPU_UPDATE(device='[dt,sys_size,buff_size, &
             & gamma_idx,pi_inf_idx,E_idx,alf_idx,stress_idx, &
             & mpp_lim,bubbles_euler,hypoelasticity,alt_soundspeed, &
-            & avg_state,model_eqns, &
+            & avg_state,model_eqns,icsg, &
             & mixture_err,grid_geometry,cyl_coord,mp_weno,weno_eps, &
             & teno_CT,hyperelasticity,hyper_model,elasticity,xi_idx, &
             & B_idx,low_Mach]')
@@ -1329,6 +1299,13 @@ contains
             $:GPU_UPDATE(device='[num_fluids,num_dims,viscous,num_vels,nb,muscl_lim]')
         #:endif
 
+        $:GPU_UPDATE(device='[nb,Eu,Ca,Web,Re_inv,weight,R0, &
+            & V0,bubbles_euler,polytropic,polydisperse,qbmm, &
+            & ptil,bubble_model,thermal,poly_sigma]')
+        $:GPU_UPDATE(device='[R_n,R_v,phi_vn,phi_nv,Pe_c,Tw,pv, &
+            & M_n,M_v,k_n,k_v,pb0,mass_n0,mass_v0,Pe_T, &
+            & Re_trans_T,Re_trans_c,Im_trans_T,Im_trans_c, &
+            & mul0,ss,gamma_v,mu_v,gamma_m,gamma_n,mu_n,gam]')
         $:GPU_UPDATE(device='[dir_idx,dir_flg,dir_idx_tau]')
 
         $:GPU_UPDATE(device='[relax,relax_model,palpha_eps,ptgalpha_eps]')

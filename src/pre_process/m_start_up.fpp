@@ -141,8 +141,8 @@ contains
             pi_fac, perturb_flow, perturb_flow_fluid, perturb_flow_mag, &
             perturb_sph, perturb_sph_fluid, fluid_rho, &
             cyl_coord, loops_x, loops_y, loops_z, &
-            rhoref, pref, bubbles_euler, R0ref, nb, &
-            polytropic, thermal, Ca, Web, Re_inv, &
+            bubbles_euler, R0hyper, nb, &
+            polytropic, thermal, bub_refs, &
             polydisperse, poly_sigma, qbmm, &
             sigR, sigV, dist_type, rhoRV, &
             file_per_process, relax, relax_model, &
@@ -153,7 +153,8 @@ contains
             viscous, bubbles_lagrange, bc_x, bc_y, bc_z, num_bc_patches, &
             patch_bc, Bx0, relativity, cont_damage, igr, igr_order, &
             down_sample, recon_type, muscl_order, &
-            simplex_perturb, simplex_params, fft_wrt
+            simplex_perturb, simplex_params, fft_wrt, &
+            icsg, icsg_vf, icsg_patch
 
         ! Inquiring the status of the pre_process.inp file
         file_loc = 'pre_process.inp'
@@ -772,19 +773,9 @@ contains
         ! Computation of parameters, allocation procedures, and/or any other tasks
         ! needed to properly setup the modules
         call s_initialize_global_parameters_module()
-        !Quadrature weights and nodes for polydisperse simulations
-        if (bubbles_euler .and. nb > 1) then
-            call s_simpson(weight, R0)
-        end if
-        !Initialize variables for non-polytropic (Preston) model
-        if (bubbles_euler .and. .not. polytropic) then
-            call s_initialize_nonpoly()
-        end if
-        !Initialize pb based on surface tension for qbmm (polytropic)
-        if (qbmm .and. polytropic .and. (.not. f_is_default(Web))) then
-            pb0(:) = pref + 2._wp*fluid_pp(1)%ss/(R0(:)*R0ref)
-            pb0(:) = pb0(:)/pref
-            pref = 1._wp
+        ! Initialize EE/EL bubble models
+        if (bubbles_euler .or. bubbles_lagrange) then
+          call s_initialize_bubbles_model()
         end if
         call s_initialize_mpi_common_module()
         call s_initialize_data_output_module()

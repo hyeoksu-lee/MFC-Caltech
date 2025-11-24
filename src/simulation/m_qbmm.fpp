@@ -89,14 +89,14 @@ contains
                                 momrhs(2, i1, i2, 4, q) = 1._wp + i2
                                 momrhs(3, i1, i2, 4, q) = 0._wp
 
-                                if (.not. f_is_default(Re_inv)) then
+                                if (bub_visc) then
                                     ! add viscosity
                                     momrhs(1, i1, i2, 5, q) = -2._wp + i1
                                     momrhs(2, i1, i2, 5, q) = i2
                                     momrhs(3, i1, i2, 5, q) = 0._wp
                                 end if
 
-                                if (.not. f_is_default(Web)) then
+                                if (bub_ss) then
                                     ! add surface tension
                                     momrhs(1, i1, i2, 6, q) = -2._wp + i1
                                     momrhs(2, i1, i2, 6, q) = -1._wp + i2
@@ -262,14 +262,14 @@ contains
                                 momrhs(2, i1, i2, 4, q) = 1._wp + i2
                                 momrhs(3, i1, i2, 4, q) = 0._wp
 
-                                if (.not. f_is_default(Re_inv)) then
+                                if (bub_visc) then
                                     ! add viscosity
                                     momrhs(1, i1, i2, 5, q) = -2._wp + i1
                                     momrhs(2, i1, i2, 5, q) = i2
                                     momrhs(3, i1, i2, 5, q) = 0._wp
                                 end if
 
-                                if (.not. f_is_default(Web)) then
+                                if (bub_ss) then
                                     ! add surface tension
                                     momrhs(1, i1, i2, 6, q) = -2._wp + i1
                                     momrhs(2, i1, i2, 6, q) = -1._wp + i2
@@ -479,6 +479,7 @@ contains
                                                                 (nR_dot*nb_q - nR*nb_dot)*(pb(j, k, l, q, i))
                                     end if
                                 end select
+                                
                                 if (q <= 2) then
                                     select case (idir)
                                     case (1)
@@ -530,6 +531,7 @@ contains
                                         end if
                                     end select
                                 end if
+
                             end do
                         end do
                     end do
@@ -807,6 +809,7 @@ contains
                                                 end if
                                             end select
                                         end do
+
                                         moms3d(i1, i2, q)%sf(id1, id2, id3) = nbub*momsum
                                         msum(r) = momsum
                                         r = r + 1
@@ -838,7 +841,10 @@ contains
                             momsp(4)%sf(id1, id2, id3) = 1._wp
                         else
                             if (polytropic) then
-                                momsp(4)%sf(id1, id2, id3) = f_quad(abscX, abscY, wght_pb, 3._wp*(1._wp - gam), 0._wp, 3._wp*gam) + pv*f_quad(abscX, abscY, wght, 3._wp, 0._wp, 0._wp) - 4._wp*Re_inv*f_quad(abscX, abscY, wght, 2._wp, 1._wp, 0._wp) - (2._wp/Web)*f_quad(abscX, abscY, wght, 2._wp, 0._wp, 0._wp)
+                                momsp(4)%sf(id1, id2, id3) = f_quad(abscX, abscY, wght_pb, 3._wp*(1._wp - gam), 0._wp, 3._wp*gam) &
+                                                        + pv*f_quad(abscX, abscY, wght, 3._wp, 0._wp, 0._wp) &
+                                              - 4._wp*Re_inv*f_quad(abscX, abscY, wght, 2._wp, 1._wp, 0._wp) &
+                                               - (2._wp/Web)*f_quad(abscX, abscY, wght, 2._wp, 0._wp, 0._wp)
                             else
                                 momsp(4)%sf(id1, id2, id3) = f_quad(abscX, abscY, wght_pb, 3._wp, 0._wp, 0._wp) - 4._wp*Re_inv*f_quad(abscX, abscY, wght, 2._wp, 1._wp, 0._wp) - (2._wp/Web)*f_quad(abscX, abscY, wght, 2._wp, 0._wp, 0._wp)
                             end if
@@ -859,6 +865,13 @@ contains
                         momsp(3)%sf(id1, id2, id3) = 0._wp
                         momsp(4)%sf(id1, id2, id3) = 0._wp
                     end if
+
+                    ! moms3d(0, 0, 1)%sf(id1, id2, id3) = 0._wp
+                    ! moms3d(1, 0, 1)%sf(id1, id2, id3) = 0._wp
+                    ! moms3d(0, 1, 1)%sf(id1, id2, id3) = 0._wp
+                    ! moms3d(2, 0, 1)%sf(id1, id2, id3) = 0._wp
+                    ! moms3d(1, 1, 1)%sf(id1, id2, id3) = 0._wp
+                    ! moms3d(0, 2, 1)%sf(id1, id2, id3) = 0._wp
                 end do
             end do
         end do

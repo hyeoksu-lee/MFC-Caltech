@@ -93,7 +93,7 @@ contains
             call s_convert_mixture_to_mixture_variables(q_vf, i, j, k, &
                                                         rho, gamma, pi_inf, qv)
 
-        else if (bubbles_euler) then
+        else if (bubbles_euler .and. .not. icsg) then
             call s_convert_species_to_mixture_variables_bubbles(q_vf, i, j, k, &
                                                                 rho, gamma, pi_inf, qv, Re_K)
         else
@@ -144,13 +144,15 @@ contains
                 pres = (energy - dyn_p - pi_inf - qv - pres_mag)/gamma
             elseif ((model_eqns /= 4) .and. (bubbles_euler .neqv. .true.)) then
                 pres = (energy - dyn_p - pi_inf - qv)/gamma
-            else if ((model_eqns /= 4) .and. bubbles_euler) then
-                pres = ((energy - dyn_p)/(1._wp - alf) - pi_inf - qv)/gamma
+            else if ((model_eqns /= 4) .and. bubbles_euler .and. .not. icsg) then
+                pres = (energy - dyn_p)/(1._wp - alf)/gamma - pi_inf/gamma - qv/gamma
+            else if ((model_eqns /= 4) .and. bubbles_euler .and. icsg) then
+                pres = (energy - dyn_p)/gamma - pi_inf/gamma - qv/gamma
             else
-                pres = (pref + pi_inf)* &
+                pres = (1._wp + pi_inf)* &
                        (energy/ &
-                        (rhoref*(1 - alf)) &
-                        )**(1/gamma + 1) - pi_inf
+                        ((1._wp - alf)) &
+                        )**(1._wp/gamma + 1._wp) - pi_inf
             end if
 
             if (hypoelasticity .and. present(G)) then
@@ -883,7 +885,7 @@ contains
                         if (elasticity) then
                             call s_convert_species_to_mixture_variables_acc(rho_K, gamma_K, pi_inf_K, qv_K, alpha_K, &
                                                                             alpha_rho_K, Re_K, G_K, Gs_vc)
-                        else if (bubbles_euler) then
+                        else if (bubbles_euler .and. .not. icsg) then
                             call s_convert_species_to_mixture_variables_bubbles_acc(rho_K, gamma_K, pi_inf_K, qv_K, &
                                                                                     alpha_K, alpha_rho_K, Re_K)
                         else
@@ -1072,6 +1074,9 @@ contains
                             if (adv_n) then
                                 qK_prim_vf(n_idx)%sf(j, k, l) = qK_cons_vf(n_idx)%sf(j, k, l)
                                 nbub_sc = qK_prim_vf(n_idx)%sf(j, k, l)
+                                if (icsg) then
+                                    qK_prim_vf(alf_idx)%sf(j, k, l) = qK_cons_vf(alf_idx)%sf(j, k, l)
+                                end if
                             else
                                 call s_comp_n_from_cons(vftmp, nRtmp, nbub_sc, weight)
                             end if
@@ -1308,10 +1313,14 @@ contains
                             q_cons_vf(E_idx)%sf(j, k, l) = &
                                 gamma*q_prim_vf(E_idx)%sf(j, k, l) + dyn_pres + pi_inf &
                                 + qv
-                        else if ((model_eqns /= 4) .and. (bubbles_euler)) then
+                        else if ((model_eqns /= 4) .and. (bubbles_euler) .and. .not. icsg) then
                             ! \tilde{E} = dyn_pres + (1-\alf)(\Gamma p_l + \Pi_inf)
                             q_cons_vf(E_idx)%sf(j, k, l) = dyn_pres + &
                                                            (1._wp - q_prim_vf(alf_idx)%sf(j, k, l))* &
+                                                           (gamma*q_prim_vf(E_idx)%sf(j, k, l) + pi_inf)
+                        else if ((model_eqns /= 4) .and. (bubbles_euler) .and. icsg) then
+                            ! \tilde{E} = dyn_pres + (\Gamma p_l + \Pi_inf)
+                            q_cons_vf(E_idx)%sf(j, k, l) = dyn_pres + &
                                                            (gamma*q_prim_vf(E_idx)%sf(j, k, l) + pi_inf)
                         else
                             !Tait EOS, no conserved energy variable
@@ -1341,6 +1350,9 @@ contains
                             if (adv_n) then
                                 q_cons_vf(n_idx)%sf(j, k, l) = q_prim_vf(n_idx)%sf(j, k, l)
                                 nbub = q_prim_vf(n_idx)%sf(j, k, l)
+                                if (icsg) then
+                                    q_cons_vf(alf_idx)%sf(j, k, l) = q_prim_vf(alf_idx)%sf(j, k, l)
+                                end if
                             else
                                 call s_comp_n_from_prim(real(q_prim_vf(alf_idx)%sf(j, k, l), kind=wp), Rtmp, nbub, weight)
                             end if
@@ -1348,8 +1360,8 @@ contains
                             !Initialize R3 averaging over R0 and R directions
                             R3tmp = 0._wp
                             do i = 1, nb
-                                R3tmp = R3tmp + weight(i)*0.5_wp*(Rtmp(i) + sigR)**3._wp
-                                R3tmp = R3tmp + weight(i)*0.5_wp*(Rtmp(i) - sigR)**3._wp
+                                R3tmp = R3tmp + weight(i)*0.5_wp*(Rtmp(i) + sigR*(bub_refs%R0ref/bub_refs%x0))**3._wp
+                                R3tmp = R3tmp + weight(i)*0.5_wp*(Rtmp(i) - sigR*(bub_refs%R0ref/bub_refs%x0))**3._wp
                             end do
                             !Initialize nb
                             nbub = 3._wp*q_prim_vf(alf_idx)%sf(j, k, l)/(4._wp*pi*R3tmp)
@@ -1498,7 +1510,7 @@ contains
                         call s_convert_species_to_mixture_variables_acc(rho_K, gamma_K, pi_inf_K, qv_K, &
                                                                         alpha_K, alpha_rho_K, Re_K, &
                                                                         G_K, Gs_vc)
-                    else if (bubbles_euler) then
+                    else if (bubbles_euler .and. .not. icsg) then
                         call s_convert_species_to_mixture_variables_bubbles_acc(rho_K, gamma_K, &
                                                                                 pi_inf_K, qv_K, alpha_K, alpha_rho_K, Re_K)
                     else
@@ -1645,6 +1657,9 @@ contains
                 ! Sound speed for bubble mixture to order O(\alpha)
 
                 if (mpp_lim .and. (num_fluids > 1)) then
+                    c = (1._wp/gamma + 1._wp)* &
+                        (pres + pi_inf/(gamma + 1._wp))/rho
+                else if (icsg) then
                     c = (1._wp/gamma + 1._wp)* &
                         (pres + pi_inf/(gamma + 1._wp))/rho
                 else

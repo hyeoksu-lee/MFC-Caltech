@@ -105,7 +105,7 @@ contains
             & 'adv_n', 'ib', 'cfl_adap_dt', 'cfl_const_dt', 'cfl_dt',          &
             & 'surface_tension', 'hyperelasticity', 'bubbles_lagrange',        &
             & 'output_partial_domain', 'relativity', 'cont_damage', 'bc_io',   &
-            & 'down_sample','fft_wrt' ]
+            & 'down_sample', 'icsg', 'fft_wrt' ]
             call MPI_BCAST(${VAR}$, 1, MPI_LOGICAL, 0, MPI_COMM_WORLD, ierr)
         #:endfor
 
@@ -125,17 +125,23 @@ contains
         call MPI_BCAST(vel_wrt(1), 3, MPI_LOGICAL, 0, MPI_COMM_WORLD, ierr)
         call MPI_BCAST(alpha_rho_wrt(1), num_fluids_max, MPI_LOGICAL, 0, MPI_COMM_WORLD, ierr)
         call MPI_BCAST(alpha_wrt(1), num_fluids_max, MPI_LOGICAL, 0, MPI_COMM_WORLD, ierr)
-
+        
+        ! Fluids physical parameters
         do i = 1, num_fluids_max
-            call MPI_BCAST(fluid_pp(i)%gamma, 1, mpi_p, 0, MPI_COMM_WORLD, ierr)
-            call MPI_BCAST(fluid_pp(i)%pi_inf, 1, mpi_p, 0, MPI_COMM_WORLD, ierr)
-            call MPI_BCAST(fluid_pp(i)%cv, 1, mpi_p, 0, MPI_COMM_WORLD, ierr)
-            call MPI_BCAST(fluid_pp(i)%qv, 1, mpi_p, 0, MPI_COMM_WORLD, ierr)
-            call MPI_BCAST(fluid_pp(i)%qvp, 1, mpi_p, 0, MPI_COMM_WORLD, ierr)
-            call MPI_BCAST(fluid_pp(i)%G, 1, mpi_p, 0, MPI_COMM_WORLD, ierr)
+            #:for VAR in [ 'gamma','pi_inf','mul0','ss','pv','gamma_v','M_v',  &
+                & 'mu_v','k_v', 'G', 'cv', 'qv', 'qvp', 'D' ]
+                call MPI_BCAST(fluid_pp(i)%${VAR}$, 1, mpi_p, 0, MPI_COMM_WORLD, ierr)
+            #:endfor
         end do
 
-        #:for VAR in [ 'pref', 'rhoref', 'R0ref', 'poly_sigma', 'Web', 'Ca', &
+        if (bubbles_euler .or. bubbles_lagrange) then
+            call MPI_BCAST(bub_refs%rescale, 1, MPI_LOGICAL, 0, MPI_COMM_WORLD, ierr)
+            #:for VAR in [ 'rho0','x0', 'u0', 'p0', 'T0', 'Tw', 'rhol0', 'R0ref', 'ub0', 'p0eq']
+                call MPI_BCAST(bub_refs%${VAR}$, 1, mpi_p, 0, MPI_COMM_WORLD, ierr)
+            #:endfor
+        end if
+        
+        #:for VAR in [ 'poly_sigma', 'Web', 'Ca', &
             & 'Re_inv', 'Bx0', 'sigma', 't_save', 't_stop',   &
             & 'x_output%beg', 'x_output%end', 'y_output%beg', &
             & 'y_output%end', 'z_output%beg', 'z_output%end']

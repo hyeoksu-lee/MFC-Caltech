@@ -51,7 +51,8 @@ contains
 
         if (bubble_model == 1) then
             ! Gilmore bubbles
-            fCpinf = fP - pref
+            ! fCpinf = fP - pref
+            fCpinf = fP - Eu
             fCpbw = f_cpbw(fR0, fR, fV, fpb)
             fH = f_H(fCpbw, fCpinf, fntait, fBtait)
             c_gas = f_cgas(fCpinf, fntait, fBtait, fH)
@@ -62,8 +63,10 @@ contains
             ! Keller-Miksis bubbles
             fCpinf = fP
             fCpbw = f_cpbw_KM(fR0, fR, fV, fpb)
-            if (bubbles_euler) then
+            if (bubbles_euler .and. .not. icsg) then
                 c_liquid = sqrt(fntait*(fP + fBtait)/(fRho*(1._wp - alf)))
+            else if (bubbles_euler .and. icsg) then
+                c_liquid = sqrt(fntait*(fP + fBtait)/fRho)
             else
                 c_liquid = fCson
             end if
@@ -264,15 +267,14 @@ contains
         real(wp) :: f_cpbw_KM
 
         if (polytropic) then
-            f_cpbw_KM = Ca*((fR0/fR)**(3._wp*gam)) - Ca + 1._wp
-            if (.not. f_is_default(Web)) f_cpbw_KM = f_cpbw_KM + &
-                                                     (2._wp/(Web*fR0))*((fR0/fR)**(3._wp*gam))
+            f_cpbw_KM = Ca*((fR0/fR)**(3._wp*gam)) - Ca + Eu
+            if (bub_ss) f_cpbw_KM = f_cpbw_KM + (2._wp/(Web*fR0))*((fR0/fR)**(3._wp*gam))
         else
             f_cpbw_KM = fpb
         end if
 
-        if (.not. f_is_default(Web)) f_cpbw_KM = f_cpbw_KM - 2._wp/(fR*Web)
-        if (.not. f_is_default(Re_inv)) f_cpbw_KM = f_cpbw_KM - 4._wp*Re_inv*fV/fR
+        if (bub_ss) f_cpbw_KM = f_cpbw_KM - 2._wp/(fR*Web)
+        if (bub_visc) f_cpbw_KM = f_cpbw_KM - 4._wp*Re_inv*fV/fR
 
     end function f_cpbw_KM
 
@@ -294,24 +296,24 @@ contains
         real(wp) :: f_rddot_KM
         if (polytropic) then
             cdot_star = -3._wp*gam*Ca*((fR0/fR)**(3._wp*gam))*fV/fR
-            if (.not. f_is_default(Web)) cdot_star = cdot_star - &
+            if (bub_ss) cdot_star = cdot_star - &
                                                      3._wp*gam*(2._wp/(Web*fR0))*((fR0/fR)**(3._wp*gam))*fV/fR
         else
             cdot_star = fpbdot
         end if
 
-        if (.not. f_is_default(Web)) cdot_star = cdot_star + (2._wp/Web)*fV/(fR**2._wp)
-        if (.not. f_is_default(Re_inv)) cdot_star = cdot_star + 4._wp*Re_inv*((fV/fR)**2._wp)
+        if (bub_ss) cdot_star = cdot_star + (2._wp/Web)*fV/(fR**2._wp)
+        if (bub_visc) cdot_star = cdot_star + 4._wp*Re_inv*((fV/fR)**2._wp)
 
         tmp1 = fV/fC
         tmp2 = 1.5_wp*(fV**2._wp)*(tmp1/3._wp - 1._wp) + &
                (1._wp + tmp1)*(fCpbw - fCp)/fRho + &
                cdot_star*fR/(fRho*fC)
 
-        if (f_is_default(Re_inv)) then
-            f_rddot_KM = tmp2/(fR*(1._wp - tmp1))
-        else
+        if (bub_visc) then
             f_rddot_KM = tmp2/(fR*(1._wp - tmp1) + 4._wp*Re_inv/(fRho*fC))
+        else
+            f_rddot_KM = tmp2/(fR*(1._wp - tmp1))
         end if
 
     end function f_rddot_KM
@@ -491,10 +493,10 @@ contains
 
         ! Advancing one step
         t_new = 0._wp
-        iter_count = 0
         adap_dt_stop = 0
 
         do
+            iter_count = 0
 
             if (t_new + h > 0.5_wp*dt) then
                 h = 0.5_wp*dt - t_new
@@ -512,6 +514,10 @@ contains
                                        bub_id, fmass_v, fmass_n, fbeta_c, &
                                        fbeta_t, fCson, h, &
                                        myR_tmp1, myV_tmp1, myPb_tmp1, myMv_tmp1)
+                if (err(1) > adap_dt_tol) then
+                  h = 0.25_wp*h
+                  cycle
+                end if
 
                 ! Advance one sub-step by advancing two half steps
                 call s_advance_substep(err(2), &
@@ -520,6 +526,10 @@ contains
                                        bub_id, fmass_v, fmass_n, fbeta_c, &
                                        fbeta_t, fCson, 0.5_wp*h, &
                                        myR_tmp2, myV_tmp2, myPb_tmp2, myMv_tmp2)
+                if (err(2) > adap_dt_tol) then
+                  h = 0.25_wp*h
+                  cycle
+                end if
 
                 fR2 = myR_tmp2(4); fV2 = myV_tmp2(4)
                 fpb2 = myPb_tmp2(4); fmass_v2 = myMv_tmp2(4)
@@ -530,6 +540,10 @@ contains
                                        bub_id, fmass_v2, fmass_n, fbeta_c, &
                                        fbeta_t, fCson, 0.5_wp*h, &
                                        myR_tmp2, myV_tmp2, myPb_tmp2, myMv_tmp2)
+                if (err(3) > adap_dt_tol) then
+                  h = 0.5_wp*h
+                  cycle
+                end if
 
                 err(4) = abs((myR_tmp1(4) - myR_tmp2(4))/myR_tmp1(4))
                 err(5) = abs((myV_tmp1(4) - myV_tmp2(4))/myV_tmp1(4))
@@ -541,8 +555,8 @@ contains
                 !   Rule 3: abs((myR_tmp1(4) - myR_tmp2(4))/fR) < tol
                 !   Rule 4: abs((myV_tmp1(4) - myV_tmp2(4))/fV) < tol
                 if ((err(1) <= adap_dt_tol) .and. (err(2) <= adap_dt_tol) .and. &
-                    (err(3) <= adap_dt_tol) .and. (err(4) < adap_dt_tol) .and. &
-                    (err(5) < adap_dt_tol) .and. myR_tmp1(4) > 0._wp) then
+                    (err(3) <= adap_dt_tol) .and. (err(4) <= adap_dt_tol) .and. &
+                    (err(5) <= adap_dt_tol) .and. myR_tmp1(4) > 0._wp) then
 
                     ! Accepted. Finalize the sub-step
                     t_new = t_new + h
@@ -716,6 +730,9 @@ contains
 
         ! Stage 1
         myR_tmp(2) = myR_tmp(1) + h*myV_tmp(1)
+        if (myR_tmp(2) < 0._wp) then
+            err = adap_dt_tol + 1._wp; return
+        end if
         myV_tmp(2) = myV_tmp(1) + h*myA_tmp(1)
         if (bubbles_lagrange) then
             myPb_tmp(2) = myPb_tmp(1) + h*mydPbdt_tmp(1)
@@ -730,6 +747,9 @@ contains
 
         ! Stage 2
         myR_tmp(3) = myR_tmp(1) + (h/4._wp)*(myV_tmp(1) + myV_tmp(2))
+        if (myR_tmp(3) < 0._wp) then
+            err = adap_dt_tol + 1._wp; return
+        end if
         myV_tmp(3) = myV_tmp(1) + (h/4._wp)*(myA_tmp(1) + myA_tmp(2))
         if (bubbles_lagrange) then
             myPb_tmp(3) = myPb_tmp(1) + (h/4._wp)*(mydPbdt_tmp(1) + mydPbdt_tmp(2))
@@ -744,6 +764,9 @@ contains
 
         ! Stage 3
         myR_tmp(4) = myR_tmp(1) + (h/6._wp)*(myV_tmp(1) + myV_tmp(2) + 4._wp*myV_tmp(3))
+        if (myR_tmp(4) < 0._wp) then
+            err = adap_dt_tol + 1._wp; return
+        end if
         myV_tmp(4) = myV_tmp(1) + (h/6._wp)*(myA_tmp(1) + myA_tmp(2) + 4._wp*myA_tmp(3))
         if (bubbles_lagrange) then
             myPb_tmp(4) = myPb_tmp(1) + (h/6._wp)*(mydPbdt_tmp(1) + mydPbdt_tmp(2) + 4._wp*mydPbdt_tmp(3))
@@ -762,6 +785,9 @@ contains
         err_V = (-5._wp*h/24._wp)*(myA_tmp(2) + myA_tmp(3) - 2._wp*myA_tmp(4)) &
                 /max(abs(myV_tmp(1)), abs(myV_tmp(4)))
         ! Error correction for non-oscillating bubbles
+        if (f_approx_equal(myV_tmp(1), 0._wp) .and. f_approx_equal(myV_tmp(4), 0._wp)) then
+            err_V = 0._wp
+        end if
         if (bubbles_lagrange .and. f_approx_equal(myA_tmp(1), 0._wp) .and. f_approx_equal(myA_tmp(2), 0._wp) .and. &
             f_approx_equal(myA_tmp(3), 0._wp) .and. f_approx_equal(myA_tmp(4), 0._wp)) then
             err_V = 0._wp
