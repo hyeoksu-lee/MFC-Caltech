@@ -479,7 +479,7 @@ contains
                                                                 (nR_dot*nb_q - nR*nb_dot)*(pb(j, k, l, q, i))
                                     end if
                                 end select
-                                
+
                                 if (q <= 2) then
                                     select case (idir)
                                     case (1)
@@ -842,9 +842,9 @@ contains
                         else
                             if (polytropic) then
                                 momsp(4)%sf(id1, id2, id3) = f_quad(abscX, abscY, wght_pb, 3._wp*(1._wp - gam), 0._wp, 3._wp*gam) &
-                                                        + pv*f_quad(abscX, abscY, wght, 3._wp, 0._wp, 0._wp) &
-                                              - 4._wp*Re_inv*f_quad(abscX, abscY, wght, 2._wp, 1._wp, 0._wp) &
-                                               - (2._wp/Web)*f_quad(abscX, abscY, wght, 2._wp, 0._wp, 0._wp)
+                                                             + pv*f_quad(abscX, abscY, wght, 3._wp, 0._wp, 0._wp) &
+                                                             - 4._wp*Re_inv*f_quad(abscX, abscY, wght, 2._wp, 1._wp, 0._wp) &
+                                                             - (2._wp/Web)*f_quad(abscX, abscY, wght, 2._wp, 0._wp, 0._wp)
                             else
                                 momsp(4)%sf(id1, id2, id3) = f_quad(abscX, abscY, wght_pb, 3._wp, 0._wp, 0._wp) - 4._wp*Re_inv*f_quad(abscX, abscY, wght, 2._wp, 1._wp, 0._wp) - (2._wp/Web)*f_quad(abscX, abscY, wght, 2._wp, 0._wp, 0._wp)
                             end if

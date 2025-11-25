@@ -136,7 +136,7 @@ contains
                 call MPI_BCAST(bub_refs%${VAR}$, 1, mpi_p, 0, MPI_COMM_WORLD, ierr)
             #:endfor
         end if
-        
+
         if (bubbles_lagrange) then
             #:for VAR in [ 'heatTransfer_model', 'massTransfer_model', 'pressure_corrector', &
                 & 'write_bubbles', 'write_bubbles_stats']

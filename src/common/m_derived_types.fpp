@@ -451,7 +451,7 @@ module m_derived_types
         real(wp) :: p0          !< [N/m2] Reference pressure
         real(wp) :: T0          !< [K] Reference temperature
 
-        !! Bubble reference scales 
+        !! Bubble reference scales
         !! Density and temperature scales are assumed to be the same with those of primary scale
         real(wp) :: rhol0       !< [kg/m3] Reference density
         real(wp) :: R0ref       !< [m] Reference bubble radius
@@ -461,7 +461,7 @@ module m_derived_types
 
         !! If true, rescale bubble variables with bubble reference scales in post_process
         logical :: rescale
-        
+
     end type bubbles_ref_scales
 
     !> Lagrangian bubble parameters

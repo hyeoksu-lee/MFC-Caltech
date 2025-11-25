@@ -2843,9 +2843,9 @@ contains
                                         ptilde_R = qR_prim_rs${XYZ}$_vf(j + 1, k, l, E_idx + num_fluids)*(pres_R - PbwR3Rbar/R3Rbar - &
                                                                                                           rho_R*R3V2Rbar/R3Rbar)
                                     end if
-                                    
+
                                     if ((.not. f_approx_equal(ptilde_L, ptilde_L)) .or. (.not. f_approx_equal(ptilde_R, ptilde_R))) then
-                                      call s_mpi_abort("ptilde_L or ptilde_R is NaN")
+                                        call s_mpi_abort("ptilde_L or ptilde_R is NaN")
                                     end if
 
                                     rho_avg = 5.e-1_wp*(rho_L + rho_R)
@@ -3092,7 +3092,7 @@ contains
                         end do
                     end do
                     $:END_GPU_PARALLEL_LOOP()
-                    
+
                 elseif (model_eqns == 2 .and. icsg) then
 
                     ! 5-EQUATION MODEL WITH HLLC
@@ -3192,7 +3192,7 @@ contains
 
                                         $:GPU_LOOP(parallelism='[seq]')
                                         do q = 1, Re_size(i)
-                                            Re_L(i) = qL_prim_rs${XYZ}$_vf(j, k, l, E_idx + Re_idx(i, q))/Res(i, q) &
+                                            Re_L(i) = qL_prim_rs${XYZ}$_vf(j, k, l, E_idx + Re_idx(i, q))/Res_gs(i, q) &
                                                       + Re_L(i)
                                         end do
 
@@ -3208,7 +3208,7 @@ contains
 
                                         $:GPU_LOOP(parallelism='[seq]')
                                         do q = 1, Re_size(i)
-                                            Re_R(i) = qR_prim_rs${XYZ}$_vf(j + 1, k, l, E_idx + Re_idx(i, q))/Res(i, q) &
+                                            Re_R(i) = qR_prim_rs${XYZ}$_vf(j + 1, k, l, E_idx + Re_idx(i, q))/Res_gs(i, q) &
                                                       + Re_R(i)
                                         end do
 
@@ -3286,8 +3286,8 @@ contains
                                     G_R = 0._wp
                                     $:GPU_LOOP(parallelism='[seq]')
                                     do i = 1, num_fluids
-                                        G_L = G_L + alpha_L(i)*Gs(i)
-                                        G_R = G_R + alpha_R(i)*Gs(i)
+                                        G_L = G_L + alpha_L(i)*Gs_rs(i)
+                                        G_R = G_R + alpha_R(i)*Gs_rs(i)
                                     end do
                                     $:GPU_LOOP(parallelism='[seq]')
                                     do i = 1, strxe - strxb + 1
@@ -3316,8 +3316,8 @@ contains
                                     $:GPU_LOOP(parallelism='[seq]')
                                     do i = 1, num_fluids
                                         ! Mixture left and right shear modulus
-                                        G_L = G_L + alpha_L(i)*Gs(i)
-                                        G_R = G_R + alpha_R(i)*Gs(i)
+                                        G_L = G_L + alpha_L(i)*Gs_rs(i)
+                                        G_R = G_R + alpha_R(i)*Gs_rs(i)
                                     end do
                                     ! Elastic contribution to energy if G large enough
                                     if (G_L > verysmall .and. G_R > verysmall) then
@@ -3358,15 +3358,15 @@ contains
                                 @:compute_average_state()
 
                                 call s_compute_speed_of_sound(pres_L, rho_L, gamma_L, pi_inf_L, H_L, alpha_L, &
-                                                              vel_L_rms, 0._wp, c_L)
+                                                              vel_L_rms, 0._wp, c_L, qv_L)
 
                                 call s_compute_speed_of_sound(pres_R, rho_R, gamma_R, pi_inf_R, H_R, alpha_R, &
-                                                              vel_R_rms, 0._wp, c_R)
+                                                              vel_R_rms, 0._wp, c_R, qv_R)
 
                                 !> The computation of c_avg does not require all the variables, and therefore the non '_avg'
                                 ! variables are placeholders to call the subroutine.
                                 call s_compute_speed_of_sound(pres_R, rho_avg, gamma_avg, pi_inf_R, H_avg, alpha_R, &
-                                                              vel_avg_rms, c_sum_Yi_Phi, c_avg)
+                                                              vel_avg_rms, c_sum_Yi_Phi, c_avg, qv_avg)
 
                                 if (viscous) then
                                     $:GPU_LOOP(parallelism='[seq]')

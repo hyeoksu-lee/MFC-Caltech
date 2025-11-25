@@ -125,7 +125,7 @@ contains
         call MPI_BCAST(vel_wrt(1), 3, MPI_LOGICAL, 0, MPI_COMM_WORLD, ierr)
         call MPI_BCAST(alpha_rho_wrt(1), num_fluids_max, MPI_LOGICAL, 0, MPI_COMM_WORLD, ierr)
         call MPI_BCAST(alpha_wrt(1), num_fluids_max, MPI_LOGICAL, 0, MPI_COMM_WORLD, ierr)
-        
+
         ! Fluids physical parameters
         do i = 1, num_fluids_max
             #:for VAR in [ 'gamma','pi_inf','mul0','ss','pv','gamma_v','M_v',  &
@@ -140,7 +140,7 @@ contains
                 call MPI_BCAST(bub_refs%${VAR}$, 1, mpi_p, 0, MPI_COMM_WORLD, ierr)
             #:endfor
         end if
-        
+
         #:for VAR in [ 'poly_sigma', 'Web', 'Ca', &
             & 'Re_inv', 'Bx0', 'sigma', 't_save', 't_stop',   &
             & 'x_output%beg', 'x_output%end', 'y_output%beg', &

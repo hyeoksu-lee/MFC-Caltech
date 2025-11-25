@@ -431,18 +431,18 @@ contains
                     ! Initialize the moment set
                     if (dist_type == 1) then
                         q_prim_vf(bub_idx%fullmom(i, 0, 0))%sf(j, k, l) = 1._wp
-                        q_prim_vf(bub_idx%fullmom(i, 1, 0))%sf(j, k, l) = muR *(bub_refs%R0ref/bub_refs%x0)
-                        q_prim_vf(bub_idx%fullmom(i, 0, 1))%sf(j, k, l) = muV *(bub_refs%ub0/bub_refs%u0)
-                        q_prim_vf(bub_idx%fullmom(i, 2, 0))%sf(j, k, l) = (muR**2 + sigR**2) *(bub_refs%R0ref/bub_refs%x0)**2._wp
-                        q_prim_vf(bub_idx%fullmom(i, 1, 1))%sf(j, k, l) = (muR*muV + rhoRV*sigR*sigV) *(bub_refs%R0ref/bub_refs%x0)*(bub_refs%ub0/bub_refs%u0)
-                        q_prim_vf(bub_idx%fullmom(i, 0, 2))%sf(j, k, l) = (muV**2 + sigV**2) *(bub_refs%ub0/bub_refs%u0)**2._wp
+                        q_prim_vf(bub_idx%fullmom(i, 1, 0))%sf(j, k, l) = muR*(bub_refs%R0ref/bub_refs%x0)
+                        q_prim_vf(bub_idx%fullmom(i, 0, 1))%sf(j, k, l) = muV*(bub_refs%ub0/bub_refs%u0)
+                        q_prim_vf(bub_idx%fullmom(i, 2, 0))%sf(j, k, l) = (muR**2 + sigR**2)*(bub_refs%R0ref/bub_refs%x0)**2._wp
+                        q_prim_vf(bub_idx%fullmom(i, 1, 1))%sf(j, k, l) = (muR*muV + rhoRV*sigR*sigV)*(bub_refs%R0ref/bub_refs%x0)*(bub_refs%ub0/bub_refs%u0)
+                        q_prim_vf(bub_idx%fullmom(i, 0, 2))%sf(j, k, l) = (muV**2 + sigV**2)*(bub_refs%ub0/bub_refs%u0)**2._wp
                     else if (dist_type == 2) then
                         q_prim_vf(bub_idx%fullmom(i, 0, 0))%sf(j, k, l) = 1._wp
-                        q_prim_vf(bub_idx%fullmom(i, 1, 0))%sf(j, k, l) = exp((sigR**2)/2._wp)*muR *(bub_refs%R0ref/bub_refs%x0)
-                        q_prim_vf(bub_idx%fullmom(i, 0, 1))%sf(j, k, l) = muV *(bub_refs%ub0/bub_refs%u0)
-                        q_prim_vf(bub_idx%fullmom(i, 2, 0))%sf(j, k, l) = exp((sigR**2)*2._wp)*(muR**2) *(bub_refs%R0ref/bub_refs%x0)**2._wp
-                        q_prim_vf(bub_idx%fullmom(i, 1, 1))%sf(j, k, l) = exp((sigR**2)/2._wp)*muR*muV *(bub_refs%R0ref/bub_refs%x0)*(bub_refs%ub0/bub_refs%u0)
-                        q_prim_vf(bub_idx%fullmom(i, 0, 2))%sf(j, k, l) = (muV**2 + sigV**2) *(bub_refs%ub0/bub_refs%u0)**2._wp
+                        q_prim_vf(bub_idx%fullmom(i, 1, 0))%sf(j, k, l) = exp((sigR**2)/2._wp)*muR*(bub_refs%R0ref/bub_refs%x0)
+                        q_prim_vf(bub_idx%fullmom(i, 0, 1))%sf(j, k, l) = muV*(bub_refs%ub0/bub_refs%u0)
+                        q_prim_vf(bub_idx%fullmom(i, 2, 0))%sf(j, k, l) = exp((sigR**2)*2._wp)*(muR**2)*(bub_refs%R0ref/bub_refs%x0)**2._wp
+                        q_prim_vf(bub_idx%fullmom(i, 1, 1))%sf(j, k, l) = exp((sigR**2)/2._wp)*muR*muV*(bub_refs%R0ref/bub_refs%x0)*(bub_refs%ub0/bub_refs%u0)
+                        q_prim_vf(bub_idx%fullmom(i, 0, 2))%sf(j, k, l) = (muV**2 + sigV**2)*(bub_refs%ub0/bub_refs%u0)**2._wp
                     end if
                 else
                     q_prim_vf(bub_idx%rs(i))%sf(j, k, l) = muR
@@ -647,18 +647,18 @@ contains
                     ! Initialize the moment set
                     if (dist_type == 1) then
                         q_prim_vf(bub_idx%fullmom(i, 0, 0))%sf(j, k, l) = 1._wp
-                        q_prim_vf(bub_idx%fullmom(i, 1, 0))%sf(j, k, l) = muR *(bub_refs%R0ref/bub_refs%x0)
-                        q_prim_vf(bub_idx%fullmom(i, 0, 1))%sf(j, k, l) = muV *(bub_refs%ub0/bub_refs%u0)
-                        q_prim_vf(bub_idx%fullmom(i, 2, 0))%sf(j, k, l) = (muR**2 + sigR**2) *(bub_refs%R0ref/bub_refs%x0)**2._wp
-                        q_prim_vf(bub_idx%fullmom(i, 1, 1))%sf(j, k, l) = (muR*muV + rhoRV*sigR*sigV) *(bub_refs%R0ref/bub_refs%x0)*(bub_refs%ub0/bub_refs%u0)
-                        q_prim_vf(bub_idx%fullmom(i, 0, 2))%sf(j, k, l) = (muV**2 + sigV**2) *(bub_refs%ub0/bub_refs%u0)**2._wp
+                        q_prim_vf(bub_idx%fullmom(i, 1, 0))%sf(j, k, l) = muR*(bub_refs%R0ref/bub_refs%x0)
+                        q_prim_vf(bub_idx%fullmom(i, 0, 1))%sf(j, k, l) = muV*(bub_refs%ub0/bub_refs%u0)
+                        q_prim_vf(bub_idx%fullmom(i, 2, 0))%sf(j, k, l) = (muR**2 + sigR**2)*(bub_refs%R0ref/bub_refs%x0)**2._wp
+                        q_prim_vf(bub_idx%fullmom(i, 1, 1))%sf(j, k, l) = (muR*muV + rhoRV*sigR*sigV)*(bub_refs%R0ref/bub_refs%x0)*(bub_refs%ub0/bub_refs%u0)
+                        q_prim_vf(bub_idx%fullmom(i, 0, 2))%sf(j, k, l) = (muV**2 + sigV**2)*(bub_refs%ub0/bub_refs%u0)**2._wp
                     else if (dist_type == 2) then
                         q_prim_vf(bub_idx%fullmom(i, 0, 0))%sf(j, k, l) = 1._wp
-                        q_prim_vf(bub_idx%fullmom(i, 1, 0))%sf(j, k, l) = exp((sigR**2)/2._wp)*muR *(bub_refs%R0ref/bub_refs%x0)
-                        q_prim_vf(bub_idx%fullmom(i, 0, 1))%sf(j, k, l) = muV *(bub_refs%ub0/bub_refs%u0)
-                        q_prim_vf(bub_idx%fullmom(i, 2, 0))%sf(j, k, l) = exp((sigR**2)*2._wp)*(muR**2) *(bub_refs%R0ref/bub_refs%x0)**2._wp
-                        q_prim_vf(bub_idx%fullmom(i, 1, 1))%sf(j, k, l) = exp((sigR**2)/2._wp)*muR*muV *(bub_refs%R0ref/bub_refs%x0)*(bub_refs%ub0/bub_refs%u0)
-                        q_prim_vf(bub_idx%fullmom(i, 0, 2))%sf(j, k, l) = (muV**2 + sigV**2) *(bub_refs%ub0/bub_refs%u0)**2._wp
+                        q_prim_vf(bub_idx%fullmom(i, 1, 0))%sf(j, k, l) = exp((sigR**2)/2._wp)*muR*(bub_refs%R0ref/bub_refs%x0)
+                        q_prim_vf(bub_idx%fullmom(i, 0, 1))%sf(j, k, l) = muV*(bub_refs%ub0/bub_refs%u0)
+                        q_prim_vf(bub_idx%fullmom(i, 2, 0))%sf(j, k, l) = exp((sigR**2)*2._wp)*(muR**2)*(bub_refs%R0ref/bub_refs%x0)**2._wp
+                        q_prim_vf(bub_idx%fullmom(i, 1, 1))%sf(j, k, l) = exp((sigR**2)/2._wp)*muR*muV*(bub_refs%R0ref/bub_refs%x0)*(bub_refs%ub0/bub_refs%u0)
+                        q_prim_vf(bub_idx%fullmom(i, 0, 2))%sf(j, k, l) = (muV**2 + sigV**2)*(bub_refs%ub0/bub_refs%u0)**2._wp
                     end if
                 else
                     q_prim_vf(bub_idx%rs(i))%sf(j, k, l) = muR

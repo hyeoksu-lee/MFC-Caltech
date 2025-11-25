@@ -297,7 +297,7 @@ contains
         if (polytropic) then
             cdot_star = -3._wp*gam*Ca*((fR0/fR)**(3._wp*gam))*fV/fR
             if (bub_ss) cdot_star = cdot_star - &
-                                                     3._wp*gam*(2._wp/(Web*fR0))*((fR0/fR)**(3._wp*gam))*fV/fR
+                                    3._wp*gam*(2._wp/(Web*fR0))*((fR0/fR)**(3._wp*gam))*fV/fR
         else
             cdot_star = fpbdot
         end if
@@ -515,8 +515,8 @@ contains
                                        fbeta_t, fCson, h, &
                                        myR_tmp1, myV_tmp1, myPb_tmp1, myMv_tmp1)
                 if (err(1) > adap_dt_tol) then
-                  h = 0.25_wp*h
-                  cycle
+                    h = 0.25_wp*h
+                    cycle
                 end if
 
                 ! Advance one sub-step by advancing two half steps
@@ -527,8 +527,8 @@ contains
                                        fbeta_t, fCson, 0.5_wp*h, &
                                        myR_tmp2, myV_tmp2, myPb_tmp2, myMv_tmp2)
                 if (err(2) > adap_dt_tol) then
-                  h = 0.25_wp*h
-                  cycle
+                    h = 0.25_wp*h
+                    cycle
                 end if
 
                 fR2 = myR_tmp2(4); fV2 = myV_tmp2(4)
@@ -541,8 +541,8 @@ contains
                                        fbeta_t, fCson, 0.5_wp*h, &
                                        myR_tmp2, myV_tmp2, myPb_tmp2, myMv_tmp2)
                 if (err(3) > adap_dt_tol) then
-                  h = 0.5_wp*h
-                  cycle
+                    h = 0.5_wp*h
+                    cycle
                 end if
 
                 err(4) = abs((myR_tmp1(4) - myR_tmp2(4))/myR_tmp1(4))

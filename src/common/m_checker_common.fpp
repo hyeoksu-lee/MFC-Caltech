@@ -198,20 +198,20 @@ contains
         !! Called by s_check_inputs_common for all three stages
     impure subroutine s_check_inputs_bubbles_general
         @:PROHIBIT((bubbles_euler .or. bubbles_lagrange) .and. f_is_default(bub_refs%rho0), &
-                    "bub_refs%rho0 must be set for sub-grid bubble models")
+            "bub_refs%rho0 must be set for sub-grid bubble models")
         @:PROHIBIT((bubbles_euler .or. bubbles_lagrange) .and. f_is_default(bub_refs%x0), &
-                    "bub_refs%x0 must be set for sub-grid bubble models")
+            "bub_refs%x0 must be set for sub-grid bubble models")
         @:PROHIBIT((bubbles_euler .or. bubbles_lagrange) .and. &
-                    ((f_is_default(bub_refs%u0) .and. f_is_default(bub_refs%p0)) .or. &
-                    (.not. f_is_default(bub_refs%u0) .and. .not. f_is_default(bub_refs%p0))), &
-                    "Only one of bub_refs%u0 or bub_refs%p0 must be set for sub-grid bubble models")
+            ((f_is_default(bub_refs%u0) .and. f_is_default(bub_refs%p0)) .or. &
+             (.not. f_is_default(bub_refs%u0) .and. .not. f_is_default(bub_refs%p0))), &
+            "Only one of bub_refs%u0 or bub_refs%p0 must be set for sub-grid bubble models")
         @:PROHIBIT(bubbles_euler .and. &
-                    ((f_is_default(bub_refs%ub0) .and. f_is_default(bub_refs%p0eq)) .or. & 
-                    (.not. f_is_default(bub_refs%ub0) .and. .not. f_is_default(bub_refs%p0eq))), & 
-                    "Only one of bub_refs%ub0 or bub_refs%p0eq must be set for sub-grid bubble models")
+            ((f_is_default(bub_refs%ub0) .and. f_is_default(bub_refs%p0eq)) .or. &
+             (.not. f_is_default(bub_refs%ub0) .and. .not. f_is_default(bub_refs%p0eq))), &
+            "Only one of bub_refs%ub0 or bub_refs%p0eq must be set for sub-grid bubble models")
         @:PROHIBIT((bubbles_euler .or. bubbles_lagrange) .and. &
-                    (.not. polytropic .and. f_is_default(bub_refs%T0)), &
-                    "For non-polytropic, bub_refs%T0 must be set.")
+            (.not. polytropic .and. f_is_default(bub_refs%T0)), &
+            "For non-polytropic, bub_refs%T0 must be set.")
     end subroutine s_check_inputs_bubbles_general
 
     !> Checks constraints on dimensionality and the number of cells for the grid.

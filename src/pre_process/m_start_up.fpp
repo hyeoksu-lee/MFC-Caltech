@@ -775,7 +775,7 @@ contains
         call s_initialize_global_parameters_module()
         ! Initialize EE/EL bubble models
         if (bubbles_euler .or. bubbles_lagrange) then
-          call s_initialize_bubbles_model()
+            call s_initialize_bubbles_model()
         end if
         call s_initialize_mpi_common_module()
         call s_initialize_data_output_module()

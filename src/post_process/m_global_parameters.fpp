@@ -297,7 +297,7 @@ module m_global_parameters
 
     !> @name Bubble modeling variables and parameters
     !> @{
-    type(bubbles_ref_scales) :: bub_refs 
+    type(bubbles_ref_scales) :: bub_refs
     integer :: nb
     real(wp) :: Eu, Ca, Web, Re_inv
     real(wp), dimension(:), allocatable :: weight, R0

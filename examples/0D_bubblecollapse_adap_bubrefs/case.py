@@ -28,17 +28,17 @@ gamma_gas = gamma_n
 # REFERENCE VALUES
 R0ref = 50.0e-06
 p0eq = 8236.0
-ub0 = math.sqrt(p0eq/rho0)
-x0 = 4*R0ref
-p0 = 3*p0eq
-u0 = math.sqrt(p0/rho0)
+ub0 = math.sqrt(p0eq / rho0)
+x0 = 4 * R0ref
+p0 = 3 * p0eq
+u0 = math.sqrt(p0 / rho0)
 
 # BUBBLES
 vf0 = 1e-5
 nb = 1
 
 # External pressure
-pext = 1000*p0eq/p0
+pext = 1000 * p0eq / p0
 
 # DOMAIN
 Nx = 30
@@ -47,7 +47,7 @@ L = Ldomain / x0
 dx = L / float(Nx + 1)
 
 # TIME STEPS
-Tfinal = 0.05*(R0ref/ub0)/(x0/u0)
+Tfinal = 0.05 * (R0ref / ub0) / (x0 / u0)
 Nt = int(5e2 + 1)
 t_save = 1
 dt = Tfinal / (Nt - 1)
