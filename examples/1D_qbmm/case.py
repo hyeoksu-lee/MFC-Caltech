@@ -50,7 +50,7 @@ Re_inv = mul0 / (rho0 * uu * R0ref)
 vf0 = 1e-4
 n0 = vf0 / (math.pi * 4.0e00 / 3.0e00)
 
-cact = math.sqrt(n_tait*(p0 + B_tait*p0)/rho0)
+cact = math.sqrt(n_tait * (p0 + B_tait * p0) / rho0)
 t0 = x0 / c0
 
 nbubbles = 1
@@ -184,7 +184,7 @@ print(
             "acoustic_source": "T",
             "num_source": 1,
             "acoustic(1)%support": 1,
-            "acoustic(1)%loc(1)": -0.25*L,
+            "acoustic(1)%loc(1)": -0.25 * L,
             "acoustic(1)%npulse": 1,
             "acoustic(1)%dir": 1.0,
             "acoustic(1)%pulse": 1,

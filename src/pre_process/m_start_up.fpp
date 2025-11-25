@@ -152,7 +152,9 @@ contains
             elliptic_smoothing, elliptic_smoothing_iters, &
             viscous, bubbles_lagrange, bc_x, bc_y, bc_z, num_bc_patches, &
             patch_bc, Bx0, relativity, cont_damage, igr, igr_order, &
-            down_sample, recon_type, muscl_order, icsg, icsg_vf, icsg_patch, fft_wrt
+            down_sample, recon_type, muscl_order, &
+            simplex_perturb, simplex_params, fft_wrt, &
+            icsg, icsg_vf, icsg_patch
 
         ! Inquiring the status of the pre_process.inp file
         file_loc = 'pre_process.inp'
@@ -773,7 +775,7 @@ contains
         call s_initialize_global_parameters_module()
         ! Initialize EE/EL bubble models
         if (bubbles_euler .or. bubbles_lagrange) then
-          call s_initialize_bubbles_model()
+            call s_initialize_bubbles_model()
         end if
         call s_initialize_mpi_common_module()
         call s_initialize_data_output_module()
@@ -937,7 +939,7 @@ contains
         call s_finalize_perturbation_module()
         call s_finalize_boundary_common_module()
         if (relax) call s_finalize_relaxation_solver_module()
-
+        call s_finalize_initial_condition_module()
         ! Finalization of the MPI environment
         call s_mpi_finalize()
     end subroutine s_finalize_modules

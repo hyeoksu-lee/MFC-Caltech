@@ -700,7 +700,7 @@ contains
 
                         call s_compute_speed_of_sound(pres, rho_sf(i, j, k), &
                                                       gamma_sf(i, j, k), pi_inf_sf(i, j, k), &
-                                                      H, adv, 0._wp, 0._wp, c)
+                                                      H, adv, 0._wp, 0._wp, c, qv_sf(i, j, k))
 
                         q_sf(i, j, k) = c
                     end do
@@ -961,7 +961,7 @@ contains
         call s_initialize_global_parameters_module()
         ! Initialize EE/EL bubble models
         if (bubbles_euler .or. bubbles_lagrange) then
-          call s_initialize_bubbles_model()
+            call s_initialize_bubbles_model()
         end if
         if (num_procs > 1) then
             call s_initialize_mpi_proxy_module()
