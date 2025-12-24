@@ -106,7 +106,7 @@ contains
             omega_wrt, qm_wrt, liutex_wrt, schlieren_wrt, schlieren_alpha, &
             fd_order, mixture_err, alt_soundspeed, &
             flux_lim, flux_wrt, cyl_coord, &
-            parallel_io, rhoref, pref, bubbles_euler, qbmm, sigR, oneway &
+            parallel_io, rhoref, pref, bubbles_euler, qbmm, sigR, oneway, &
             R0ref, nb, polytropic, thermal, Ca, Web, Re_inv, &
             polydisperse, poly_sigma, file_per_process, relax, &
             relax_model, cf_wrt, sigma, adv_n, ib, num_ibs, &
