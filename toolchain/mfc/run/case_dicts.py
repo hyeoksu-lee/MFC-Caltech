@@ -63,6 +63,7 @@ COMMON = {
     'down_sample': ParamType.LOG,
     'recon_type': ParamType.INT,
     'muscl_order': ParamType.INT,
+    'oneway': ParamType.LOG,
 }
 
 PRE_PROCESS = COMMON.copy()
@@ -105,6 +106,8 @@ PRE_PROCESS.update({
     'bubbles_lagrange': ParamType.LOG,
     'simplex_perturb': ParamType.LOG,
     'fft_wrt': ParamType.LOG,
+    'oneway_patch': ParamType.INT,
+    'oneway_vf': ParamType.REAL,
 })
 
 for var in ["R0ref", "p0ref", "rho0ref", "T0ref", "ss", "pv", "vd",

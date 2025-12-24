@@ -236,28 +236,32 @@ contains
                     $:GPU_LOOP(parallelism='[seq]')
                     do q = 1, nb
 
-                        $:GPU_LOOP(parallelism='[seq]')
-                        do ii = 1, num_fluids
-                            myalpha_rho(ii) = q_cons_vf(ii)%sf(j, k, l)
-                            myalpha(ii) = q_cons_vf(advxb + ii - 1)%sf(j, k, l)
-                        end do
+                        ! $:GPU_LOOP(parallelism='[seq]')
+                        ! do ii = 1, num_fluids
+                        !     myalpha_rho(ii) = q_cons_vf(ii)%sf(j, k, l)
+                        !     myalpha(ii) = q_cons_vf(advxb + ii - 1)%sf(j, k, l)
+                        ! end do
 
-                        if (num_fluids == 1) then
-                            myRho = myalpha_rho(1)
-                            n_tait = gammas(1)
-                            B_tait = pi_infs(1)/pi_fac
-                        else
-                            myRho = 0._wp
-                            n_tait = 0._wp
-                            B_tait = 0._wp
+                        ! if (num_fluids == 1) then
+                        !     myRho = myalpha_rho(1)
+                        !     n_tait = gammas(1)
+                        !     B_tait = pi_infs(1)/pi_fac
+                        ! else
+                        !     myRho = 0._wp
+                        !     n_tait = 0._wp
+                        !     B_tait = 0._wp
 
-                            $:GPU_LOOP(parallelism='[seq]')
-                            do ii = 1, num_fluids
-                                myRho = myRho + myalpha_rho(ii)
-                                n_tait = n_tait + myalpha(ii)*gammas(ii)
-                                B_tait = B_tait + myalpha(ii)*pi_infs(ii)/pi_fac
-                            end do
-                        end if
+                        !     $:GPU_LOOP(parallelism='[seq]')
+                        !     do ii = 1, num_fluids
+                        !         myRho = myRho + myalpha_rho(ii)
+                        !         n_tait = n_tait + myalpha(ii)*gammas(ii)
+                        !         B_tait = B_tait + myalpha(ii)*pi_infs(ii)/pi_fac
+                        !     end do
+                        ! end if
+
+                        myRho = q_cons_vf(1)%sf(j, k, l)
+                        n_tait = gammas(1)
+                        B_tait = pi_infs(1)/pi_fac
 
                         n_tait = 1._wp/n_tait + 1._wp !make this the usual little 'gamma'
                         B_tait = B_tait*(n_tait - 1)/n_tait ! make this the usual pi_inf
@@ -313,6 +317,8 @@ contains
                             end if
                         end if
                     end do
+
+                    if (oneway) bub_adv_src(j, k, l) = 0._wp
                 end do
             end do
         end do
@@ -326,7 +332,7 @@ contains
                 do q = 0, n
                     do i = 0, m
                         rhs_vf(alf_idx)%sf(i, q, l) = rhs_vf(alf_idx)%sf(i, q, l) + bub_adv_src(i, q, l)
-                        if (num_fluids > 1) rhs_vf(advxb)%sf(i, q, l) = &
+                        if (num_fluids > 1 .and. .not. oneway) rhs_vf(advxb)%sf(i, q, l) = &
                             rhs_vf(advxb)%sf(i, q, l) - bub_adv_src(i, q, l)
                         $:GPU_LOOP(parallelism='[seq]')
                         do k = 1, nb

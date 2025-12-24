@@ -329,7 +329,7 @@ contains
             orig_prim_vf(i) = q_prim_vf(i)%sf(j, k, l)
         end do
 
-        if (mpp_lim .and. bubbles_euler) then
+        if (mpp_lim .and. bubbles_euler .and. .not. oneway) then
             !adjust volume fractions, according to modeled gas void fraction
             alf_sum%sf = 0._wp
             do i = adv_idx%beg, adv_idx%end - 1
@@ -359,7 +359,7 @@ contains
             end do
         end if
 
-        if (mpp_lim .and. bubbles_euler) then
+        if (mpp_lim .and. bubbles_euler .and. .not. oneway) then
             !adjust volume fractions, according to modeled gas void fraction
             alf_sum%sf = 0._wp
             do i = adv_idx%beg, adv_idx%end - 1
@@ -404,7 +404,7 @@ contains
             end do
         end if
 
-        if (mpp_lim .and. bubbles_euler) then
+        if (mpp_lim .and. bubbles_euler .and. .not. oneway) then
             !adjust volume fractions, according to modeled gas void fraction
             alf_sum%sf = 0._wp
             do i = adv_idx%beg, adv_idx%end - 1
@@ -450,6 +450,13 @@ contains
             end do
 
             if (adv_n) then
+                if (oneway) then
+                    if (oneway_patch == patch_id) then
+                        q_prim_vf(alf_idx)%sf(j, k, l) = oneway_vf
+                    else
+                        q_prim_vf(alf_idx)%sf(j, k, l) = sgm_eps
+                    end if
+                end if
                 ! Initialize number density
                 R3bar = 0._wp
                 do i = 1, nb
@@ -537,7 +544,7 @@ contains
             end do
         end if
 
-        if (mpp_lim .and. bubbles_euler) then
+        if (mpp_lim .and. bubbles_euler .and. .not. oneway) then
             !adjust volume fractions, according to modeled gas void fraction
             alf_sum%sf = 0._wp
             do i = adv_idx%beg, adv_idx%end - 1
@@ -659,6 +666,13 @@ contains
             end do
 
             if (adv_n) then
+                if (oneway) then
+                    if (oneway_patch == patch_id) then
+                        q_prim_vf(alf_idx)%sf(j, k, l) = oneway_vf
+                    else
+                        q_prim_vf(alf_idx)%sf(j, k, l) = sgm_eps
+                    end if
+                end if
                 ! Initialize number density
                 R3bar = 0._wp
                 do i = 1, nb
@@ -668,7 +682,7 @@ contains
             end if
         end if
 
-        if (mpp_lim .and. bubbles_euler) then
+        if (mpp_lim .and. bubbles_euler .and. .not. oneway) then
             !adjust volume fractions, according to modeled gas void fraction
             alf_sum%sf = 0._wp
             do i = adv_idx%beg, adv_idx%end - 1

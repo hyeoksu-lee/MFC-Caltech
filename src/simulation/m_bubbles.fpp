@@ -63,7 +63,11 @@ contains
             fCpinf = fP
             fCpbw = f_cpbw_KM(fR0, fR, fV, fpb)
             if (bubbles_euler) then
-                c_liquid = sqrt(fntait*(fP + fBtait)/(fRho*(1._wp - alf)))
+                if (oneway) then
+                    c_liquid = sqrt(fntait*(fP + fBtait)/fRho)
+                else
+                    c_liquid = sqrt(fntait*(fP + fBtait)/(fRho*(1._wp - alf)))
+                end if
             else
                 c_liquid = fCson
             end if
@@ -155,7 +159,7 @@ contains
 
         ! get sound speed squared for liquid (only needed for pbdot)
         ! c_l^2 = gam (p+B) / (rho*(1-alf))
-        if (mpp_lim) then
+        if (mpp_lim .or. oneway) then
             c2_liquid = fntait*(fP + fBtait)/fRho
         else
             c2_liquid = fntait*(fP + fBtait)/(fRho*(1._wp - falf))
