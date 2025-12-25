@@ -727,6 +727,7 @@ contains
         real(wp), dimension(num_fluids) :: alpha      !< Cell-avg. volume fraction
         real(wp) :: gamma      !< Cell-avg. sp. heat ratio
         real(wp) :: pi_inf     !< Cell-avg. liquid stiffness function
+        real(wp) :: qv         !< Cell-avg. fluid reference energy
         real(wp) :: c          !< Cell-avg. sound speed
         real(wp) :: H          !< Cell-avg. enthalpy
         real(wp), dimension(2) :: Re         !< Cell-avg. Reynolds numbers
@@ -771,8 +772,8 @@ contains
                 do k = 0, n
                     do j = 0, m
                       if (preconditioning) then
-                          call s_compute_enthalpy(q_prim_vf, pres, rho, gamma, pi_inf, Re, H, alpha, vel, vel_sum, j, k, l)
-                          call s_compute_speed_of_sound(pres, rho, gamma, pi_inf, H, alpha, vel_sum, 0._wp, c)
+                          call s_compute_enthalpy(q_prim_vf, pres, rho, gamma, pi_inf, Re, H, alpha, vel, vel_sum, qv, j, k, l)
+                          call s_compute_speed_of_sound(pres, rho, gamma, pi_inf, H, alpha, vel_sum, 0._wp, c, qv)
                           beta = min(max(sgm_eps, vel_sum/c**2._wp), 1._wp)
 
                           do i = contxb, contxe
@@ -884,6 +885,7 @@ contains
         real(wp), dimension(num_fluids) :: alpha      !< Cell-avg. volume fraction
         real(wp) :: gamma      !< Cell-avg. sp. heat ratio
         real(wp) :: pi_inf     !< Cell-avg. liquid stiffness function
+        real(wp) :: qv         !< Cell-avg. fluid reference energy
         real(wp) :: c          !< Cell-avg. sound speed
         real(wp) :: H          !< Cell-avg. enthalpy
         real(wp), dimension(2) :: Re         !< Cell-avg. Reynolds numbers
@@ -925,8 +927,8 @@ contains
                 do k = 0, n
                     do j = 0, m
                       if (preconditioning) then
-                          call s_compute_enthalpy(q_prim_vf, pres, rho, gamma, pi_inf, Re, H, alpha, vel, vel_sum, j, k, l)
-                          call s_compute_speed_of_sound(pres, rho, gamma, pi_inf, H, alpha, vel_sum, 0._wp, c)
+                          call s_compute_enthalpy(q_prim_vf, pres, rho, gamma, pi_inf, Re, H, alpha, vel, vel_sum, qv, j, k, l)
+                          call s_compute_speed_of_sound(pres, rho, gamma, pi_inf, H, alpha, vel_sum, 0._wp, c, qv)
                           beta = min(max(sgm_eps, vel_sum/c**2._wp), 1._wp)
 
                           do i = contxb, contxe
@@ -1038,6 +1040,7 @@ contains
         real(wp), dimension(num_fluids) :: alpha      !< Cell-avg. volume fraction
         real(wp) :: gamma      !< Cell-avg. sp. heat ratio
         real(wp) :: pi_inf     !< Cell-avg. liquid stiffness function
+        real(wp) :: qv         !< Cell-avg. fluid reference energy
         real(wp) :: c          !< Cell-avg. sound speed
         real(wp) :: H          !< Cell-avg. enthalpy
         real(wp), dimension(2) :: Re         !< Cell-avg. Reynolds numbers
@@ -1115,8 +1118,8 @@ contains
                 do k = 0, n
                     do j = 0, m
                       if (preconditioning) then
-                          call s_compute_enthalpy(q_prim_vf, pres, rho, gamma, pi_inf, Re, H, alpha, vel, vel_sum, j, k, l)
-                          call s_compute_speed_of_sound(pres, rho, gamma, pi_inf, H, alpha, vel_sum, 0._wp, c)
+                          call s_compute_enthalpy(q_prim_vf, pres, rho, gamma, pi_inf, Re, H, alpha, vel, vel_sum, qv, j, k, l)
+                          call s_compute_speed_of_sound(pres, rho, gamma, pi_inf, H, alpha, vel_sum, 0._wp, c, qv)
                           mach2 = vel_sum/c**2._wp
                           if (mach2 > 0.3) then
                             beta = 1._wp
@@ -1231,6 +1234,7 @@ contains
         real(wp), dimension(num_fluids) :: alpha      !< Cell-avg. volume fraction
         real(wp) :: gamma      !< Cell-avg. sp. heat ratio
         real(wp) :: pi_inf     !< Cell-avg. liquid stiffness function
+        real(wp) :: qv         !< Cell-avg. fluid reference energy
         real(wp) :: c          !< Cell-avg. sound speed
         real(wp) :: H          !< Cell-avg. enthalpy
         real(wp), dimension(2) :: Re         !< Cell-avg. Reynolds numbers
@@ -1308,8 +1312,8 @@ contains
                 do k = 0, n
                     do j = 0, m
                       if (preconditioning) then
-                          call s_compute_enthalpy(q_prim_vf, pres, rho, gamma, pi_inf, Re, H, alpha, vel, vel_sum, j, k, l)
-                          call s_compute_speed_of_sound(pres, rho, gamma, pi_inf, H, alpha, vel_sum, 0._wp, c)
+                          call s_compute_enthalpy(q_prim_vf, pres, rho, gamma, pi_inf, Re, H, alpha, vel, vel_sum, qv, j, k, l)
+                          call s_compute_speed_of_sound(pres, rho, gamma, pi_inf, H, alpha, vel_sum, 0._wp, c, qv)
                           ! mach2 = vel_sum/c**2._wp
                           ! if (mach2 > 0.3**2._wp) then
                           !   beta = 1._wp

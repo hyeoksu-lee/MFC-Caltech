@@ -115,7 +115,7 @@ contains
             & 'bc_y%grcbc_in', 'bc_y%grcbc_out', 'bc_y%grcbc_vel_out',          &
             & 'bc_z%grcbc_in', 'bc_z%grcbc_out', 'bc_z%grcbc_vel_out',          &
             & 'cfl_adap_dt', 'cfl_const_dt', 'cfl_dt', 'surface_tension',       &
-            & 'shear_stress', 'bulk_stress', 'bubbles_lagrange','fft_wrt'       &
+            & 'shear_stress', 'bulk_stress', 'bubbles_lagrange','fft_wrt',      &
             & 'hyperelasticity', 'down_sample', 'int_comp', 'preconditioning' ]
             call MPI_BCAST(${VAR}$, 1, MPI_LOGICAL, 0, MPI_COMM_WORLD, ierr)
         #:endfor
