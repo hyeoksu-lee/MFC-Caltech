@@ -17,32 +17,36 @@ module m_derived_types
 
     !> Derived type adding the field position (fp) as an attribute
     type field_position
-        real(wp), allocatable, dimension(:, :, :) :: fp !< Field position
+        real(stp), allocatable, dimension(:, :, :) :: fp !< Field position
     end type field_position
 
     !> Derived type annexing a scalar field (SF)
     type scalar_field
-        real(wp), pointer, dimension(:, :, :) :: sf => null()
+        real(stp), pointer, dimension(:, :, :) :: sf => null()
     end type scalar_field
 
     !> Derived type for bubble variables pb and mv at quadrature nodes (qbmm)
     type pres_field
-        real(wp), pointer, dimension(:, :, :, :, :) :: sf => null()
+        real(stp), pointer, dimension(:, :, :, :, :) :: sf => null()
     end type pres_field
 
     !> Derived type annexing an integer scalar field (SF)
     type integer_field
+#ifdef MFC_MIXED_PRECISION
+        integer(kind=1), pointer, dimension(:, :, :) :: sf => null()
+#else
         integer, pointer, dimension(:, :, :) :: sf => null()
+#endif
     end type integer_field
 
     !> Derived type for levelset
     type levelset_field
-        real(wp), pointer, dimension(:, :, :, :) :: sf => null()
+        real(stp), pointer, dimension(:, :, :, :) :: sf => null()
     end type levelset_field
 
     !> Derived type for levelset norm
     type levelset_norm_field
-        real(wp), pointer, dimension(:, :, :, :, :) :: sf => null()
+        real(stp), pointer, dimension(:, :, :, :, :) :: sf => null()
     end type levelset_norm_field
 
     type mpi_io_var
@@ -290,6 +294,13 @@ module m_derived_types
         real(wp) :: x_centroid, y_centroid, z_centroid !<
         !! Location of the geometric center, i.e. the centroid, of the patch. It
         !! is specified through its x-, y- and z-coordinates, respectively.
+        real(wp) :: step_x_centroid, step_y_centroid, step_z_centroid !<
+        !! Centroid locations of intermediate steps in the time_stepper module
+
+        real(wp), dimension(1:3) :: angles
+        real(wp), dimension(1:3) :: step_angles
+        real(wp), dimension(1:3, 1:3) :: rotation_matrix !< matrix that converts from IB reference frame to fluid reference frame
+        real(wp), dimension(1:3, 1:3) :: rotation_matrix_inverse !< matrix that converts from fluid reference frame to IB reference frame
 
         real(wp) :: c, p, t, m
 
@@ -321,7 +332,12 @@ module m_derived_types
 
         !! Patch conditions for moving imersed boundaries
         integer :: moving_ibm ! 0 for no moving, 1 for moving, 2 for moving on forced path
+        real(wp) :: mass, moment ! mass and moment of inertia of object used to compute forces in 2-way coupling
+        real(wp), dimension(1:3) :: force, torque ! vectors for the computed force and torque values applied to an IB
         real(wp), dimension(1:3) :: vel
+        real(wp), dimension(1:3) :: step_vel ! velocity array used to store intermediate steps in the time_stepper module
+        real(wp), dimension(1:3) :: angular_vel
+        real(wp), dimension(1:3) :: step_angular_vel ! velocity array used to store intermediate steps in the time_stepper module
 
     end type ib_patch_parameters
 
@@ -330,20 +346,36 @@ module m_derived_types
     type physical_parameters
         real(wp) :: gamma   !< Sp. heat ratio
         real(wp) :: pi_inf  !< Liquid stiffness
-        real(wp), dimension(2) :: Re      !< Reynolds number
+        real(wp), dimension(2) :: Re  !< Reynolds number
         real(wp) :: cv      !< heat capacity
         real(wp) :: qv      !< reference energy per unit mass for SGEOS, q (see Le Metayer (2004))
         real(wp) :: qvp     !< reference entropy per unit mass for SGEOS, q' (see Le Metayer (2004))
-        real(wp) :: mul0    !< Bubble viscosity
-        real(wp) :: ss      !< Bubble surface tension
-        real(wp) :: pv      !< Bubble vapour pressure
-        real(wp) :: gamma_v !< Bubble constants (see Preston (2007), Ando (2010))
-        real(wp) :: M_v     !< Bubble constants (see Preston (2007), Ando (2010))
-        real(wp) :: mu_v    !< Bubble constants (see Preston (2007), Ando (2010))
-        real(wp) :: k_v     !< Bubble constants (see Preston (2007), Ando (2010))
-        real(wp) :: cp_v
         real(wp) :: G
     end type physical_parameters
+
+    !> Derived type annexing the physical parameters required for sub-grid bubble models
+    type subgrid_bubble_physical_parameters
+        real(wp) :: R0ref !< reference bubble radius
+        real(wp) :: p0ref !< reference pressure
+        real(wp) :: rho0ref !< reference density
+        real(wp) :: T0ref !< reference temperature
+        real(wp) :: ss    !< surface tension between host and gas (bubble)
+        real(wp) :: pv    !< vapor pressure of host
+        real(wp) :: vd    !< vapor diffusivity in gas (bubble)
+        real(wp) :: mu_l  !< viscosity of host in liquid state
+        real(wp) :: mu_v  !< viscosity of host in vapor state
+        real(wp) :: mu_g  !< viscosity of gas (bubble)
+        real(wp) :: gam_v !< specific heat ratio of host in vapor state
+        real(wp) :: gam_g !< specific heat ratio of gas (bubble)
+        real(wp) :: M_v   !< Molecular weight of host
+        real(wp) :: M_g   !< Molecular weight of gas (bubble)
+        real(wp) :: k_v   !< thermal conductivity of host in vapor state
+        real(wp) :: k_g   !< thermal conductivity of gas (bubble)
+        real(wp) :: cp_v  !< specific heat capacity in constant pressure of host in vapor state
+        real(wp) :: cp_g  !< specific heat capacity in constant pressure of gas (bubble)
+        real(wp) :: R_v   !< gas constant of host in vapor state
+        real(wp) :: R_g   !< gas constant of gas (bubble)
+    end type subgrid_bubble_physical_parameters
 
     type mpi_io_airfoil_ib_var
         integer, dimension(2) :: view
@@ -390,10 +422,11 @@ module m_derived_types
 
     !> Acoustic source source_spatial pre-calculated values
     type source_spatial_type
-        integer, dimension(:, :), allocatable :: coord !< List of grid points indices with non-zero source_spatial values
-        real(wp), dimension(:), allocatable :: val !< List of non-zero source_spatial values
-        real(wp), dimension(:), allocatable :: angle !< List of angles with x-axis for mom source term vector
-        real(wp), dimension(:, :), allocatable :: xyz_to_r_ratios !< List of [xyz]/r for mom source term vector
+        integer, pointer, dimension(:, :) :: coord => null() !< List of grid points indices with non-zero source_spatial values
+        real(wp), pointer, dimension(:) :: val => null() !< List of non-zero source_spatial values
+        real(wp), pointer, dimension(:) :: angle => null() !< List of angles with x-axis for mom source term vector
+        real(wp), pointer, dimension(:, :) :: xyz_to_r_ratios => null() !< List of [xyz]/r for mom source term vector
+
     end type source_spatial_type
 
     !> Ghost Point for Immersed Boundaries
@@ -440,11 +473,6 @@ module m_derived_types
         real(wp) :: epsilonb         !< Standard deviation scaling for the gaussian function
         real(wp) :: charwidth        !< Domain virtual depth (z direction, for 2D simulations)
         real(wp) :: valmaxvoid       !< Maximum void fraction permitted
-        real(wp) :: c0               !< Reference speed
-        real(wp) :: rho0             !< Reference density
-        real(wp) :: T0, Thost        !< Reference temperature and host temperature
-        real(wp) :: x0               !< Reference length
-        real(wp) :: diffcoefvap      !< Vapor diffusivity in the gas
 
     end type bubbles_lagrange_parameters
 
@@ -454,4 +482,17 @@ module m_derived_types
         integer :: mn_min, np_min, mp_min, mnp_min
     end type cell_num_bounds
 
+    type simplex_noise_params
+        logical, dimension(3) :: perturb_vel
+        real(wp), dimension(3) :: perturb_vel_freq
+        real(wp), dimension(3) :: perturb_vel_scale
+        real(wp), dimension(3, 3) :: perturb_vel_offset
+
+        logical, dimension(1:num_fluids_max) :: perturb_dens
+        real(wp), dimension(1:num_fluids_max) :: perturb_dens_freq
+        real(wp), dimension(1:num_fluids_max) :: perturb_dens_scale
+        real(wp), dimension(1:num_fluids_max, 3) :: perturb_dens_offset
+    end type
+
 end module m_derived_types
+

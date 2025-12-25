@@ -27,7 +27,7 @@ module m_ib_patches
 
     implicit none
 
-    private; public :: s_apply_ib_patches
+    private; public :: s_apply_ib_patches, s_update_ib_rotation_matrix
 
     real(wp) :: x_centroid, y_centroid, z_centroid
     real(wp) :: length_x, length_y, length_z
@@ -140,6 +140,7 @@ contains
         integer, intent(in) :: patch_id
         integer, dimension(0:m, 0:n, 0:p), intent(inout) :: ib_markers_sf
 
+        real(wp), dimension(1:2) :: center
         real(wp) :: radius
 
         integer :: i, j, k !< Generic loop iterators
@@ -147,8 +148,8 @@ contains
         ! Transferring the circular patch's radius, centroid, smearing patch
         ! identity and smearing coefficient information
 
-        x_centroid = patch_ib(patch_id)%x_centroid
-        y_centroid = patch_ib(patch_id)%y_centroid
+        center(1) = patch_ib(patch_id)%x_centroid
+        center(2) = patch_ib(patch_id)%y_centroid
         radius = patch_ib(patch_id)%radius
 
         ! Initializing the pseudo volume fraction value to 1. The value will
@@ -161,15 +162,18 @@ contains
         ! that cell. If both queries check out, the primitive variables of
         ! the current patch are assigned to this cell.
 
+        $:GPU_PARALLEL_LOOP(private='[i,j]', copy='[ib_markers_sf]',&
+                  & copyin='[patch_id,center,radius]', collapse=2)
         do j = 0, n
             do i = 0, m
-                if ((x_cc(i) - x_centroid)**2 &
-                    + (y_cc(j) - y_centroid)**2 <= radius**2) &
+                if ((x_cc(i) - center(1))**2 &
+                    + (y_cc(j) - center(2))**2 <= radius**2) &
                     then
                     ib_markers_sf(i, j, 0) = patch_id
                 end if
             end do
         end do
+        $:END_GPU_PARALLEL_LOOP()
 
     end subroutine s_ib_circle
 
@@ -180,18 +184,22 @@ contains
         integer, intent(in) :: patch_id
         integer, dimension(0:m, 0:n, 0:p), intent(inout) :: ib_markers_sf
 
-        real(wp) :: x0, y0, f, x_act, y_act, ca_in, pa, ma, ta, theta
+        real(wp) :: f, ca_in, pa, ma, ta
         real(wp) :: xa, yt, xu, yu, xl, yl, xc, yc, dycdxc, sin_c, cos_c
         integer :: i, j, k
         integer :: Np1, Np2
 
-        x0 = patch_ib(patch_id)%x_centroid
-        y0 = patch_ib(patch_id)%y_centroid
+        real(wp), dimension(1:3) :: xy_local !< x and y coordinates in local IB frame
+        real(wp), dimension(1:2) :: center !< x and y coordinates in local IB frame
+        real(wp), dimension(1:3, 1:3) :: inverse_rotation
+
+        center(1) = patch_ib(patch_id)%x_centroid
+        center(2) = patch_ib(patch_id)%y_centroid
         ca_in = patch_ib(patch_id)%c
         pa = patch_ib(patch_id)%p
         ma = patch_ib(patch_id)%m
         ta = patch_ib(patch_id)%t
-        theta = pi*patch_ib(patch_id)%theta/180._wp
+        inverse_rotation(:, :) = patch_ib(patch_id)%rotation_matrix_inverse(:, :)
 
         ! rank(dx) is not consistent between pre_process and simulation. This IFDEF prevents compilation errors
 #ifdef MFC_PRE_PROCESS
@@ -203,73 +211,74 @@ contains
 #endif
         Np = Np1 + Np2 + 1
 
-        allocate (airfoil_grid_u(1:Np))
-        allocate (airfoil_grid_l(1:Np))
+        if (.not. allocated(airfoil_grid_u)) then
+            allocate (airfoil_grid_u(1:Np))
+            allocate (airfoil_grid_l(1:Np))
 
-        airfoil_grid_u(1)%x = x0
-        airfoil_grid_u(1)%y = y0
+            ! TODO :: The below instantiations are already handles by the loop below
+            airfoil_grid_u(1)%x = 0._wp
+            airfoil_grid_u(1)%y = 0._wp
 
-        airfoil_grid_l(1)%x = x0
-        airfoil_grid_l(1)%y = y0
+            airfoil_grid_l(1)%x = 0._wp
+            airfoil_grid_l(1)%y = 0._wp
 
-        eta = 1._wp
+            eta = 1._wp
 
-        do i = 1, Np1 + Np2 - 1
-            if (i <= Np1) then
-                xc = x0 + i*(pa*ca_in/Np1)
-                xa = (xc - x0)/ca_in
-                yc = (ma/pa**2)*(2*pa*xa - xa**2)
-                dycdxc = (2*ma/pa**2)*(pa - xa)
-            else
-                xc = x0 + pa*ca_in + (i - Np1)*((ca_in - pa*ca_in)/Np2)
-                xa = (xc - x0)/ca_in
-                yc = (ma/(1 - pa)**2)*(1 - 2*pa + 2*pa*xa - xa**2)
-                dycdxc = (2*ma/(1 - pa)**2)*(pa - xa)
-            end if
-
-            yt = (5._wp*ta)*(0.2969_wp*xa**0.5_wp - 0.126_wp*xa - 0.3516_wp*xa**2._wp + 0.2843_wp*xa**3 - 0.1015_wp*xa**4)
-            sin_c = dycdxc/(1 + dycdxc**2)**0.5_wp
-            cos_c = 1/(1 + dycdxc**2)**0.5_wp
-
-            xu = xa - yt*sin_c
-            yu = yc + yt*cos_c
-
-            xl = xa + yt*sin_c
-            yl = yc - yt*cos_c
-
-            xu = xu*ca_in + x0
-            yu = yu*ca_in + y0
-
-            xl = xl*ca_in + x0
-            yl = yl*ca_in + y0
-
-            airfoil_grid_u(i + 1)%x = xu
-            airfoil_grid_u(i + 1)%y = yu
-
-            airfoil_grid_l(i + 1)%x = xl
-            airfoil_grid_l(i + 1)%y = yl
-
-        end do
-
-        airfoil_grid_u(Np)%x = x0 + ca_in
-        airfoil_grid_u(Np)%y = y0
-
-        airfoil_grid_l(Np)%x = x0 + ca_in
-        airfoil_grid_l(Np)%y = y0
-
-        do j = 0, n
-            do i = 0, m
-
-                if (.not. f_is_default(patch_ib(patch_id)%theta)) then
-                    x_act = (x_cc(i) - x0)*cos(theta) - (y_cc(j) - y0)*sin(theta) + x0
-                    y_act = (x_cc(i) - x0)*sin(theta) + (y_cc(j) - y0)*cos(theta) + y0
+            do i = 1, Np1 + Np2 - 1
+                ! TODO :: This allocated the upper and lower airfoil arrays, and does not need to be performed each time the IB markers are updated. Place this as a separate subroutine.
+                if (i <= Np1) then
+                    xc = i*(pa*ca_in/Np1)
+                    xa = xc/ca_in
+                    yc = (ma/pa**2)*(2*pa*xa - xa**2)
+                    dycdxc = (2*ma/pa**2)*(pa - xa)
                 else
-                    x_act = x_cc(i)
-                    y_act = y_cc(j)
+                    xc = pa*ca_in + (i - Np1)*((ca_in - pa*ca_in)/Np2)
+                    xa = xc/ca_in
+                    yc = (ma/(1 - pa)**2)*(1 - 2*pa + 2*pa*xa - xa**2)
+                    dycdxc = (2*ma/(1 - pa)**2)*(pa - xa)
                 end if
 
-                if (x_act >= x0 .and. x_act <= x0 + ca_in) then
-                    xa = (x_act - x0)/ca_in
+                yt = (5._wp*ta)*(0.2969_wp*xa**0.5_wp - 0.126_wp*xa - 0.3516_wp*xa**2._wp + 0.2843_wp*xa**3 - 0.1015_wp*xa**4)
+                sin_c = dycdxc/(1 + dycdxc**2)**0.5_wp
+                cos_c = 1/(1 + dycdxc**2)**0.5_wp
+
+                xu = xa - yt*sin_c
+                yu = yc + yt*cos_c
+
+                xl = xa + yt*sin_c
+                yl = yc - yt*cos_c
+
+                xu = xu*ca_in
+                yu = yu*ca_in
+
+                xl = xl*ca_in
+                yl = yl*ca_in
+
+                airfoil_grid_u(i + 1)%x = xu
+                airfoil_grid_u(i + 1)%y = yu
+
+                airfoil_grid_l(i + 1)%x = xl
+                airfoil_grid_l(i + 1)%y = yl
+
+            end do
+
+            airfoil_grid_u(Np)%x = ca_in
+            airfoil_grid_u(Np)%y = 0._wp
+
+            airfoil_grid_l(Np)%x = ca_in
+            airfoil_grid_l(Np)%y = 0._wp
+
+        end if
+
+        $:GPU_PARALLEL_LOOP(private='[i,j,xy_local,k,f]', copy='[ib_markers_sf]',&
+                  & copyin='[patch_id,center,inverse_rotation,ma,ca_in,airfoil_grid_u,airfoil_grid_l]', collapse=2)
+        do j = 0, n
+            do i = 0, m
+                xy_local = [x_cc(i) - center(1), y_cc(j) - center(2), 0._wp] ! get coordinate frame centered on IB
+                xy_local = matmul(inverse_rotation, xy_local) ! rotate the frame into the IB's coordinates
+
+                if (xy_local(1) >= 0._wp .and. xy_local(1) <= ca_in) then
+                    xa = xy_local(1)/ca_in
                     if (xa <= pa) then
                         yc = (ma/pa**2)*(2*pa*xa - xa**2)
                         dycdxc = (2*ma/pa**2)*(pa - xa)
@@ -277,37 +286,37 @@ contains
                         yc = (ma/(1 - pa)**2)*(1 - 2*pa + 2*pa*xa - xa**2)
                         dycdxc = (2*ma/(1 - pa)**2)*(pa - xa)
                     end if
-                    if (y_act >= y0) then
+                    if (xy_local(2) >= 0._wp) then
                         k = 1
-                        do while (airfoil_grid_u(k)%x < x_act .and. k <= Np)
+                        do while (airfoil_grid_u(k)%x < xy_local(1) .and. k <= Np)
                             k = k + 1
                         end do
-                        if (f_approx_equal(airfoil_grid_u(k)%x, x_act)) then
-                            if (y_act <= airfoil_grid_u(k)%y) then
+                        if (f_approx_equal(airfoil_grid_u(k)%x, xy_local(1))) then
+                            if (xy_local(2) <= airfoil_grid_u(k)%y) then
                                 !!IB
                                 ib_markers_sf(i, j, 0) = patch_id
                             end if
                         else
-                            f = (airfoil_grid_u(k)%x - x_act)/(airfoil_grid_u(k)%x - airfoil_grid_u(k - 1)%x)
-                            if (y_act <= ((1._wp - f)*airfoil_grid_u(k)%y + f*airfoil_grid_u(k - 1)%y)) then
+                            f = (airfoil_grid_u(k)%x - xy_local(1))/(airfoil_grid_u(k)%x - airfoil_grid_u(k - 1)%x)
+                            if (xy_local(2) <= ((1._wp - f)*airfoil_grid_u(k)%y + f*airfoil_grid_u(k - 1)%y)) then
                                 !!IB
                                 ib_markers_sf(i, j, 0) = patch_id
                             end if
                         end if
                     else
                         k = 1
-                        do while (airfoil_grid_l(k)%x < x_act)
+                        do while (airfoil_grid_l(k)%x < xy_local(1))
                             k = k + 1
                         end do
-                        if (f_approx_equal(airfoil_grid_l(k)%x, x_act)) then
-                            if (y_act >= airfoil_grid_l(k)%y) then
+                        if (f_approx_equal(airfoil_grid_l(k)%x, xy_local(1))) then
+                            if (xy_local(2) >= airfoil_grid_l(k)%y) then
                                 !!IB
                                 ib_markers_sf(i, j, 0) = patch_id
                             end if
                         else
-                            f = (airfoil_grid_l(k)%x - x_act)/(airfoil_grid_l(k)%x - airfoil_grid_l(k - 1)%x)
+                            f = (airfoil_grid_l(k)%x - xy_local(1))/(airfoil_grid_l(k)%x - airfoil_grid_l(k - 1)%x)
 
-                            if (y_act >= ((1._wp - f)*airfoil_grid_l(k)%y + f*airfoil_grid_l(k - 1)%y)) then
+                            if (xy_local(2) >= ((1._wp - f)*airfoil_grid_l(k)%y + f*airfoil_grid_l(k - 1)%y)) then
                                 !!IB
                                 ib_markers_sf(i, j, 0) = patch_id
                             end if
@@ -316,16 +325,7 @@ contains
                 end if
             end do
         end do
-
-        if (.not. f_is_default(patch_ib(patch_id)%theta)) then
-            do i = 1, Np
-                airfoil_grid_l(i)%x = (airfoil_grid_l(i)%x - x0)*cos(theta) + (airfoil_grid_l(i)%y - y0)*sin(theta) + x0
-                airfoil_grid_l(i)%y = -1._wp*(airfoil_grid_l(i)%x - x0)*sin(theta) + (airfoil_grid_l(i)%y - y0)*cos(theta) + y0
-
-                airfoil_grid_u(i)%x = (airfoil_grid_u(i)%x - x0)*cos(theta) + (airfoil_grid_u(i)%y - y0)*sin(theta) + x0
-                airfoil_grid_u(i)%y = -1._wp*(airfoil_grid_u(i)%x - x0)*sin(theta) + (airfoil_grid_u(i)%y - y0)*cos(theta) + y0
-            end do
-        end if
+        $:END_GPU_PARALLEL_LOOP()
 
     end subroutine s_ib_airfoil
 
@@ -337,19 +337,22 @@ contains
         integer, intent(in) :: patch_id
         integer, dimension(0:m, 0:n, 0:p), intent(inout) :: ib_markers_sf
 
-        real(wp) :: x0, y0, z0, lz, z_max, z_min, f, x_act, y_act, ca_in, pa, ma, ta, theta, xa, yt, xu, yu, xl, yl, xc, yc, dycdxc, sin_c, cos_c
+        real(wp) :: lz, z_max, z_min, f, ca_in, pa, ma, ta, xa, yt, xu, yu, xl, yl, xc, yc, dycdxc, sin_c, cos_c
         integer :: i, j, k, l
         integer :: Np1, Np2
 
-        x0 = patch_ib(patch_id)%x_centroid
-        y0 = patch_ib(patch_id)%y_centroid
-        z0 = patch_ib(patch_id)%z_centroid
+        real(wp), dimension(1:3) :: xyz_local, center !< x, y, z coordinates in local IB frame
+        real(wp), dimension(1:3, 1:3) :: inverse_rotation
+
+        center(1) = patch_ib(patch_id)%x_centroid
+        center(2) = patch_ib(patch_id)%y_centroid
+        center(3) = patch_ib(patch_id)%z_centroid
         lz = patch_ib(patch_id)%length_z
         ca_in = patch_ib(patch_id)%c
         pa = patch_ib(patch_id)%p
         ma = patch_ib(patch_id)%m
         ta = patch_ib(patch_id)%t
-        theta = pi*patch_ib(patch_id)%theta/180._wp
+        inverse_rotation(:, :) = patch_ib(patch_id)%rotation_matrix_inverse(:, :)
 
         ! rank(dx) is not consistent between pre_process and simulation. This IFDEF prevents compilation errors
 #ifdef MFC_PRE_PROCESS
@@ -361,136 +364,118 @@ contains
 #endif
         Np = Np1 + Np2 + 1
 
-        allocate (airfoil_grid_u(1:Np))
-        allocate (airfoil_grid_l(1:Np))
+        if (.not. allocated(airfoil_grid_u)) then
+            allocate (airfoil_grid_u(1:Np))
+            allocate (airfoil_grid_l(1:Np))
 
-        airfoil_grid_u(1)%x = x0
-        airfoil_grid_u(1)%y = y0
+            airfoil_grid_u(1)%x = 0._wp
+            airfoil_grid_u(1)%y = 0._wp
 
-        airfoil_grid_l(1)%x = x0
-        airfoil_grid_l(1)%y = y0
+            airfoil_grid_l(1)%x = 0._wp
+            airfoil_grid_l(1)%y = 0._wp
 
-        z_max = z0 + lz/2
-        z_min = z0 - lz/2
+            z_max = lz/2
+            z_min = -lz/2
 
-        eta = 1._wp
+            eta = 1._wp
 
-        do i = 1, Np1 + Np2 - 1
-            if (i <= Np1) then
-                xc = x0 + i*(pa*ca_in/Np1)
-                xa = (xc - x0)/ca_in
-                yc = (ma/pa**2)*(2*pa*xa - xa**2)
-                dycdxc = (2*ma/pa**2)*(pa - xa)
-            else
-                xc = x0 + pa*ca_in + (i - Np1)*((ca_in - pa*ca_in)/Np2)
-                xa = (xc - x0)/ca_in
-                yc = (ma/(1 - pa)**2)*(1 - 2*pa + 2*pa*xa - xa**2)
-                dycdxc = (2*ma/(1 - pa)**2)*(pa - xa)
-            end if
+            do i = 1, Np1 + Np2 - 1
+                if (i <= Np1) then
+                    xc = i*(pa*ca_in/Np1)
+                    xa = xc/ca_in
+                    yc = (ma/pa**2)*(2*pa*xa - xa**2)
+                    dycdxc = (2*ma/pa**2)*(pa - xa)
+                else
+                    xc = pa*ca_in + (i - Np1)*((ca_in - pa*ca_in)/Np2)
+                    xa = xc/ca_in
+                    yc = (ma/(1 - pa)**2)*(1 - 2*pa + 2*pa*xa - xa**2)
+                    dycdxc = (2*ma/(1 - pa)**2)*(pa - xa)
+                end if
 
-            yt = (5._wp*ta)*(0.2969_wp*xa**0.5_wp - 0.126_wp*xa - 0.3516_wp*xa**2._wp + 0.2843_wp*xa**3 - 0.1015_wp*xa**4)
-            sin_c = dycdxc/(1 + dycdxc**2)**0.5_wp
-            cos_c = 1/(1 + dycdxc**2)**0.5_wp
+                yt = (5._wp*ta)*(0.2969_wp*xa**0.5_wp - 0.126_wp*xa - 0.3516_wp*xa**2._wp + 0.2843_wp*xa**3 - 0.1015_wp*xa**4)
+                sin_c = dycdxc/(1 + dycdxc**2)**0.5_wp
+                cos_c = 1/(1 + dycdxc**2)**0.5_wp
 
-            xu = xa - yt*sin_c
-            yu = yc + yt*cos_c
+                xu = xa - yt*sin_c
+                yu = yc + yt*cos_c
 
-            xl = xa + yt*sin_c
-            yl = yc - yt*cos_c
+                xl = xa + yt*sin_c
+                yl = yc - yt*cos_c
 
-            xu = xu*ca_in + x0
-            yu = yu*ca_in + y0
+                xu = xu*ca_in
+                yu = yu*ca_in
 
-            xl = xl*ca_in + x0
-            yl = yl*ca_in + y0
+                xl = xl*ca_in
+                yl = yl*ca_in
 
-            airfoil_grid_u(i + 1)%x = xu
-            airfoil_grid_u(i + 1)%y = yu
+                airfoil_grid_u(i + 1)%x = xu
+                airfoil_grid_u(i + 1)%y = yu
 
-            airfoil_grid_l(i + 1)%x = xl
-            airfoil_grid_l(i + 1)%y = yl
+                airfoil_grid_l(i + 1)%x = xl
+                airfoil_grid_l(i + 1)%y = yl
 
-        end do
-
-        airfoil_grid_u(Np)%x = x0 + ca_in
-        airfoil_grid_u(Np)%y = y0
-
-        airfoil_grid_l(Np)%x = x0 + ca_in
-        airfoil_grid_l(Np)%y = y0
-
-        do l = 0, p
-            if (z_cc(l) >= z_min .and. z_cc(l) <= z_max) then
-                do j = 0, n
-                    do i = 0, m
-
-                        if (.not. f_is_default(patch_ib(patch_id)%theta)) then
-                            x_act = (x_cc(i) - x0)*cos(theta) - (y_cc(j) - y0)*sin(theta) + x0
-                            y_act = (x_cc(i) - x0)*sin(theta) + (y_cc(j) - y0)*cos(theta) + y0
-                        else
-                            x_act = x_cc(i)
-                            y_act = y_cc(j)
-                        end if
-
-                        if (x_act >= x0 .and. x_act <= x0 + ca_in) then
-                            xa = (x_act - x0)/ca_in
-                            if (xa <= pa) then
-                                yc = (ma/pa**2)*(2*pa*xa - xa**2)
-                                dycdxc = (2*ma/pa**2)*(pa - xa)
-                            else
-                                yc = (ma/(1 - pa)**2)*(1 - 2*pa + 2*pa*xa - xa**2)
-                                dycdxc = (2*ma/(1 - pa)**2)*(pa - xa)
-                            end if
-                            if (y_act >= y0) then
-                                k = 1
-                                do while (airfoil_grid_u(k)%x < x_act)
-                                    k = k + 1
-                                end do
-                                if (f_approx_equal(airfoil_grid_u(k)%x, x_act)) then
-                                    if (y_act <= airfoil_grid_u(k)%y) then
-                                        !!IB
-                                        ib_markers_sf(i, j, l) = patch_id
-                                    end if
-                                else
-                                    f = (airfoil_grid_u(k)%x - x_act)/(airfoil_grid_u(k)%x - airfoil_grid_u(k - 1)%x)
-                                    if (y_act <= ((1._wp - f)*airfoil_grid_u(k)%y + f*airfoil_grid_u(k - 1)%y)) then
-                                        !!IB
-                                        ib_markers_sf(i, j, l) = patch_id
-                                    end if
-                                end if
-                            else
-                                k = 1
-                                do while (airfoil_grid_l(k)%x < x_act)
-                                    k = k + 1
-                                end do
-                                if (f_approx_equal(airfoil_grid_l(k)%x, x_act)) then
-                                    if (y_act >= airfoil_grid_l(k)%y) then
-                                        !!IB
-                                        ib_markers_sf(i, j, l) = patch_id
-                                    end if
-                                else
-                                    f = (airfoil_grid_l(k)%x - x_act)/(airfoil_grid_l(k)%x - airfoil_grid_l(k - 1)%x)
-
-                                    if (y_act >= ((1._wp - f)*airfoil_grid_l(k)%y + f*airfoil_grid_l(k - 1)%y)) then
-                                        !!IB
-                                        ib_markers_sf(i, j, l) = patch_id
-                                    end if
-                                end if
-                            end if
-                        end if
-                    end do
-                end do
-            end if
-        end do
-
-        if (.not. f_is_default(patch_ib(patch_id)%theta)) then
-            do i = 1, Np
-                airfoil_grid_l(i)%x = (airfoil_grid_l(i)%x - x0)*cos(theta) + (airfoil_grid_l(i)%y - y0)*sin(theta) + x0
-                airfoil_grid_l(i)%y = -1._wp*(airfoil_grid_l(i)%x - x0)*sin(theta) + (airfoil_grid_l(i)%y - y0)*cos(theta) + y0
-
-                airfoil_grid_u(i)%x = (airfoil_grid_u(i)%x - x0)*cos(theta) + (airfoil_grid_u(i)%y - y0)*sin(theta) + x0
-                airfoil_grid_u(i)%y = -1._wp*(airfoil_grid_u(i)%x - x0)*sin(theta) + (airfoil_grid_u(i)%y - y0)*cos(theta) + y0
             end do
+
+            airfoil_grid_u(Np)%x = ca_in
+            airfoil_grid_u(Np)%y = 0._wp
+
+            airfoil_grid_l(Np)%x = ca_in
+            airfoil_grid_l(Np)%y = 0._wp
         end if
+
+        $:GPU_PARALLEL_LOOP(private='[i,j,l,xyz_local,k,f]', copy='[ib_markers_sf]',&
+                  & copyin='[patch_id,center,inverse_rotation,ma,ca_in,airfoil_grid_u,airfoil_grid_l]', collapse=3)
+        do l = 0, p
+            do j = 0, n
+                do i = 0, m
+                    xyz_local = [x_cc(i) - center(1), y_cc(j) - center(2), z_cc(l) - center(3)] ! get coordinate frame centered on IB
+                    xyz_local = matmul(inverse_rotation, xyz_local) ! rotate the frame into the IB's coordinates
+
+                    if (xyz_local(3) >= z_min .and. xyz_local(3) <= z_max) then
+
+                        if (xyz_local(1) >= 0._wp .and. xyz_local(1) <= ca_in) then
+                            if (xyz_local(2) >= 0._wp) then
+                                k = 1
+                                do while (airfoil_grid_u(k)%x < xyz_local(1))
+                                    k = k + 1
+                                end do
+                                if (f_approx_equal(airfoil_grid_u(k)%x, xyz_local(1))) then
+                                    if (xyz_local(2) <= airfoil_grid_u(k)%y) then
+                                        !!IB
+                                        ib_markers_sf(i, j, l) = patch_id
+                                    end if
+                                else
+                                    f = (airfoil_grid_u(k)%x - xyz_local(1))/(airfoil_grid_u(k)%x - airfoil_grid_u(k - 1)%x)
+                                    if (xyz_local(2) <= ((1._wp - f)*airfoil_grid_u(k)%y + f*airfoil_grid_u(k - 1)%y)) then
+                                        !!IB
+                                        ib_markers_sf(i, j, l) = patch_id
+                                    end if
+                                end if
+                            else
+                                k = 1
+                                do while (airfoil_grid_l(k)%x < xyz_local(1))
+                                    k = k + 1
+                                end do
+                                if (f_approx_equal(airfoil_grid_l(k)%x, xyz_local(1))) then
+                                    if (xyz_local(2) >= airfoil_grid_l(k)%y) then
+                                        !!IB
+                                        ib_markers_sf(i, j, l) = patch_id
+                                    end if
+                                else
+                                    f = (airfoil_grid_l(k)%x - xyz_local(1))/(airfoil_grid_l(k)%x - airfoil_grid_l(k - 1)%x)
+
+                                    if (xyz_local(2) >= ((1._wp - f)*airfoil_grid_l(k)%y + f*airfoil_grid_l(k - 1)%y)) then
+                                        !!IB
+                                        ib_markers_sf(i, j, l) = patch_id
+                                    end if
+                                end if
+                            end if
+                        end if
+                    end if
+                end do
+            end do
+        end do
+        $:END_GPU_PARALLEL_LOOP()
 
     end subroutine s_ib_3D_airfoil
 
@@ -512,23 +497,20 @@ contains
 
         integer :: i, j, k !< generic loop iterators
         real(wp) :: pi_inf, gamma, lit_gamma !< Equation of state parameters
+        real(wp), dimension(1:3) :: xy_local !< x and y coordinates in local IB frame
+        real(wp), dimension(1:2) :: length, center !< x and y coordinates in local IB frame
+        real(wp), dimension(1:3, 1:3) :: inverse_rotation
 
         pi_inf = fluid_pp(1)%pi_inf
         gamma = fluid_pp(1)%gamma
         lit_gamma = (1._wp + gamma)/gamma
 
         ! Transferring the rectangle's centroid and length information
-        x_centroid = patch_ib(patch_id)%x_centroid
-        y_centroid = patch_ib(patch_id)%y_centroid
-        length_x = patch_ib(patch_id)%length_x
-        length_y = patch_ib(patch_id)%length_y
-
-        ! Computing the beginning and the end x- and y-coordinates of the
-        ! rectangle based on its centroid and lengths
-        x_boundary%beg = x_centroid - 0.5_wp*length_x
-        x_boundary%end = x_centroid + 0.5_wp*length_x
-        y_boundary%beg = y_centroid - 0.5_wp*length_y
-        y_boundary%end = y_centroid + 0.5_wp*length_y
+        center(1) = patch_ib(patch_id)%x_centroid
+        center(2) = patch_ib(patch_id)%y_centroid
+        length(1) = patch_ib(patch_id)%length_x
+        length(2) = patch_ib(patch_id)%length_y
+        inverse_rotation(:, :) = patch_ib(patch_id)%rotation_matrix_inverse(:, :)
 
         ! Since the rectangular patch does not allow for its boundaries to
         ! be smoothed out, the pseudo volume fraction is set to 1 to ensure
@@ -540,12 +522,18 @@ contains
         ! domain and verifying whether the current patch has the permission
         ! to write to that cell. If both queries check out, the primitive
         ! variables of the current patch are assigned to this cell.
+        $:GPU_PARALLEL_LOOP(private='[i,j, xy_local]', copy='[ib_markers_sf]',&
+                  & copyin='[patch_id,center,length,inverse_rotation,x_cc,y_cc]', collapse=2)
         do j = 0, n
             do i = 0, m
-                if (x_boundary%beg <= x_cc(i) .and. &
-                    x_boundary%end >= x_cc(i) .and. &
-                    y_boundary%beg <= y_cc(j) .and. &
-                    y_boundary%end >= y_cc(j)) then
+                ! get the x and y coordinates in the local IB frame
+                xy_local = [x_cc(i) - center(1), y_cc(j) - center(2), 0._wp]
+                xy_local = matmul(inverse_rotation, xy_local)
+
+                if (-0.5_wp*length(1) <= xy_local(1) .and. &
+                    0.5_wp*length(1) >= xy_local(1) .and. &
+                    -0.5_wp*length(2) <= xy_local(2) .and. &
+                    0.5_wp*length(2) >= xy_local(2)) then
 
                     ! Updating the patch identities bookkeeping variable
                     ib_markers_sf(i, j, 0) = patch_id
@@ -553,6 +541,7 @@ contains
                 end if
             end do
         end do
+        $:END_GPU_PARALLEL_LOOP()
 
     end subroutine s_ib_rectangle
 
@@ -572,15 +561,16 @@ contains
         ! Generic loop iterators
         integer :: i, j, k
         real(wp) :: radius
+        real(wp), dimension(1:3) :: center
 
         !! Variables to initialize the pressure field that corresponds to the
             !! bubble-collapse test case found in Tiwari et al. (2013)
 
         ! Transferring spherical patch's radius, centroid, smoothing patch
         ! identity and smoothing coefficient information
-        x_centroid = patch_ib(patch_id)%x_centroid
-        y_centroid = patch_ib(patch_id)%y_centroid
-        z_centroid = patch_ib(patch_id)%z_centroid
+        center(1) = patch_ib(patch_id)%x_centroid
+        center(2) = patch_ib(patch_id)%y_centroid
+        center(3) = patch_ib(patch_id)%z_centroid
         radius = patch_ib(patch_id)%radius
 
         ! Initializing the pseudo volume fraction value to 1. The value will
@@ -592,6 +582,8 @@ contains
         ! and verifying whether the current patch has permission to write to
         ! that cell. If both queries check out, the primitive variables of
         ! the current patch are assigned to this cell.
+        $:GPU_PARALLEL_LOOP(private='[i,j,k,cart_y,cart_z]', copy='[ib_markers_sf]',&
+                  & copyin='[patch_id,center,radius]', collapse=3)
         do k = 0, p
             do j = 0, n
                 do i = 0, m
@@ -602,14 +594,15 @@ contains
                         cart_z = z_cc(k)
                     end if
                     ! Updating the patch identities bookkeeping variable
-                    if (((x_cc(i) - x_centroid)**2 &
-                         + (cart_y - y_centroid)**2 &
-                         + (cart_z - z_centroid)**2 <= radius**2)) then
+                    if (((x_cc(i) - center(1))**2 &
+                         + (cart_y - center(2))**2 &
+                         + (cart_z - center(3))**2 <= radius**2)) then
                         ib_markers_sf(i, j, k) = patch_id
                     end if
                 end do
             end do
         end do
+        $:END_GPU_PARALLEL_LOOP()
 
     end subroutine s_ib_sphere
 
@@ -629,23 +622,17 @@ contains
         integer, dimension(0:m, 0:n, 0:p), intent(inout) :: ib_markers_sf
 
         integer :: i, j, k !< Generic loop iterators
+        real(wp), dimension(1:3) :: xyz_local, center, length !< x and y coordinates in local IB frame
+        real(wp), dimension(1:3, 1:3) :: inverse_rotation
 
         ! Transferring the cuboid's centroid and length information
-        x_centroid = patch_ib(patch_id)%x_centroid
-        y_centroid = patch_ib(patch_id)%y_centroid
-        z_centroid = patch_ib(patch_id)%z_centroid
-        length_x = patch_ib(patch_id)%length_x
-        length_y = patch_ib(patch_id)%length_y
-        length_z = patch_ib(patch_id)%length_z
-
-        ! Computing the beginning and the end x-, y- and z-coordinates of
-        ! the cuboid based on its centroid and lengths
-        x_boundary%beg = x_centroid - 0.5_wp*length_x
-        x_boundary%end = x_centroid + 0.5_wp*length_x
-        y_boundary%beg = y_centroid - 0.5_wp*length_y
-        y_boundary%end = y_centroid + 0.5_wp*length_y
-        z_boundary%beg = z_centroid - 0.5_wp*length_z
-        z_boundary%end = z_centroid + 0.5_wp*length_z
+        center(1) = patch_ib(patch_id)%x_centroid
+        center(2) = patch_ib(patch_id)%y_centroid
+        center(3) = patch_ib(patch_id)%z_centroid
+        length(1) = patch_ib(patch_id)%length_x
+        length(2) = patch_ib(patch_id)%length_y
+        length(3) = patch_ib(patch_id)%length_z
+        inverse_rotation(:, :) = patch_ib(patch_id)%rotation_matrix_inverse(:, :)
 
         ! Since the cuboidal patch does not allow for its boundaries to get
         ! smoothed out, the pseudo volume fraction is set to 1 to make sure
@@ -657,23 +644,28 @@ contains
         ! and verifying whether the current patch has permission to write to
         ! to that cell. If both queries check out, the primitive variables
         ! of the current patch are assigned to this cell.
+        $:GPU_PARALLEL_LOOP(private='[i,j,k,xyz_local,cart_y,cart_z]', copy='[ib_markers_sf]',&
+                  & copyin='[patch_id,center,length,inverse_rotation]', collapse=3)
         do k = 0, p
             do j = 0, n
                 do i = 0, m
 
                     if (grid_geometry == 3) then
+                        ! TODO :: This does not work and is not covered by any tests. This should be fixed
                         call s_convert_cylindrical_to_cartesian_coord(y_cc(j), z_cc(k))
                     else
                         cart_y = y_cc(j)
                         cart_z = z_cc(k)
                     end if
+                    xyz_local = [x_cc(i), cart_y, cart_z] - center ! get coordinate frame centered on IB
+                    xyz_local = matmul(inverse_rotation, xyz_local) ! rotate the frame into the IB's coordinates
 
-                    if (x_boundary%beg <= x_cc(i) .and. &
-                        x_boundary%end >= x_cc(i) .and. &
-                        y_boundary%beg <= cart_y .and. &
-                        y_boundary%end >= cart_y .and. &
-                        z_boundary%beg <= cart_z .and. &
-                        z_boundary%end >= cart_z) then
+                    if (-0.5*length(1) <= xyz_local(1) .and. &
+                        0.5*length(1) >= xyz_local(1) .and. &
+                        -0.5*length(2) <= xyz_local(2) .and. &
+                        0.5*length(2) >= xyz_local(2) .and. &
+                        -0.5*length(3) <= xyz_local(3) .and. &
+                        0.5*length(3) >= xyz_local(3)) then
 
                         ! Updating the patch identities bookkeeping variable
                         ib_markers_sf(i, j, k) = patch_id
@@ -681,6 +673,7 @@ contains
                 end do
             end do
         end do
+        $:END_GPU_PARALLEL_LOOP()
 
     end subroutine s_ib_cuboid
 
@@ -702,26 +695,20 @@ contains
 
         integer :: i, j, k !< Generic loop iterators
         real(wp) :: radius
+        real(wp), dimension(1:3) :: xyz_local, center, length !< x and y coordinates in local IB frame
+        real(wp), dimension(1:3, 1:3) :: inverse_rotation
 
         ! Transferring the cylindrical patch's centroid, length, radius,
         ! smoothing patch identity and smoothing coefficient information
 
-        x_centroid = patch_ib(patch_id)%x_centroid
-        y_centroid = patch_ib(patch_id)%y_centroid
-        z_centroid = patch_ib(patch_id)%z_centroid
-        length_x = patch_ib(patch_id)%length_x
-        length_y = patch_ib(patch_id)%length_y
-        length_z = patch_ib(patch_id)%length_z
+        center(1) = patch_ib(patch_id)%x_centroid
+        center(2) = patch_ib(patch_id)%y_centroid
+        center(3) = patch_ib(patch_id)%z_centroid
+        length(1) = patch_ib(patch_id)%length_x
+        length(2) = patch_ib(patch_id)%length_y
+        length(3) = patch_ib(patch_id)%length_z
         radius = patch_ib(patch_id)%radius
-
-        ! Computing the beginning and the end x-, y- and z-coordinates of
-        ! the cylinder based on its centroid and lengths
-        x_boundary%beg = x_centroid - 0.5_wp*length_x
-        x_boundary%end = x_centroid + 0.5_wp*length_x
-        y_boundary%beg = y_centroid - 0.5_wp*length_y
-        y_boundary%end = y_centroid + 0.5_wp*length_y
-        z_boundary%beg = z_centroid - 0.5_wp*length_z
-        z_boundary%end = z_centroid + 0.5_wp*length_z
+        inverse_rotation(:, :) = patch_ib(patch_id)%rotation_matrix_inverse(:, :)
 
         ! Initializing the pseudo volume fraction value to 1. The value will
         ! be modified as the patch is laid out on the grid, but only in the
@@ -732,6 +719,8 @@ contains
         ! domain and verifying whether the current patch has the permission
         ! to write to that cell. If both queries check out, the primitive
         ! variables of the current patch are assigned to this cell.
+        $:GPU_PARALLEL_LOOP(private='[i,j,k,xyz_local,cart_y,cart_z]', copy='[ib_markers_sf]',&
+                  & copyin='[patch_id,center,length,radius,inverse_rotation]', collapse=3)
         do k = 0, p
             do j = 0, n
                 do i = 0, m
@@ -742,24 +731,26 @@ contains
                         cart_y = y_cc(j)
                         cart_z = z_cc(k)
                     end if
+                    xyz_local = [x_cc(i), cart_y, cart_z] - center ! get coordinate frame centered on IB
+                    xyz_local = matmul(inverse_rotation, xyz_local) ! rotate the frame into the IB's coordinates
 
-                    if (((.not. f_is_default(length_x) .and. &
-                          (cart_y - y_centroid)**2 &
-                          + (cart_z - z_centroid)**2 <= radius**2 .and. &
-                          x_boundary%beg <= x_cc(i) .and. &
-                          x_boundary%end >= x_cc(i)) &
+                    if (((.not. f_is_default(length(1)) .and. &
+                          xyz_local(2)**2 &
+                          + xyz_local(3)**2 <= radius**2 .and. &
+                          -0.5_wp*length(1) <= xyz_local(1) .and. &
+                          0.5_wp*length(1) >= xyz_local(1)) &
                          .or. &
-                         (.not. f_is_default(length_y) .and. &
-                          (x_cc(i) - x_centroid)**2 &
-                          + (cart_z - z_centroid)**2 <= radius**2 .and. &
-                          y_boundary%beg <= cart_y .and. &
-                          y_boundary%end >= cart_y) &
+                         (.not. f_is_default(length(2)) .and. &
+                          xyz_local(1)**2 &
+                          + xyz_local(3)**2 <= radius**2 .and. &
+                          -0.5_wp*length(2) <= xyz_local(2) .and. &
+                          0.5_wp*length(2) >= xyz_local(2)) &
                          .or. &
-                         (.not. f_is_default(length_z) .and. &
-                          (x_cc(i) - x_centroid)**2 &
-                          + (cart_y - y_centroid)**2 <= radius**2 .and. &
-                          z_boundary%beg <= cart_z .and. &
-                          z_boundary%end >= cart_z))) then
+                         (.not. f_is_default(length(3)) .and. &
+                          xyz_local(1)**2 &
+                          + xyz_local(2)**2 <= radius**2 .and. &
+                          -0.5_wp*length(3) <= xyz_local(3) .and. &
+                          0.5_wp*length(3) >= xyz_local(3)))) then
 
                         ! Updating the patch identities bookkeeping variable
                         ib_markers_sf(i, j, k) = patch_id
@@ -767,6 +758,7 @@ contains
                 end do
             end do
         end do
+        $:END_GPU_PARALLEL_LOOP()
 
     end subroutine s_ib_cylinder
 
@@ -986,6 +978,51 @@ contains
         call s_model_free(model)
 
     end subroutine s_ib_model
+
+    !> Subroutine that computes a rotation matrix for converting to the rotating frame of the boundary
+    subroutine s_update_ib_rotation_matrix(patch_id)
+
+        integer, intent(in) :: patch_id
+        integer :: i
+
+        real(wp), dimension(3, 3, 3) :: rotation
+        real(wp) :: angle
+
+        ! construct the x, y, and z rotation matrices
+        if (num_dims == 3) then
+            ! also compute the x and y axes in 3D
+            angle = patch_ib(patch_id)%angles(1)
+            rotation(1, 1, :) = [1._wp, 0._wp, 0._wp]
+            rotation(1, 2, :) = [0._wp, cos(angle), -sin(angle)]
+            rotation(1, 3, :) = [0._wp, sin(angle), cos(angle)]
+
+            angle = patch_ib(patch_id)%angles(2)
+            rotation(2, 1, :) = [cos(angle), 0._wp, sin(angle)]
+            rotation(2, 2, :) = [0._wp, 1._wp, 0._wp]
+            rotation(2, 3, :) = [-sin(angle), 0._wp, cos(angle)]
+
+            ! apply the y rotation to the x rotation
+            patch_ib(patch_id)%rotation_matrix(:, :) = matmul(rotation(1, :, :), rotation(2, :, :))
+            patch_ib(patch_id)%rotation_matrix_inverse(:, :) = matmul(transpose(rotation(2, :, :)), transpose(rotation(1, :, :)))
+        end if
+
+        ! z component first, since it applies in 2D and 3D
+        angle = patch_ib(patch_id)%angles(3)
+        rotation(3, 1, :) = [cos(angle), -sin(angle), 0._wp]
+        rotation(3, 2, :) = [sin(angle), cos(angle), 0._wp]
+        rotation(3, 3, :) = [0._wp, 0._wp, 1._wp]
+
+        if (num_dims == 3) then
+            ! apply the z rotation to the xy rotation in 3D
+            patch_ib(patch_id)%rotation_matrix(:, :) = matmul(patch_ib(patch_id)%rotation_matrix(:, :), rotation(3, :, :))
+            patch_ib(patch_id)%rotation_matrix_inverse(:, :) = matmul(transpose(rotation(3, :, :)), patch_ib(patch_id)%rotation_matrix_inverse(:, :))
+        else
+            ! write out only the z rotation in 2D
+            patch_ib(patch_id)%rotation_matrix(:, :) = rotation(3, :, :)
+            patch_ib(patch_id)%rotation_matrix_inverse(:, :) = transpose(rotation(3, :, :))
+        end if
+
+    end subroutine s_update_ib_rotation_matrix
 
     subroutine s_convert_cylindrical_to_cartesian_coord(cyl_y, cyl_z)
         $:GPU_ROUTINE(parallelism='[seq]')

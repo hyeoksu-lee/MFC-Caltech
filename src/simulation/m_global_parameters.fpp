@@ -21,9 +21,7 @@ module m_global_parameters
 
     use m_helper_basic         !< Functions to compare floating point numbers
 
-#ifdef MFC_OpenACC
-    use openacc
-#endif
+    ! $:USE_GPU_MODULE()
 
     implicit none
 
@@ -196,8 +194,6 @@ module m_global_parameters
     integer :: num_igr_warm_start_iters !< number of warm start iterations for elliptic solve
     real(wp) :: alf_factor  !< alpha factor for IGR
 
-    $:GPU_DECLARE(create='[chemistry]')
-
     logical :: bodyForces
     logical :: bf_x, bf_y, bf_z !< body force toggle in three directions
     !< amplitude, frequency, and phase shift sinusoid in each direction
@@ -208,6 +204,7 @@ module m_global_parameters
     #:endfor
     real(wp), dimension(3) :: accel_bf
     $:GPU_DECLARE(create='[accel_bf]')
+    ! $:GPU_DECLARE(create='[k_x,w_x,p_x,g_x,k_y,w_y,p_y,g_y,k_z,w_z,p_z,g_z]')
 
     integer :: cpu_start, cpu_end, cpu_rate
 
@@ -237,10 +234,13 @@ module m_global_parameters
     !> @{
     type(int_bounds_info) :: bc_x, bc_y, bc_z
     !> @}
+#if defined(MFC_OpenACC)
     $:GPU_DECLARE(create='[bc_x%vb1, bc_x%vb2, bc_x%vb3, bc_x%ve1, bc_x%ve2, bc_x%ve3]')
     $:GPU_DECLARE(create='[bc_y%vb1, bc_y%vb2, bc_y%vb3, bc_y%ve1, bc_y%ve2, bc_y%ve3]')
     $:GPU_DECLARE(create='[bc_z%vb1, bc_z%vb2, bc_z%vb3, bc_z%ve1, bc_z%ve2, bc_z%ve3]')
-
+#elif defined(MFC_OpenMP)
+    $:GPU_DECLARE(create='[bc_x, bc_y, bc_z]')
+#endif
     type(bounds_info) :: x_domain, y_domain, z_domain
     real(wp) :: x_a, y_a, z_a
     real(wp) :: x_b, y_b, z_b
@@ -367,7 +367,10 @@ module m_global_parameters
     type(physical_parameters), dimension(num_fluids_max) :: fluid_pp !<
     !! Database of the physical parameters of each of the fluids that is present
     !! in the flow. These include the stiffened gas equation of state parameters,
-    !! the Reynolds numbers and the Weber numbers.
+    !! and the Reynolds numbers.
+
+    ! Subgrid Bubble Parameters
+    type(subgrid_bubble_physical_parameters) :: bub_pp
 
     integer :: fd_order !<
     !! The order of the finite-difference (fd) approximations of the first-order
@@ -417,11 +420,11 @@ module m_global_parameters
         integer :: nb       !< Number of eq. bubble sizes
     #:endif
 
-    real(wp) :: R0ref    !< Reference bubble size
+    real(wp) :: Eu       !< Euler number
     real(wp) :: Ca       !< Cavitation number
     real(wp) :: Web      !< Weber number
     real(wp) :: Re_inv   !< Inverse Reynolds number
-    $:GPU_DECLARE(create='[R0ref,Ca,Web,Re_inv]')
+    $:GPU_DECLARE(create='[Eu,Ca,Web,Re_inv]')
 
     real(wp), dimension(:), allocatable :: weight !< Simpson quadrature weights
     real(wp), dimension(:), allocatable :: R0     !< Bubble sizes
@@ -470,22 +473,22 @@ module m_global_parameters
 
     !> @name Physical bubble parameters (see Ando 2010, Preston 2007)
     !> @{
+    real(wp) :: phi_vg, phi_gv, Pe_c, Tw, k_vl, k_gl
+    $:GPU_DECLARE(create='[phi_vg,phi_gv,Pe_c,Tw,k_vl,k_gl]')
 
-    real(wp) :: R_n, R_v, phi_vn, phi_nv, Pe_c, Tw, pv, M_n, M_v, k_vl, k_nl, cp_n, cp_v
-    $:GPU_DECLARE(create='[R_n,R_v,phi_vn,phi_nv,Pe_c,Tw]')
-    $:GPU_DECLARE(create='[pv,M_n, M_v,k_vl,k_nl,cp_n,cp_v]')
-
-    real(wp), dimension(:), allocatable :: k_n, k_v, pb0, mass_n0, mass_v0, Pe_T
+    real(wp), dimension(:), allocatable :: pb0, mass_g0, mass_v0, Pe_T, k_v, k_g
     real(wp), dimension(:), allocatable :: Re_trans_T, Re_trans_c, Im_trans_T, Im_trans_c, omegaN
-    $:GPU_DECLARE(create='[k_n,k_v,pb0,mass_n0,mass_v0,Pe_T]')
+    $:GPU_DECLARE(create='[pb0,mass_g0,mass_v0,Pe_T,k_v,k_g]')
     $:GPU_DECLARE(create='[Re_trans_T,Re_trans_c,Im_trans_T,Im_trans_c,omegaN]')
 
-    real(wp) :: mul0, ss, gamma_v, mu_v
-    real(wp) :: gamma_m, gamma_n, mu_n
-    real(wp) :: gam
-    !> @}
+    real(wp) :: gam, gam_m
+    $:GPU_DECLARE(create='[gam,gam_m]')
 
-    $:GPU_DECLARE(create='[mul0,ss,gamma_v,mu_v,gamma_m,gamma_n,mu_n,gam]')
+    real(wp) :: R0ref, p0ref, rho0ref, T0ref, ss, pv, vd, mu_l, mu_v, mu_g, &
+                gam_v, gam_g, M_v, M_g, cp_v, cp_g, R_v, R_g
+    $:GPU_DECLARE(create='[R0ref, p0ref, rho0ref, T0ref, ss, pv, vd, mu_l, mu_v, mu_g, &
+        gam_v, gam_g, M_v, M_g, cp_v, cp_g, R_v, R_g]')
+    !> @}
 
     !> @name Acoustic acoustic_source parameters
     !> @{
@@ -540,6 +543,8 @@ module m_global_parameters
     real(wp) :: Bx0 !< Constant magnetic field in the x-direction (1D)
     logical :: powell !< Powell‐correction for div B = 0
     $:GPU_DECLARE(create='[Bx0,powell]')
+
+    logical :: fft_wrt
 
     !> @name Continuum damage model parameters
     !> @{!
@@ -663,9 +668,9 @@ contains
             #:endfor
         #:endfor
 
-        x_domain%beg = dflt_int; x_domain%end = dflt_int
-        y_domain%beg = dflt_int; y_domain%end = dflt_int
-        z_domain%beg = dflt_int; z_domain%end = dflt_int
+        x_domain%beg = dflt_real; x_domain%end = dflt_real
+        y_domain%beg = dflt_real; y_domain%end = dflt_real
+        z_domain%beg = dflt_real; z_domain%end = dflt_real
 
         ! Fluids physical parameters
         do i = 1, num_fluids_max
@@ -675,16 +680,30 @@ contains
             fluid_pp(i)%qv = 0._wp
             fluid_pp(i)%qvp = 0._wp
             fluid_pp(i)%Re(:) = dflt_real
-            fluid_pp(i)%mul0 = dflt_real
-            fluid_pp(i)%ss = dflt_real
-            fluid_pp(i)%pv = dflt_real
-            fluid_pp(i)%gamma_v = dflt_real
-            fluid_pp(i)%M_v = dflt_real
-            fluid_pp(i)%mu_v = dflt_real
-            fluid_pp(i)%k_v = dflt_real
-            fluid_pp(i)%cp_v = dflt_real
             fluid_pp(i)%G = 0._wp
         end do
+
+        ! Subgrid bubble parameters
+        bub_pp%R0ref = dflt_real; R0ref = dflt_real
+        bub_pp%p0ref = dflt_real; p0ref = dflt_real
+        bub_pp%rho0ref = dflt_real; rho0ref = dflt_real
+        bub_pp%T0ref = dflt_real; T0ref = dflt_real
+        bub_pp%ss = dflt_real; ss = dflt_real
+        bub_pp%pv = dflt_real; pv = dflt_real
+        bub_pp%vd = dflt_real; vd = dflt_real
+        bub_pp%mu_l = dflt_real; mu_l = dflt_real
+        bub_pp%mu_v = dflt_real; mu_v = dflt_real
+        bub_pp%mu_g = dflt_real; mu_g = dflt_real
+        bub_pp%gam_v = dflt_real; gam_v = dflt_real
+        bub_pp%gam_g = dflt_real; gam_g = dflt_real
+        bub_pp%M_v = dflt_real; M_v = dflt_real
+        bub_pp%M_g = dflt_real; M_g = dflt_real
+        bub_pp%k_v = dflt_real; 
+        bub_pp%k_g = dflt_real; 
+        bub_pp%cp_v = dflt_real; cp_v = dflt_real
+        bub_pp%cp_g = dflt_real; cp_g = dflt_real
+        bub_pp%R_v = dflt_real; R_v = dflt_real
+        bub_pp%R_g = dflt_real; R_g = dflt_real
 
         ! Tait EOS
         rhoref = dflt_real
@@ -713,7 +732,7 @@ contains
 
         adv_n = .false.
         adap_dt = .false.
-        adap_dt_tol = dflt_real
+        adap_dt_tol = dflt_adap_dt_tol
         adap_dt_max_iters = dflt_adap_dt_max_iters
 
         pi_fac = 1._wp
@@ -721,6 +740,7 @@ contains
         ! User inputs for qbmm for simulation code
         qbmm = .false.
 
+        Eu = dflt_real
         Ca = dflt_real
         Re_inv = dflt_real
         Web = dflt_real
@@ -742,6 +762,8 @@ contains
                 ${param}$_${dir}$ = dflt_real
             #:endfor
         #:endfor
+
+        fft_wrt = .false.
 
         do j = 1, num_probes_max
             acoustic(j)%pulse = dflt_int
@@ -814,12 +836,6 @@ contains
         lag_params%epsilonb = 1._wp
         lag_params%charwidth = dflt_real
         lag_params%valmaxvoid = dflt_real
-        lag_params%c0 = dflt_real
-        lag_params%rho0 = dflt_real
-        lag_params%T0 = dflt_real
-        lag_params%Thost = dflt_real
-        lag_params%x0 = dflt_real
-        lag_params%diffcoefvap = dflt_real
 
         ! Continuum damage model
         tau_star = dflt_real
@@ -943,23 +959,16 @@ contains
                         end if
                     end if
                     sys_size = bub_idx%end
-                    ! print*, 'alf idx', alf_idx
-                    ! print*, 'bub -idx beg end', bub_idx%beg, bub_idx%end
 
                     if (adv_n) then
                         n_idx = bub_idx%end + 1
                         sys_size = n_idx
                     end if
 
-                    @:ALLOCATE(weight(nb), R0(nb))
                     @:ALLOCATE(bub_idx%rs(nb), bub_idx%vs(nb))
                     @:ALLOCATE(bub_idx%ps(nb), bub_idx%ms(nb))
 
-                    if (num_fluids == 1) then
-                        gam = 1._wp/fluid_pp(num_fluids + 1)%gamma + 1._wp
-                    else
-                        gam = 1._wp/fluid_pp(num_fluids)%gamma + 1._wp
-                    end if
+                    gam = bub_pp%gam_g
 
                     if (qbmm) then
                         @:ALLOCATE(bub_idx%moms(nb, nmom))
@@ -987,36 +996,6 @@ contains
                                 bub_idx%ms(i) = bub_idx%ps(i) + 1
                             end if
                         end do
-                    end if
-
-                    if (nb == 1) then
-                        weight(:) = 1._wp
-                        R0(:) = 1._wp
-                    else if (nb < 1) then
-                        stop 'Invalid value of nb'
-                    end if
-
-                    !Initialize pref,rhoref for polytropic qbmm (done in s_initialize_nonpoly for non-polytropic)
-                    if (.not. qbmm) then
-                        if (polytropic) then
-                            rhoref = 1._wp
-                            pref = 1._wp
-                        end if
-                    end if
-
-                    !Initialize pb0, pv, pref, rhoref for polytropic qbmm (done in s_initialize_nonpoly for non-polytropic)
-                    if (qbmm) then
-                        if (polytropic) then
-                            pv = fluid_pp(1)%pv
-                            pv = pv/pref
-                            @:ALLOCATE(pb0(nb))
-                            if ((f_is_default(Web))) then
-                                pb0 = pref
-                                pb0 = pb0/pref
-                                pref = 1._wp
-                            end if
-                            rhoref = 1._wp
-                        end if
                     end if
                 end if
 
@@ -1064,7 +1043,6 @@ contains
 
                     @:ALLOCATE(bub_idx%rs(nb), bub_idx%vs(nb))
                     @:ALLOCATE(bub_idx%ps(nb), bub_idx%ms(nb))
-                    @:ALLOCATE(weight(nb), R0(nb))
 
                     do i = 1, nb
                         if (polytropic) then
@@ -1081,17 +1059,6 @@ contains
                             bub_idx%ms(i) = bub_idx%ps(i) + 1
                         end if
                     end do
-                    if (nb == 1) then
-                        weight(:) = 1._wp
-                        R0(:) = 1._wp
-                    else if (nb < 1) then
-                        stop 'Invalid value of nb'
-                    end if
-
-                    if (polytropic) then
-                        rhoref = 1._wp
-                        pref = 1._wp
-                    end if
                 end if
             end if
 
@@ -1107,7 +1074,7 @@ contains
 
             Re_size_max = maxval(Re_size)
 
-            $:GPU_UPDATE(device='[Re_size,Re_size_max,viscous,shear_stress,bulk_stress]')
+            $:GPU_UPDATE(device='[Re_size,Re_size_max,shear_stress,bulk_stress]')
 
             ! Bookkeeping the indexes of any viscous fluids and any pairs of
             ! fluids whose interface will support effects of surface tension
@@ -1309,7 +1276,7 @@ contains
         $:GPU_UPDATE(device='[dt,dtau,sys_size,buff_size,pref,rhoref, &
             & gamma_idx,pi_inf_idx,E_idx,alf_idx,stress_idx, &
             & mpp_lim,bubbles_euler,hypoelasticity,alt_soundspeed, &
-            & avg_state,num_fluids,model_eqns,num_dims,num_vels, &
+            & avg_state,model_eqns, &
             & mixture_err,grid_geometry,cyl_coord,mp_weno,weno_eps, &
             & teno_CT,hyperelasticity,hyper_model,elasticity,xi_idx, &
             & B_idx,low_Mach,preconditioning]')
@@ -1325,18 +1292,13 @@ contains
             $:GPU_UPDATE(device='[wenoz_q]')
             $:GPU_UPDATE(device='[mhd, relativity]')
             $:GPU_UPDATE(device='[muscl_order, muscl_lim]')
+            $:GPU_UPDATE(device='[igr, igr_order]')
+            $:GPU_UPDATE(device='[num_fluids,num_dims,viscous,num_vels,nb,muscl_lim]')
         #:endif
 
-        $:GPU_ENTER_DATA(copyin='[nb,R0ref,Ca,Web,Re_inv,weight,R0, &
-            & bubbles_euler,polytropic,polydisperse,qbmm, &
-            & ptil,bubble_model,thermal,poly_sigma]')
-        $:GPU_ENTER_DATA(copyin='[R_n,R_v,phi_vn,phi_nv,Pe_c,Tw,pv, &
-            & M_n,M_v,k_n,k_v,pb0,mass_n0,mass_v0,Pe_T, &
-            & Re_trans_T,Re_trans_c,Im_trans_T,Im_trans_c,omegaN, &
-            & mul0,ss,gamma_v,mu_v,gamma_m,gamma_n,mu_n,gam]')
-        $:GPU_ENTER_DATA(copyin='[dir_idx,dir_flg,dir_idx_tau]')
+        $:GPU_UPDATE(device='[dir_idx,dir_flg,dir_idx_tau]')
 
-        $:GPU_ENTER_DATA(copyin='[relax,relax_model,palpha_eps,ptgalpha_eps]')
+        $:GPU_UPDATE(device='[relax,relax_model,palpha_eps,ptgalpha_eps]')
 
         ! Allocating grid variables for the x-, y- and z-directions
         @:ALLOCATE(x_cb(-1 - buff_size:m + buff_size))

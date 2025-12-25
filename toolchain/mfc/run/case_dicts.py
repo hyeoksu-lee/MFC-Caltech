@@ -29,7 +29,6 @@ COMMON = {
     'pref': ParamType.REAL,
     'p': ParamType.INT,
     'parallel_io': ParamType.LOG,
-    'Web': ParamType.REAL,
     'poly_sigma': ParamType.REAL,
     'case_dir': ParamType.STR,
     'thermal': ParamType.INT,
@@ -43,10 +42,8 @@ COMMON = {
     'weno_order': ParamType.INT,
     'rhoref': ParamType.REAL,
     'bubbles_euler': ParamType.LOG,
-    'Re_inv': ParamType.REAL,
     'n': ParamType.INT,
     'precision': ParamType.INT,
-    'Ca': ParamType.REAL,
     'polydisperse': ParamType.LOG,
     'file_per_process': ParamType.LOG,
     'relax': ParamType.LOG,
@@ -106,18 +103,27 @@ PRE_PROCESS.update({
     'elliptic_smoothing_iters': ParamType.INT,
     'viscous': ParamType.LOG,
     'bubbles_lagrange': ParamType.LOG,
+    'simplex_perturb': ParamType.LOG,
+    'fft_wrt': ParamType.LOG,
 })
+
+for var in ["R0ref", "p0ref", "rho0ref", "T0ref", "ss", "pv", "vd",
+            "mu_l", "mu_v", "mu_g", "gam_v", "gam_g",
+            "M_v", "M_g", "k_v", "k_g", "cp_v", "cp_g", "R_v", "R_g" ]:
+    PRE_PROCESS[f"bub_pp%{var}"] = ParamType.REAL
 
 for ib_id in range(1, 10+1):
     for real_attr, ty in [("geometry", ParamType.INT), ("radius", ParamType.REAL),
                           ("theta", ParamType.REAL), ("slip", ParamType.LOG),
                           ("c", ParamType.REAL), ("p", ParamType.REAL),
                           ("t", ParamType.REAL), ("m", ParamType.REAL),
-                          ("moving_ibm", ParamType.INT)]:
+                          ("moving_ibm", ParamType.INT), ("mass", ParamType.REAL)]:
         PRE_PROCESS[f"patch_ib({ib_id})%{real_attr}"] = ty
 
-    for vel_id in range(1, 4):
-        PRE_PROCESS[f"patch_ib({ib_id})%vel({vel_id})"] = ParamType.REAL
+    for dir_id in range(1, 4):
+        PRE_PROCESS[f"patch_ib({ib_id})%vel({dir_id})"] = ParamType.REAL
+        PRE_PROCESS[f"patch_ib({ib_id})%angles({dir_id})"] = ParamType.REAL
+        PRE_PROCESS[f"patch_ib({ib_id})%angular_vel({dir_id})"] = ParamType.REAL
 
     for cmp_id, cmp in enumerate(["x", "y", "z"]):
         cmp_id += 1
@@ -146,9 +152,15 @@ for cmp in ["x", "y", "z"]:
 for f_id in range(1, 10+1):
     PRE_PROCESS[f'fluid_rho({f_id})'] = ParamType.REAL
 
-    for real_attr in ["gamma", "pi_inf", "mul0", "ss", "pv", "gamma_v", "M_v",
-                      "mu_v", "k_v", "cp_v", "G", "cv", "qv", "qvp" ]:
+    for real_attr in ["gamma", "pi_inf", "G", "cv", "qv", "qvp" ]:
         PRE_PROCESS[f"fluid_pp({f_id})%{real_attr}"] = ParamType.REAL
+
+    PRE_PROCESS[f"simplex_params%perturb_dens({f_id})"] = ParamType.LOG
+    PRE_PROCESS[f"simplex_params%perturb_dens_freq({f_id})"] = ParamType.REAL
+    PRE_PROCESS[f"simplex_params%perturb_dens_scale({f_id})"] = ParamType.REAL
+
+    for dir in range(1, 3+1):
+        PRE_PROCESS[f"simplex_params%perturb_dens_offset({f_id}, {dir})"] = ParamType.REAL
 
 for bc_p_id in range(1, 10+1):
     for attribute in ["geometry","type","dir","loc"]:
@@ -241,6 +253,13 @@ for p_id in range(1, 10+1):
             PRE_PROCESS[f"bc_{cmp}%vel_in({int_id})"] = ParamType.REAL
             PRE_PROCESS[f"bc_{cmp}%vel_out({int_id})"] = ParamType.REAL
 
+for d_id in range(1, 3+1):
+    PRE_PROCESS[f"simplex_params%perturb_vel({d_id})"] = ParamType.LOG
+    PRE_PROCESS[f"simplex_params%perturb_vel_freq({d_id})"] = ParamType.REAL
+    PRE_PROCESS[f"simplex_params%perturb_vel_scale({d_id})"] = ParamType.REAL
+    for dir in range(1, 3+1):
+        PRE_PROCESS[f"simplex_params%perturb_vel_offset({d_id},{dir})"] = ParamType.REAL
+
 # NOTE: Currently unused.
 # for f_id in range(1, 10+1):
 #     PRE_PROCESS.append(f"spec_pp({f_id})")
@@ -322,6 +341,7 @@ SIMULATION.update({
     'nv_uvm_out_of_core': ParamType.LOG,
     'nv_uvm_igr_temps_on_gpu': ParamType.INT,
     'nv_uvm_pref_gpu': ParamType.LOG,
+    'fft_wrt': ParamType.LOG,
 })
 
 for var in [ 'heatTransfer_model', 'massTransfer_model', 'pressure_corrector',
@@ -331,8 +351,7 @@ for var in [ 'heatTransfer_model', 'massTransfer_model', 'pressure_corrector',
 for var in [ 'solver_approach', 'cluster_type', 'smooth_type', 'nBubs_glb']:
     SIMULATION[f'lag_params%{var}'] = ParamType.INT
 
-for var in [ 'epsilonb', 'valmaxvoid', 'charwidth', 'diffcoefvap',
-            'c0', 'rho0', 'T0', 'x0', 'Thost' ]:
+for var in [ 'epsilonb', 'valmaxvoid', 'charwidth']:
     SIMULATION[f'lag_params%{var}'] = ParamType.REAL
 
 for var in [ 'diffusion', 'reactions' ]:
@@ -341,16 +360,23 @@ for var in [ 'diffusion', 'reactions' ]:
 for var in [ 'gamma_method' ]:
     SIMULATION[f'chem_params%{var}'] = ParamType.INT
 
+for var in ["R0ref", "p0ref", "rho0ref", "T0ref", "ss", "pv", "vd",
+            "mu_l", "mu_v", "mu_g", "gam_v", "gam_g",
+            "M_v", "M_g", "k_v", "k_g", "cp_v", "cp_g", "R_v", "R_g" ]:
+    SIMULATION[f"bub_pp%{var}"] = ParamType.REAL
+
 for ib_id in range(1, 10+1):
     for real_attr, ty in [("geometry", ParamType.INT), ("radius", ParamType.REAL),
                           ("theta", ParamType.REAL), ("slip", ParamType.LOG),
                           ("c", ParamType.REAL), ("p", ParamType.REAL),
                           ("t", ParamType.REAL), ("m", ParamType.REAL),
-                          ("moving_ibm", ParamType.INT)]:
+                          ("moving_ibm", ParamType.INT), ("mass", ParamType.REAL)]:
         SIMULATION[f"patch_ib({ib_id})%{real_attr}"] = ty
 
-    for vel_id in range(1, 4):
-        SIMULATION[f"patch_ib({ib_id})%vel({vel_id})"] = ParamType.REAL
+    for dir_id in range(1, 4):
+        SIMULATION[f"patch_ib({ib_id})%vel({dir_id})"] = ParamType.REAL
+        SIMULATION[f"patch_ib({ib_id})%angles({dir_id})"] = ParamType.REAL
+        SIMULATION[f"patch_ib({ib_id})%angular_vel({dir_id})"] = ParamType.REAL
 
     for cmp_id, cmp in enumerate(["x", "y", "z"]):
         cmp_id += 1
@@ -393,8 +419,7 @@ for probe_id in range(1,10+1):
         SIMULATION[f'probe({probe_id})%{cmp}'] = ParamType.REAL
 
 for f_id in range(1,10+1):
-    for real_attr in ["gamma", "pi_inf", "mul0", "ss", "pv", "gamma_v", "M_v",
-                      "mu_v", "k_v", "cp_v", "G", "cv", "qv", "qvp" ]:
+    for real_attr in ["gamma", "pi_inf", "G", "cv", "qv", "qvp" ]:
         SIMULATION[f"fluid_pp({f_id})%{real_attr}"] = ParamType.REAL
 
     for re_id in [1, 2]:
@@ -441,6 +466,7 @@ POST_PROCESS.update({
     'flux_lim': ParamType.INT,
     'flux_wrt': ParamType.LOG,
     'E_wrt': ParamType.LOG,
+    'fft_wrt': ParamType.LOG,
     'pres_wrt': ParamType.LOG,
     'alpha_wrt': ParamType.LOG,
     'kappa_wrt': ParamType.LOG,
@@ -466,7 +492,30 @@ POST_PROCESS.update({
     'surface_tension': ParamType.LOG,
     'output_partial_domain': ParamType.LOG,
     'bubbles_lagrange': ParamType.LOG,
+    'lag_header': ParamType.LOG,
+    'lag_txt_wrt': ParamType.LOG,
+    'lag_db_wrt': ParamType.LOG,
+    'lag_id_wrt': ParamType.LOG,
+    'lag_pos_wrt': ParamType.LOG,
+    'lag_pos_prev_wrt': ParamType.LOG,
+    'lag_vel_wrt': ParamType.LOG,
+    'lag_rad_wrt': ParamType.LOG,
+    'lag_rvel_wrt': ParamType.LOG,
+    'lag_r0_wrt': ParamType.LOG,
+    'lag_rmax_wrt': ParamType.LOG,
+    'lag_rmin_wrt': ParamType.LOG,
+    'lag_dphidt_wrt': ParamType.LOG,
+    'lag_pres_wrt': ParamType.LOG,
+    'lag_mv_wrt': ParamType.LOG,
+    'lag_mg_wrt': ParamType.LOG,
+    'lag_betaT_wrt': ParamType.LOG,
+    'lag_betaC_wrt': ParamType.LOG,
 })
+
+for var in ["R0ref", "p0ref", "rho0ref", "T0ref", "ss", "pv", "vd",
+            "mu_l", "mu_v", "mu_g", "gam_v", "gam_g",
+            "M_v", "M_g", "k_v", "k_g", "cp_v", "cp_g", "R_v", "R_g" ]:
+    POST_PROCESS[f"bub_pp%{var}"] = ParamType.REAL
 
 for cmp in ["x", "y", "z"]:
     for prepend in ["domain%beg", "domain%end", "a", "b"]:
@@ -489,13 +538,12 @@ for cmp_id in range(100):
 POST_PROCESS['chem_wrt_T'] = ParamType.LOG
 
 for fl_id in range(1,10+1):
-    for append, ty in [("schlieren_alpha", ParamType.REAL),
-                       ("alpha_rho_wrt", ParamType.LOG),
-                       ("alpha_wrt", ParamType.LOG), ("kappa_wrt", ParamType.LOG)]:
+    for append, ty in [("schlieren_alpha", ParamType.REAL), ("alpha_rho_wrt", ParamType.LOG),
+                       ("alpha_wrt", ParamType.LOG), ("kappa_wrt", ParamType.LOG),
+                       ("alpha_rho_e_wrt", ParamType.LOG)]:
         POST_PROCESS[f'{append}({fl_id})'] = ty
 
-    for real_attr in ["gamma", "pi_inf", "ss", "pv", "gamma_v", "M_v", "mu_v", "k_v", "cp_v",
-                      "G", "mul0", "cv", "qv", "qvp" ]:
+    for real_attr in ["gamma", "pi_inf", "G", "cv", "qv", "qvp" ]:
         POST_PROCESS[f"fluid_pp({fl_id})%{real_attr}"] = ParamType.REAL
 
 IGNORE = ["cantera_file", "chemistry"]

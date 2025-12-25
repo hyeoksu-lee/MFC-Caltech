@@ -1,4 +1,4 @@
-
+#:include 'case.fpp'
 #:include 'macros.fpp'
 
 !> @brief The module serves as a proxy to the parameters and subroutines
@@ -42,7 +42,7 @@ module m_mpi_common
     $:GPU_DECLARE(create='[buff_send, buff_recv]')
 #endif
 
-    integer :: halo_size
+    integer(kind=8) :: halo_size
     $:GPU_DECLARE(create='[halo_size]')
 
 contains
@@ -181,7 +181,7 @@ contains
         if (n > 0) then
             sizes_glb(2) = n_glb + 1; sizes_loc(2) = n + 1
             if (p > 0) then
-                sizes_glb(3) = p_glb + 1; sizes_loc(3) = p + 1
+                sizes_glb(num_dims) = p_glb + 1; sizes_loc(num_dims) = p + 1
             end if
         end if
 
@@ -314,7 +314,7 @@ contains
         if (n > 0) then
             sizes_loc(2) = n_ds + 3
             if (p > 0) then
-                sizes_loc(3) = p_ds + 3
+                sizes_loc(num_dims) = p_ds + 3
             end if
         end if
 
@@ -471,6 +471,32 @@ contains
 #endif
 
     end subroutine s_mpi_allreduce_sum
+
+    !>  This subroutine follows the behavior of the s_mpi_allreduce_sum subroutine
+    !>  with the additional feature that it reduces an array of vectors.
+    impure subroutine s_mpi_allreduce_vectors_sum(var_loc, var_glb, num_vectors, vector_length)
+
+        integer, intent(in) :: num_vectors, vector_length
+        real(wp), dimension(:, :), intent(in) :: var_loc
+        real(wp), dimension(:, :), intent(out) :: var_glb
+
+#ifdef MFC_MPI
+        integer :: ierr !< Generic flag used to identify and report MPI errors
+
+        ! Performing the reduction procedure
+        if (loc(var_loc) == loc(var_glb)) then
+            call MPI_Allreduce(MPI_IN_PLACE, var_glb, num_vectors*vector_length, &
+                               mpi_p, MPI_SUM, MPI_COMM_WORLD, ierr)
+        else
+            call MPI_Allreduce(var_loc, var_glb, num_vectors*vector_length, &
+                               mpi_p, MPI_SUM, MPI_COMM_WORLD, ierr)
+        end if
+
+#else
+        var_glb(1:num_vectors, 1:vector_length) = var_loc(1:num_vectors, 1:vector_length)
+#endif
+
+    end subroutine s_mpi_allreduce_vectors_sum
 
     !>  The following subroutine takes the input local variable
         !!      from all processors and reduces to the sum of all
@@ -682,7 +708,7 @@ contains
                                                 pb_in, mv_in)
 
         type(scalar_field), dimension(1:), intent(inout) :: q_comm
-        real(wp), optional, dimension(idwbuff(1)%beg:, idwbuff(2)%beg:, idwbuff(3)%beg:, 1:, 1:), intent(inout) :: pb_in, mv_in
+        real(stp), optional, dimension(idwbuff(1)%beg:, idwbuff(2)%beg:, idwbuff(3)%beg:, 1:, 1:), intent(inout) :: pb_in, mv_in
         integer, intent(in) :: mpi_dir, pbc_loc, nVar
 
         integer :: i, j, k, l, r, q !< Generic loop iterators
@@ -763,11 +789,12 @@ contains
                             do j = 0, buff_size - 1
                                 do i = 1, nVar
                                     r = (i - 1) + v_size*(j + buff_size*(k + (n + 1)*l))
-                                    buff_send(r) = q_comm(i)%sf(j + pack_offset, k, l)
+                                    buff_send(r) = real(q_comm(i)%sf(j + pack_offset, k, l), kind=wp)
                                 end do
                             end do
                         end do
                     end do
+                    $:END_GPU_PARALLEL_LOOP()
 
                     if (qbmm_comm) then
                         $:GPU_PARALLEL_LOOP(collapse=4,private='[r]')
@@ -778,12 +805,13 @@ contains
                                         do q = 1, nb
                                             r = (i - 1) + (q - 1)*4 + v_size* &
                                                 (j + buff_size*(k + (n + 1)*l))
-                                            buff_send(r) = pb_in(j + pack_offset, k, l, i - nVar, q)
+                                            buff_send(r) = real(pb_in(j + pack_offset, k, l, i - nVar, q), kind=wp)
                                         end do
                                     end do
                                 end do
                             end do
                         end do
+                        $:END_GPU_PARALLEL_LOOP()
 
                         $:GPU_PARALLEL_LOOP(collapse=5,private='[r]')
                         do l = 0, p
@@ -793,12 +821,13 @@ contains
                                         do q = 1, nb
                                             r = (i - 1) + (q - 1)*4 + nb*4 + v_size* &
                                                 (j + buff_size*(k + (n + 1)*l))
-                                            buff_send(r) = mv_in(j + pack_offset, k, l, i - nVar, q)
+                                            buff_send(r) = real(mv_in(j + pack_offset, k, l, i - nVar, q), kind=wp)
                                         end do
                                     end do
                                 end do
                             end do
                         end do
+                        $:END_GPU_PARALLEL_LOOP()
                     end if
                 #:elif mpi_dir == 2
                     $:GPU_PARALLEL_LOOP(collapse=4,private='[r]')
@@ -809,11 +838,12 @@ contains
                                     r = (i - 1) + v_size* &
                                         ((j + buff_size) + (m + 2*buff_size + 1)* &
                                          (k + buff_size*l))
-                                    buff_send(r) = q_comm(i)%sf(j, k + pack_offset, l)
+                                    buff_send(r) = real(q_comm(i)%sf(j, k + pack_offset, l), kind=wp)
                                 end do
                             end do
                         end do
                     end do
+                    $:END_GPU_PARALLEL_LOOP()
 
                     if (qbmm_comm) then
                         $:GPU_PARALLEL_LOOP(collapse=5,private='[r]')
@@ -825,12 +855,13 @@ contains
                                             r = (i - 1) + (q - 1)*4 + v_size* &
                                                 ((j + buff_size) + (m + 2*buff_size + 1)* &
                                                  (k + buff_size*l))
-                                            buff_send(r) = pb_in(j, k + pack_offset, l, i - nVar, q)
+                                            buff_send(r) = real(pb_in(j, k + pack_offset, l, i - nVar, q), kind=wp)
                                         end do
                                     end do
                                 end do
                             end do
                         end do
+                        $:END_GPU_PARALLEL_LOOP()
 
                         $:GPU_PARALLEL_LOOP(collapse=5,private='[r]')
                         do i = nVar + 1, nVar + 4
@@ -841,12 +872,13 @@ contains
                                             r = (i - 1) + (q - 1)*4 + nb*4 + v_size* &
                                                 ((j + buff_size) + (m + 2*buff_size + 1)* &
                                                  (k + buff_size*l))
-                                            buff_send(r) = mv_in(j, k + pack_offset, l, i - nVar, q)
+                                            buff_send(r) = real(mv_in(j, k + pack_offset, l, i - nVar, q), kind=wp)
                                         end do
                                     end do
                                 end do
                             end do
                         end do
+                        $:END_GPU_PARALLEL_LOOP()
                     end if
                 #:else
                     $:GPU_PARALLEL_LOOP(collapse=4,private='[r]')
@@ -857,11 +889,12 @@ contains
                                     r = (i - 1) + v_size* &
                                         ((j + buff_size) + (m + 2*buff_size + 1)* &
                                          ((k + buff_size) + (n + 2*buff_size + 1)*l))
-                                    buff_send(r) = q_comm(i)%sf(j, k, l + pack_offset)
+                                    buff_send(r) = real(q_comm(i)%sf(j, k, l + pack_offset), kind=wp)
                                 end do
                             end do
                         end do
                     end do
+                    $:END_GPU_PARALLEL_LOOP()
 
                     if (qbmm_comm) then
                         $:GPU_PARALLEL_LOOP(collapse=5,private='[r]')
@@ -873,12 +906,13 @@ contains
                                             r = (i - 1) + (q - 1)*4 + v_size* &
                                                 ((j + buff_size) + (m + 2*buff_size + 1)* &
                                                  ((k + buff_size) + (n + 2*buff_size + 1)*l))
-                                            buff_send(r) = pb_in(j, k, l + pack_offset, i - nVar, q)
+                                            buff_send(r) = real(pb_in(j, k, l + pack_offset, i - nVar, q), kind=wp)
                                         end do
                                     end do
                                 end do
                             end do
                         end do
+                        $:END_GPU_PARALLEL_LOOP()
 
                         $:GPU_PARALLEL_LOOP(collapse=5,private='[r]')
                         do i = nVar + 1, nVar + 4
@@ -889,12 +923,13 @@ contains
                                             r = (i - 1) + (q - 1)*4 + nb*4 + v_size* &
                                                 ((j + buff_size) + (m + 2*buff_size + 1)* &
                                                  ((k + buff_size) + (n + 2*buff_size + 1)*l))
-                                            buff_send(r) = mv_in(j, k, l + pack_offset, i - nVar, q)
+                                            buff_send(r) = real(mv_in(j, k, l + pack_offset, i - nVar, q), kind=wp)
                                         end do
                                     end do
                                 end do
                             end do
                         end do
+                        $:END_GPU_PARALLEL_LOOP()
                     end if
                 #:endif
             end if
@@ -906,7 +941,7 @@ contains
         #:for rdma_mpi in [False, True]
             if (rdma_mpi .eqv. ${'.true.' if rdma_mpi else '.false.'}$) then
                 #:if rdma_mpi
-                    #:call GPU_HOST_DATA(use_device='[buff_send, buff_recv]')
+                    #:call GPU_HOST_DATA(use_device_addr='[buff_send, buff_recv]')
                         call nvtxStartRange("RHS-COMM-SENDRECV-RDMA")
 
                         call MPI_SENDRECV( &
@@ -956,7 +991,7 @@ contains
                                 do i = 1, nVar
                                     r = (i - 1) + v_size* &
                                         (j + buff_size*((k + 1) + (n + 1)*l))
-                                    q_comm(i)%sf(j + unpack_offset, k, l) = buff_recv(r)
+                                    q_comm(i)%sf(j + unpack_offset, k, l) = real(buff_recv(r), kind=stp)
 #if defined(__INTEL_COMPILER)
                                     if (ieee_is_nan(q_comm(i)%sf(j, k, l))) then
                                         print *, "Error", j, k, l, i
@@ -967,6 +1002,7 @@ contains
                             end do
                         end do
                     end do
+                    $:END_GPU_PARALLEL_LOOP()
 
                     if (qbmm_comm) then
                         $:GPU_PARALLEL_LOOP(collapse=5,private='[r]')
@@ -977,12 +1013,13 @@ contains
                                         do q = 1, nb
                                             r = (i - 1) + (q - 1)*4 + v_size* &
                                                 (j + buff_size*((k + 1) + (n + 1)*l))
-                                            pb_in(j + unpack_offset, k, l, i - nVar, q) = buff_recv(r)
+                                            pb_in(j + unpack_offset, k, l, i - nVar, q) = real(buff_recv(r), kind=stp)
                                         end do
                                     end do
                                 end do
                             end do
                         end do
+                        $:END_GPU_PARALLEL_LOOP()
 
                         $:GPU_PARALLEL_LOOP(collapse=5,private='[r]')
                         do l = 0, p
@@ -992,12 +1029,13 @@ contains
                                         do q = 1, nb
                                             r = (i - 1) + (q - 1)*4 + nb*4 + v_size* &
                                                 (j + buff_size*((k + 1) + (n + 1)*l))
-                                            mv_in(j + unpack_offset, k, l, i - nVar, q) = buff_recv(r)
+                                            mv_in(j + unpack_offset, k, l, i - nVar, q) = real(buff_recv(r), kind=stp)
                                         end do
                                     end do
                                 end do
                             end do
                         end do
+                        $:END_GPU_PARALLEL_LOOP()
                     end if
                 #:elif mpi_dir == 2
                     $:GPU_PARALLEL_LOOP(collapse=4,private='[r]')
@@ -1008,7 +1046,7 @@ contains
                                     r = (i - 1) + v_size* &
                                         ((j + buff_size) + (m + 2*buff_size + 1)* &
                                          ((k + buff_size) + buff_size*l))
-                                    q_comm(i)%sf(j, k + unpack_offset, l) = buff_recv(r)
+                                    q_comm(i)%sf(j, k + unpack_offset, l) = real(buff_recv(r), kind=stp)
 #if defined(__INTEL_COMPILER)
                                     if (ieee_is_nan(q_comm(i)%sf(j, k, l))) then
                                         print *, "Error", j, k, l, i
@@ -1019,6 +1057,7 @@ contains
                             end do
                         end do
                     end do
+                    $:END_GPU_PARALLEL_LOOP()
 
                     if (qbmm_comm) then
                         $:GPU_PARALLEL_LOOP(collapse=5,private='[r]')
@@ -1030,12 +1069,13 @@ contains
                                             r = (i - 1) + (q - 1)*4 + v_size* &
                                                 ((j + buff_size) + (m + 2*buff_size + 1)* &
                                                  ((k + buff_size) + buff_size*l))
-                                            pb_in(j, k + unpack_offset, l, i - nVar, q) = buff_recv(r)
+                                            pb_in(j, k + unpack_offset, l, i - nVar, q) = real(buff_recv(r), kind=stp)
                                         end do
                                     end do
                                 end do
                             end do
                         end do
+                        $:END_GPU_PARALLEL_LOOP()
 
                         $:GPU_PARALLEL_LOOP(collapse=5,private='[r]')
                         do i = nVar + 1, nVar + 4
@@ -1046,12 +1086,13 @@ contains
                                             r = (i - 1) + (q - 1)*4 + nb*4 + v_size* &
                                                 ((j + buff_size) + (m + 2*buff_size + 1)* &
                                                  ((k + buff_size) + buff_size*l))
-                                            mv_in(j, k + unpack_offset, l, i - nVar, q) = buff_recv(r)
+                                            mv_in(j, k + unpack_offset, l, i - nVar, q) = real(buff_recv(r), kind=stp)
                                         end do
                                     end do
                                 end do
                             end do
                         end do
+                        $:END_GPU_PARALLEL_LOOP()
                     end if
                 #:else
                     ! Unpacking buffer from bc_z%beg
@@ -1064,7 +1105,7 @@ contains
                                         ((j + buff_size) + (m + 2*buff_size + 1)* &
                                          ((k + buff_size) + (n + 2*buff_size + 1)* &
                                           (l + buff_size)))
-                                    q_comm(i)%sf(j, k, l + unpack_offset) = buff_recv(r)
+                                    q_comm(i)%sf(j, k, l + unpack_offset) = real(buff_recv(r), kind=stp)
 #if defined(__INTEL_COMPILER)
                                     if (ieee_is_nan(q_comm(i)%sf(j, k, l))) then
                                         print *, "Error", j, k, l, i
@@ -1075,6 +1116,7 @@ contains
                             end do
                         end do
                     end do
+                    $:END_GPU_PARALLEL_LOOP()
 
                     if (qbmm_comm) then
                         $:GPU_PARALLEL_LOOP(collapse=5,private='[r]')
@@ -1087,12 +1129,13 @@ contains
                                                 ((j + buff_size) + (m + 2*buff_size + 1)* &
                                                  ((k + buff_size) + (n + 2*buff_size + 1)* &
                                                   (l + buff_size)))
-                                            pb_in(j, k, l + unpack_offset, i - nVar, q) = buff_recv(r)
+                                            pb_in(j, k, l + unpack_offset, i - nVar, q) = real(buff_recv(r), kind=stp)
                                         end do
                                     end do
                                 end do
                             end do
                         end do
+                        $:END_GPU_PARALLEL_LOOP()
 
                         $:GPU_PARALLEL_LOOP(collapse=5,private='[r]')
                         do i = nVar + 1, nVar + 4
@@ -1104,12 +1147,13 @@ contains
                                                 ((j + buff_size) + (m + 2*buff_size + 1)* &
                                                  ((k + buff_size) + (n + 2*buff_size + 1)* &
                                                   (l + buff_size)))
-                                            mv_in(j, k, l + unpack_offset, i - nVar, q) = buff_recv(r)
+                                            mv_in(j, k, l + unpack_offset, i - nVar, q) = real(buff_recv(r), kind=stp)
                                         end do
                                     end do
                                 end do
                             end do
                         end do
+                        $:END_GPU_PARALLEL_LOOP()
                     end if
                 #:endif
             end if
@@ -1174,55 +1218,7 @@ contains
         if (n > 0) then
 
             if (p > 0) then
-
-                if (cyl_coord .and. p > 0) then
-                    ! Implement pencil processor blocking if using cylindrical coordinates so
-                    ! that all cells in azimuthal direction are stored on a single processor.
-                    ! This is necessary for efficient application of Fourier filter near axis.
-
-                    ! Initial values of the processor factorization optimization
-                    num_procs_x = 1
-                    num_procs_y = num_procs
-                    num_procs_z = 1
-                    ierr = -1
-
-                    ! Computing minimization variable for these initial values
-                    tmp_num_procs_x = num_procs_x
-                    tmp_num_procs_y = num_procs_y
-                    tmp_num_procs_z = num_procs_z
-                    fct_min = 10._wp*abs((m + 1)/tmp_num_procs_x &
-                                         - (n + 1)/tmp_num_procs_y)
-
-                    ! Searching for optimal computational domain distribution
-                    do i = 1, num_procs
-
-                        if (mod(num_procs, i) == 0 &
-                            .and. &
-                            (m + 1)/i >= num_stcls_min*recon_order) then
-
-                            tmp_num_procs_x = i
-                            tmp_num_procs_y = num_procs/i
-
-                            if (fct_min >= abs((m + 1)/tmp_num_procs_x &
-                                               - (n + 1)/tmp_num_procs_y) &
-                                .and. &
-                                (n + 1)/tmp_num_procs_y &
-                                >= &
-                                num_stcls_min*recon_order) then
-
-                                num_procs_x = i
-                                num_procs_y = num_procs/i
-                                fct_min = abs((m + 1)/tmp_num_procs_x &
-                                              - (n + 1)/tmp_num_procs_y)
-                                ierr = 0
-
-                            end if
-
-                        end if
-
-                    end do
-
-                else
+                if (fft_wrt) then
 
                     ! Initial estimate of optimal processor topology
                     num_procs_x = 1
@@ -1231,60 +1227,152 @@ contains
                     ierr = -1
 
                     ! Benchmarking the quality of this initial guess
-                    tmp_num_procs_x = num_procs_x
                     tmp_num_procs_y = num_procs_y
                     tmp_num_procs_z = num_procs_z
-                    fct_min = 10._wp*abs((m + 1)/tmp_num_procs_x &
-                                         - (n + 1)/tmp_num_procs_y) &
-                              + 10._wp*abs((n + 1)/tmp_num_procs_y &
-                                           - (p + 1)/tmp_num_procs_z)
+                    fct_min = 10._wp*abs((n + 1)/tmp_num_procs_y &
+                                         - (p + 1)/tmp_num_procs_z)
 
                     ! Optimization of the initial processor topology
                     do i = 1, num_procs
 
                         if (mod(num_procs, i) == 0 &
                             .and. &
-                            (m + 1)/i >= num_stcls_min*recon_order) then
+                            (n + 1)/i >= num_stcls_min*recon_order) then
 
-                            do j = 1, num_procs/i
+                            tmp_num_procs_y = i
+                            tmp_num_procs_z = num_procs/i
 
-                                if (mod(num_procs/i, j) == 0 &
-                                    .and. &
-                                    (n + 1)/j >= num_stcls_min*recon_order) then
+                            if (fct_min >= abs((n + 1)/tmp_num_procs_y &
+                                               - (p + 1)/tmp_num_procs_z) &
+                                .and. &
+                                (p + 1)/tmp_num_procs_z &
+                                >= &
+                                num_stcls_min*recon_order) then
 
-                                    tmp_num_procs_x = i
-                                    tmp_num_procs_y = j
-                                    tmp_num_procs_z = num_procs/(i*j)
+                                num_procs_y = i
+                                num_procs_z = num_procs/i
+                                fct_min = abs((n + 1)/tmp_num_procs_y &
+                                              - (p + 1)/tmp_num_procs_z)
+                                ierr = 0
 
-                                    if (fct_min >= abs((m + 1)/tmp_num_procs_x &
-                                                       - (n + 1)/tmp_num_procs_y) &
-                                        + abs((n + 1)/tmp_num_procs_y &
-                                              - (p + 1)/tmp_num_procs_z) &
-                                        .and. &
-                                        (p + 1)/tmp_num_procs_z &
-                                        >= &
-                                        num_stcls_min*recon_order) &
-                                        then
-
-                                        num_procs_x = i
-                                        num_procs_y = j
-                                        num_procs_z = num_procs/(i*j)
-                                        fct_min = abs((m + 1)/tmp_num_procs_x &
-                                                      - (n + 1)/tmp_num_procs_y) &
-                                                  + abs((n + 1)/tmp_num_procs_y &
-                                                        - (p + 1)/tmp_num_procs_z)
-                                        ierr = 0
-
-                                    end if
-
-                                end if
-
-                            end do
+                            end if
 
                         end if
 
                     end do
+                else
 
+                    if (cyl_coord .and. p > 0) then
+                        ! Implement pencil processor blocking if using cylindrical coordinates so
+                        ! that all cells in azimuthal direction are stored on a single processor.
+                        ! This is necessary for efficient application of Fourier filter near axis.
+
+                        ! Initial values of the processor factorization optimization
+                        num_procs_x = 1
+                        num_procs_y = num_procs
+                        num_procs_z = 1
+                        ierr = -1
+
+                        ! Computing minimization variable for these initial values
+                        tmp_num_procs_x = num_procs_x
+                        tmp_num_procs_y = num_procs_y
+                        tmp_num_procs_z = num_procs_z
+                        fct_min = 10._wp*abs((m + 1)/tmp_num_procs_x &
+                                             - (n + 1)/tmp_num_procs_y)
+
+                        ! Searching for optimal computational domain distribution
+                        do i = 1, num_procs
+
+                            if (mod(num_procs, i) == 0 &
+                                .and. &
+                                (m + 1)/i >= num_stcls_min*recon_order) then
+
+                                tmp_num_procs_x = i
+                                tmp_num_procs_y = num_procs/i
+
+                                if (fct_min >= abs((m + 1)/tmp_num_procs_x &
+                                                   - (n + 1)/tmp_num_procs_y) &
+                                    .and. &
+                                    (n + 1)/tmp_num_procs_y &
+                                    >= &
+                                    num_stcls_min*recon_order) then
+
+                                    num_procs_x = i
+                                    num_procs_y = num_procs/i
+                                    fct_min = abs((m + 1)/tmp_num_procs_x &
+                                                  - (n + 1)/tmp_num_procs_y)
+                                    ierr = 0
+
+                                end if
+
+                            end if
+
+                        end do
+
+                    else
+
+                        ! Initial estimate of optimal processor topology
+                        num_procs_x = 1
+                        num_procs_y = 1
+                        num_procs_z = num_procs
+                        ierr = -1
+
+                        ! Benchmarking the quality of this initial guess
+                        tmp_num_procs_x = num_procs_x
+                        tmp_num_procs_y = num_procs_y
+                        tmp_num_procs_z = num_procs_z
+                        fct_min = 10._wp*abs((m + 1)/tmp_num_procs_x &
+                                             - (n + 1)/tmp_num_procs_y) &
+                                  + 10._wp*abs((n + 1)/tmp_num_procs_y &
+                                               - (p + 1)/tmp_num_procs_z)
+
+                        ! Optimization of the initial processor topology
+                        do i = 1, num_procs
+
+                            if (mod(num_procs, i) == 0 &
+                                .and. &
+                                (m + 1)/i >= num_stcls_min*recon_order) then
+
+                                do j = 1, num_procs/i
+
+                                    if (mod(num_procs/i, j) == 0 &
+                                        .and. &
+                                        (n + 1)/j >= num_stcls_min*recon_order) then
+
+                                        tmp_num_procs_x = i
+                                        tmp_num_procs_y = j
+                                        tmp_num_procs_z = num_procs/(i*j)
+
+                                        if (fct_min >= abs((m + 1)/tmp_num_procs_x &
+                                                           - (n + 1)/tmp_num_procs_y) &
+                                            + abs((n + 1)/tmp_num_procs_y &
+                                                  - (p + 1)/tmp_num_procs_z) &
+                                            .and. &
+                                            (p + 1)/tmp_num_procs_z &
+                                            >= &
+                                            num_stcls_min*recon_order) &
+                                            then
+
+                                            num_procs_x = i
+                                            num_procs_y = j
+                                            num_procs_z = num_procs/(i*j)
+                                            fct_min = abs((m + 1)/tmp_num_procs_x &
+                                                          - (n + 1)/tmp_num_procs_y) &
+                                                      + abs((n + 1)/tmp_num_procs_y &
+                                                            - (p + 1)/tmp_num_procs_z)
+                                            ierr = 0
+
+                                        end if
+
+                                    end if
+
+                                end do
+
+                            end if
+
+                        end do
+
+                    end if
                 end if
 
                 ! Verifying that a valid decomposition of the computational
@@ -1570,14 +1658,14 @@ contains
 
 #ifdef MFC_POST_PROCESS
         ! Ghost zone at the beginning
-        if (proc_coords(1) > 0 .and. format == 1 .and. n > 0) then
+        if (proc_coords(1) > 0 .and. format == 1) then
             offset_x%beg = 2
         else
             offset_x%beg = 0
         end if
 
         ! Ghost zone at the end
-        if (proc_coords(1) < num_procs_x - 1 .and. format == 1 .and. n > 0) then
+        if (proc_coords(1) < num_procs_x - 1 .and. format == 1) then
             offset_x%end = 2
         else
             offset_x%end = 0
