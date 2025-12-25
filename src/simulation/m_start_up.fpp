@@ -147,11 +147,11 @@ contains
         character(len=1000) :: line
 
         ! Namelist of the global parameters which may be specified by user
-        namelist /user_inputs/ case_dir, run_time_info, m, n, p, dt, &
+        namelist /user_inputs/ case_dir, run_time_info, m, n, p, dt, dtau, &
             t_step_start, t_step_stop, t_step_save, t_step_print, &
             model_eqns, mpp_lim, time_stepper, weno_eps, &
             rdma_mpi, teno_CT, mp_weno, weno_avg, &
-            riemann_solver, low_Mach, wave_speeds, avg_state, &
+            riemann_solver, low_Mach, wave_speeds, avg_state, preconditioning, &
             bc_x, bc_y, bc_z, &
             x_a, y_a, z_a, x_b, y_b, z_b, &
             x_domain, y_domain, z_domain, &
@@ -1133,6 +1133,12 @@ contains
         ! Total-variation-diminishing (TVD) Runge-Kutta (RK) time-steppers
         if (any(time_stepper == (/1, 2, 3/))) then
             call s_tvd_rk(t_step, time_avg, time_stepper)
+        else if (time_stepper == 4) then
+            if (t_step == 0) then
+              call s_backward_euler(t_step, time_avg)
+            else
+              call s_bdf2(t_step, time_avg)
+            end if
         end if
 
         if (relax) call s_infinite_relaxation_k(q_cons_ts(1)%vf)
@@ -1503,7 +1509,7 @@ contains
             & gam, gam_m,Eu,Ca,Web,Re_inv,Pe_c,phi_vg,phi_gv,omegaN, &
             & bubbles_euler,polytropic,polydisperse,qbmm, &
             & ptil,bubble_model,thermal,poly_sigma,adv_n,adap_dt, &
-            & adap_dt_tol,adap_dt_max_iters,n_idx,pi_fac,low_Mach]')
+            & adap_dt_tol,adap_dt_max_iters,n_idx,pi_fac,low_Mach,preconditioning]')
 
         if (bubbles_euler) then
             $:GPU_UPDATE(device='[weight,R0]')
