@@ -631,6 +631,317 @@ contains
 
     end subroutine s_tvd_rk
 
+    subroutine s_bdf2(t_step, time_avg)
+        real(wp), parameter :: pts_tol = 1e-4_wp
+
+        integer, intent(in) :: t_step
+        real(wp), intent(inout) :: time_avg
+
+        real(wp) :: rho        !< Cell-avg. density
+        real(wp), dimension(num_vels) :: vel        !< Cell-avg. velocity
+        real(wp) :: vel_sum    !< Cell-avg. velocity sum
+        real(wp) :: pres       !< Cell-avg. pressure
+        real(wp), dimension(num_fluids) :: alpha      !< Cell-avg. volume fraction
+        real(wp) :: gamma      !< Cell-avg. sp. heat ratio
+        real(wp) :: pi_inf     !< Cell-avg. liquid stiffness function
+        real(wp) :: c          !< Cell-avg. sound speed
+        real(wp) :: H          !< Cell-avg. enthalpy
+        real(wp), dimension(2) :: Re         !< Cell-avg. Reynolds numbers
+        real(wp) :: rho_K, gamma_K, pi_inf_K, vel_sum_K
+
+        real(wp) :: start, finish
+        integer :: iter
+        real(wp) :: max_dq, max_dq_glb
+
+        real(wp) :: beta
+        real(wp), dimension(sys_size) :: pcond, dq
+        integer :: i, j, k, l, q, s !< Generic loop iterator
+
+        call cpu_time(start)
+        call nvtxStartRange("TIMESTEP")
+
+        !! q_cons_ts(1): qc at n
+        !! q_cons_ts(2): qc at n - 1
+        !! q_cons_pts(1): omega at m
+        
+        ! Initialize q_cons_pts = q_cons_ts(1)
+        $:GPU_PARALLEL_LOOP(collapse=4)
+        do i = 1, sys_size
+            do l = idwbuff(3)%beg, idwbuff(3)%end
+                do k = idwbuff(2)%beg, idwbuff(2)%end
+                    do j = idwbuff(1)%beg, idwbuff(1)%end
+                        q_cons_pts(1)%vf(i)%sf(j, k, l) = q_cons_ts(1)%vf(i)%sf(j, k, l)
+                    end do
+                end do
+            end do
+        end do
+
+        ! Stage 2: Run pseudo-time-steps
+        iter = 0
+        do while(.true.)
+            max_dq = 0._wp
+        
+            call s_compute_rhs(q_cons_pts(1)%vf, q_T_sf, q_prim_vf, bc_type, rhs_vf, pb_ts(1)%sf, rhs_pb, mv_ts(1)%sf, rhs_mv, t_step, time_avg, 1)
+
+            $:GPU_PARALLEL_LOOP(collapse=3)
+            do l = 0, p
+                do k = 0, n
+                    do j = 0, m
+                      if (preconditioning) then
+                          call s_compute_enthalpy(q_prim_vf, pres, rho, gamma, pi_inf, Re, H, alpha, vel, vel_sum, j, k, l)
+                          call s_compute_speed_of_sound(pres, rho, gamma, pi_inf, H, alpha, vel_sum, 0._wp, c)
+                          beta = min(max(sgm_eps, vel_sum/c**2._wp), 1._wp)
+
+                          do i = contxb, contxe
+                              pcond(i) = (beta - 1._wp)*vel_sum/2._wp
+                          end do
+
+                          do i = 1, num_dims
+                              pcond(momxb - 1 + i) = (1._wp - beta)*vel(i)
+                          end do
+
+                          pcond(E_idx) = 1._wp
+                          
+                          do i = 1, num_fluids
+                              pcond(advxb - 1 + i) = (1._wp - beta)*(gammas(i)*pres + pi_infs(i))
+                          end do
+                      else
+                          pcond(:) = 0._wp
+                          pcond(E_idx) = 1._wp
+                      end if
+
+                      ! Compute RHS for pseudo time step
+                      do i = 1, sys_size
+                          dq(i) = dtau * (rhs_vf(i)%sf(j, k, l) - (3._wp * q_cons_pts(1)%vf(i)%sf(j, k, l) - 4._wp * q_cons_ts(1)%vf(i)%sf(j, k, l) + q_cons_ts(2)%vf(i)%sf(j, k, l))/(2._wp * dt))
+                          ! NaN checker
+                          if (dq(i) /= dq(i)) then
+                              print *, i, j, k, l, iter, rhs_vf(i)%sf(j, k, l), q_cons_pts(1)%vf(i)%sf(j, k, l)
+                              call s_mpi_abort("dq is NaN")
+                          end if
+                      end do
+
+                      do i = 1, sys_size
+                          ! Update variables
+                          if (i == E_idx) then
+                              q_cons_pts(1)%vf(i)%sf(j, k, l) = q_cons_pts(1)%vf(i)%sf(j, k, l) + sum(pcond*dq)
+                              if (abs(sum(pcond*dq)) > max_dq) max_dq = abs(sum(pcond*dq))
+                          else
+                              q_cons_pts(1)%vf(i)%sf(j, k, l) = q_cons_pts(1)%vf(i)%sf(j, k, l) + dq(i)
+                              if (abs(dq(i)) > max_dq) max_dq = abs(dq(i))
+                          end if
+                      end do
+                    end do
+                end do
+            end do
+
+#ifdef MFC_MPI
+            call s_mpi_allreduce_max(max_dq, max_dq_glb)
+#else
+            max_dq_glb = max_dq
+#endif
+
+            ! Check max error
+            if (max_dq_glb < pts_tol) then
+                if (proc_rank == 0) print *, "max_err < pts_tol at pseudo-time iteration: ", iter
+                $:GPU_PARALLEL_LOOP(collapse=4)
+                do i = 1, sys_size
+                    do l = 0, p
+                        do k = 0, n
+                            do j = 0, m
+                                q_cons_ts(2)%vf(i)%sf(j, k, l) = q_cons_ts(1)%vf(i)%sf(j, k, l)
+                                q_cons_ts(1)%vf(i)%sf(j, k, l) = q_cons_pts(1)%vf(i)%sf(j, k, l)
+                            end do
+                        end do
+                    end do
+                end do
+
+                ! IBM
+                if (ib) then
+                    if (qbmm .and. .not. polytropic) then
+                        call s_ibm_correct_state(q_cons_ts(1)%vf, q_prim_vf, pb_ts(1)%sf, mv_ts(1)%sf)
+                    else
+                        call s_ibm_correct_state(q_cons_ts(1)%vf, q_prim_vf)
+                    end if
+                end if
+
+                exit
+            else if (iter > 1000) then
+                print *, "max_dq_glb", max_dq_glb, max_dq, proc_rank
+                call s_mpi_barrier()
+                if (proc_rank == 0) call s_mpi_abort("pseudo time iteraiton reached maximum of 1000")
+            else
+                iter = iter + 1
+            end if
+        end do
+        
+        !
+        call nvtxEndRange
+        call cpu_time(finish)
+
+        wall_time = abs(finish - start)
+
+        if (t_step >= 2) then
+            wall_time_avg = (wall_time + (t_step - 2)*wall_time_avg)/(t_step - 1)
+        else
+            wall_time_avg = 0._wp
+        end if
+
+    end subroutine s_bdf2
+
+    subroutine s_backward_euler(t_step, time_avg)
+        real(wp), parameter :: pts_tol = 1e-4_wp
+
+        integer, intent(in) :: t_step
+        real(wp), intent(inout) :: time_avg
+
+        real(wp) :: rho        !< Cell-avg. density
+        real(wp), dimension(num_vels) :: vel        !< Cell-avg. velocity
+        real(wp) :: vel_sum    !< Cell-avg. velocity sum
+        real(wp) :: pres       !< Cell-avg. pressure
+        real(wp), dimension(num_fluids) :: alpha      !< Cell-avg. volume fraction
+        real(wp) :: gamma      !< Cell-avg. sp. heat ratio
+        real(wp) :: pi_inf     !< Cell-avg. liquid stiffness function
+        real(wp) :: c          !< Cell-avg. sound speed
+        real(wp) :: H          !< Cell-avg. enthalpy
+        real(wp), dimension(2) :: Re         !< Cell-avg. Reynolds numbers
+        real(wp) :: rho_K, gamma_K, pi_inf_K, vel_sum_K
+
+        real(wp) :: start, finish
+        integer :: iter
+        real(wp) :: max_dq, max_dq_glb
+
+        real(wp) :: beta
+        real(wp), dimension(sys_size) :: pcond, dq
+        integer :: i, j, k, l, q, s !< Generic loop iterator
+
+        call cpu_time(start)
+        call nvtxStartRange("TIMESTEP")
+        
+        ! Initialize q_cons_pts = q_cons_ts(1)
+        $:GPU_PARALLEL_LOOP(collapse=4)
+        do i = 1, sys_size
+            do l = idwbuff(3)%beg, idwbuff(3)%end
+                do k = idwbuff(2)%beg, idwbuff(2)%end
+                    do j = idwbuff(1)%beg, idwbuff(1)%end
+                        q_cons_pts(1)%vf(i)%sf(j, k, l) = q_cons_ts(1)%vf(i)%sf(j, k, l)
+                        q_cons_pts(2)%vf(i)%sf(j, k, l) = q_cons_pts(1)%vf(i)%sf(j, k, l)
+                    end do
+                end do
+            end do
+        end do
+
+        ! Stage 2: Run pseudo-time-steps
+        iter = 0
+        do while(.true.)
+            max_dq = 0._wp
+        
+            call s_compute_rhs(q_cons_pts(2)%vf, q_T_sf, q_prim_vf, bc_type, rhs_vf, pb_ts(1)%sf, rhs_pb, mv_ts(1)%sf, rhs_mv, t_step, time_avg, 1)
+
+            $:GPU_PARALLEL_LOOP(collapse=3)
+            do l = 0, p
+                do k = 0, n
+                    do j = 0, m
+                      if (preconditioning) then
+                          call s_compute_enthalpy(q_prim_vf, pres, rho, gamma, pi_inf, Re, H, alpha, vel, vel_sum, j, k, l)
+                          call s_compute_speed_of_sound(pres, rho, gamma, pi_inf, H, alpha, vel_sum, 0._wp, c)
+                          beta = min(max(sgm_eps, vel_sum/c**2._wp), 1._wp)
+
+                          do i = contxb, contxe
+                              pcond(i) = (beta - 1._wp)*vel_sum/2._wp
+                          end do
+
+                          do i = 1, num_dims
+                              pcond(momxb - 1 + i) = (1._wp - beta)*vel(i)
+                          end do
+
+                          pcond(E_idx) = 1._wp
+                          
+                          do i = 1, num_fluids
+                              pcond(advxb - 1 + i) = (1._wp - beta)*(gammas(i)*pres + pi_infs(i))
+                          end do
+                      else
+                          pcond(:) = 0._wp
+                          pcond(E_idx) = 1._wp
+                      end if
+
+                      ! Compute RHS for pseudo time step
+                      do i = 1, sys_size
+                          dq(i) = dtau * (rhs_vf(i)%sf(j, k, l) - (q_cons_pts(2)%vf(i)%sf(j, k, l) - q_cons_pts(1)%vf(i)%sf(j, k, l))/dt)
+                          ! NaN checker
+                          if (dq(i) /= dq(i)) then
+                              print *, i, j, k, l, iter, rhs_vf(i)%sf(j, k, l), q_cons_pts(2)%vf(i)%sf(j, k, l), q_cons_pts(1)%vf(i)%sf(j, k, l)
+                              call s_mpi_abort("dq is NaN")
+                          end if
+                      end do
+
+                      do i = 1, sys_size
+                          ! Update variables
+                          if (i == E_idx) then
+                              q_cons_pts(2)%vf(i)%sf(j, k, l) = q_cons_pts(2)%vf(i)%sf(j, k, l) + sum(pcond*dq)
+                              if (abs(sum(pcond*dq)) > max_dq) max_dq = abs(sum(pcond*dq))
+                          else
+                              q_cons_pts(2)%vf(i)%sf(j, k, l) = q_cons_pts(2)%vf(i)%sf(j, k, l) + dq(i)
+                              if (abs(dq(i)) > max_dq) max_dq = abs(dq(i))
+                          end if
+                      end do
+                    end do
+                end do
+            end do
+
+#ifdef MFC_MPI
+            call s_mpi_allreduce_max(max_dq, max_dq_glb)
+#else
+            max_dq_glb = max_dq
+#endif
+
+            ! Check max error
+            if (max_dq_glb < pts_tol) then
+                if (proc_rank == 0) print *, "max_err < pts_tol at pseudo-time iteration: ", iter
+                $:GPU_PARALLEL_LOOP(collapse=4)
+                do i = 1, sys_size
+                    do l = 0, p
+                        do k = 0, n
+                            do j = 0, m
+                                q_cons_ts(2)%vf(i)%sf(j, k, l) = q_cons_ts(1)%vf(i)%sf(j, k, l)
+                                q_cons_ts(1)%vf(i)%sf(j, k, l) = q_cons_pts(2)%vf(i)%sf(j, k, l)
+                            end do
+                        end do
+                    end do
+                end do
+
+                ! IBM
+                if (ib) then
+                    if (qbmm .and. .not. polytropic) then
+                        call s_ibm_correct_state(q_cons_ts(1)%vf, q_prim_vf, pb_ts(1)%sf, mv_ts(1)%sf)
+                    else
+                        call s_ibm_correct_state(q_cons_ts(1)%vf, q_prim_vf)
+                    end if
+                end if
+
+                exit
+            else if (iter > 1000) then
+                print *, "max_dq_glb", max_dq_glb, max_dq, proc_rank
+                call s_mpi_barrier()
+                if (proc_rank == 0) call s_mpi_abort("pseudo time iteraiton reached maximum of 1000")
+            else
+                iter = iter + 1
+            end if
+        end do
+        
+        !
+        call nvtxEndRange
+        call cpu_time(finish)
+
+        wall_time = abs(finish - start)
+
+        if (t_step >= 2) then
+            wall_time_avg = (wall_time + (t_step - 2)*wall_time_avg)/(t_step - 1)
+        else
+            wall_time_avg = 0._wp
+        end if
+
+    end subroutine s_backward_euler
+
     subroutine s_implicit_rk2_prim(t_step, time_avg)
         real(wp), parameter :: pts_tol = 1e-4_wp
 
@@ -651,7 +962,6 @@ contains
 
         real(wp) :: start, finish
         integer :: iter
-        real(wp) :: dtau
         real(wp) :: max_dq, max_dq_glb
 
         real(wp) :: beta, mach2
@@ -660,8 +970,6 @@ contains
 
         call cpu_time(start)
         call nvtxStartRange("TIMESTEP")
-
-        dtau = 0.01_wp*dt
         
         ! Initialize q_cons_pts = q_cons_ts(1)
         $:GPU_PARALLEL_LOOP(collapse=4)
@@ -847,7 +1155,6 @@ contains
 
         real(wp) :: start, finish
         integer :: iter
-        real(wp) :: dtau
         real(wp) :: max_dq, max_dq_glb
 
         real(wp) :: beta, mach2
@@ -856,8 +1163,6 @@ contains
 
         call cpu_time(start)
         call nvtxStartRange("TIMESTEP")
-
-        dtau = 0.5_wp*dt
         
         ! Initialize q_cons_pts = q_cons_ts(1)
         $:GPU_PARALLEL_LOOP(collapse=4)
@@ -1044,7 +1349,6 @@ contains
 
     !     real(wp) :: start, finish
     !     integer :: iter
-    !     real(wp) :: dtau
     !     real(wp) :: dq, max_dq
     !     logical :: check_pts_err
 
@@ -1052,8 +1356,6 @@ contains
 
     !     call cpu_time(start)
     !     call nvtxStartRange("TIMESTEP")
-
-    !     dtau = 0.1_wp*dt
         
     !     ! Initialize q_cons_pts = q_cons_ts(1)
     !     $:GPU_PARALLEL_LOOP(collapse=4)

@@ -79,8 +79,9 @@ module m_global_parameters
     !> @}
 
     real(wp) :: dt !< Size of the time-step
+    real(wp) :: dtau
 
-    $:GPU_DECLARE(create='[x_cb,y_cb,z_cb,x_cc,y_cc,z_cc,dx,dy,dz,dt,m,n,p]')
+    $:GPU_DECLARE(create='[x_cb,y_cb,z_cb,x_cc,y_cc,z_cc,dx,dy,dz,dt,dtau,m,n,p]')
 
     !> @name Starting time-step iteration, stopping time-step iteration and the number
     !! of time-step iterations between successive solution backups, respectively
@@ -569,6 +570,7 @@ contains
         cyl_coord = .false.
 
         dt = dflt_real
+        dtau = dflt_real
 
         cfl_adap_dt = .false.
         cfl_const_dt = .false.
@@ -1304,7 +1306,7 @@ contains
         $:GPU_UPDATE(device='[cfl_target,m,n,p]')
 
         $:GPU_UPDATE(device='[alt_soundspeed,acoustic_source,num_source]')
-        $:GPU_UPDATE(device='[dt,sys_size,buff_size,pref,rhoref, &
+        $:GPU_UPDATE(device='[dt,dtau,sys_size,buff_size,pref,rhoref, &
             & gamma_idx,pi_inf_idx,E_idx,alf_idx,stress_idx, &
             & mpp_lim,bubbles_euler,hypoelasticity,alt_soundspeed, &
             & avg_state,num_fluids,model_eqns,num_dims,num_vels, &

@@ -254,6 +254,7 @@ SIMULATION.update({
     'run_time_info': ParamType.LOG,
     't_step_old': ParamType.INT,
     'dt': ParamType.REAL,
+    'dtau': ParamType.REAL,
     't_step_start': ParamType.INT,
     't_step_stop': ParamType.INT,
     't_step_save': ParamType.INT,
