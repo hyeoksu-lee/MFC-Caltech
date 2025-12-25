@@ -708,8 +708,8 @@ contains
                                     alf_sum%sf(j, k, l) = alf_sum%sf(j, k, l) + q_cons_qp%vf(E_idx + i)%sf(j, k, l)
                                 end do
                                 $:GPU_LOOP(parallelism='[seq]')
-                                do i = advxb, advxe
-                                    q_cons_qp%vf(i)%sf(j, k, l) = q_cons_qp%vf(i)%sf(j, k, l)/max(alf_sum%sf(j, k, l), sgm_eps)
+                                do i = 1, num_fluids
+                                    q_cons_qp%vf(E_idx + i)%sf(j, k, l) = q_cons_qp%vf(E_idx + i)%sf(j, k, l)/max(alf_sum%sf(j, k, l), sgm_eps)
                                 end do
                             end do
                         end do

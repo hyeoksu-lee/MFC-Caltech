@@ -3105,6 +3105,7 @@ contains
 
                                 ! Change this by splitting it into the cases
                                 ! present in the bubbles_euler
+                                alpha_L_sum = 0._wp; alpha_R_sum = 0._wp
                                 if (mpp_lim) then
                                     $:GPU_LOOP(parallelism='[seq]')
                                     do i = 1, num_fluids
