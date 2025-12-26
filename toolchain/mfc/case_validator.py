@@ -480,7 +480,7 @@ class CaseValidator:  # pylint: disable=too-many-public-methods
         time_stepper = self.get('time_stepper')
 
         # Check time_stepper bounds
-        self.prohibit(time_stepper is not None and (time_stepper < 1 or time_stepper > 3),
+        self.prohibit(time_stepper is not None and (time_stepper < 1 or time_stepper > 4),
                      "time_stepper must be 1, 2, or 3")
 
         if cfl_dt:
