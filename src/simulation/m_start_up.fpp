@@ -1134,11 +1134,7 @@ contains
         if (any(time_stepper == (/1, 2, 3/))) then
             call s_tvd_rk(t_step, time_avg, time_stepper)
         else if (time_stepper == 4) then
-            if (t_step == 0) then
-              call s_backward_euler(t_step, time_avg)
-            else
-              call s_bdf2(t_step, time_avg)
-            end if
+            call s_bdf2(t_step, time_avg)
         end if
 
         if (relax) call s_infinite_relaxation_k(q_cons_ts(1)%vf)

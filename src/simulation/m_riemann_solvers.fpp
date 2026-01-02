@@ -3327,8 +3327,8 @@ contains
                                                                                                    rho_R*(s_R - vel_R(dir_idx(1))))
                                     else
                                         if (preconditioning) then
-                                            beta2_L = min(max(sgm_eps, vel_L_rms/c_L**2._wp), 1._wp)
-                                            beta2_R = min(max(sgm_eps, vel_R_rms/c_R**2._wp), 1._wp)
+                                            beta2_L = min(max(0.01_wp, vel_L_rms/c_L**2._wp), 1._wp)
+                                            beta2_R = min(max(0.01_wp, vel_R_rms/c_R**2._wp), 1._wp)
                                             u_L = vel_L(dir_idx(1))
                                             u_R = vel_R(dir_idx(1))
                                             s_L = min(0.5_wp*((beta2_L + 1._wp)*u_L - sqrt(((beta2_L - 1._wp)*u_L)**2._wp + 4._wp*beta2_L*c_L**2._wp)), &
