@@ -78,8 +78,13 @@ module m_global_parameters
 
     real(wp) :: dt !< Size of the time-step
     real(wp) :: dtau
+    real(wp) :: dts_cfl
+    real(wp) :: dts_r_tol
+    real(wp) :: dts_a_tol
+    integer :: dts_iter_max
+    real(wp) :: dts_cutoff
 
-    $:GPU_DECLARE(create='[x_cb,y_cb,z_cb,x_cc,y_cc,z_cc,dx,dy,dz,dt,dtau,m,n,p]')
+    $:GPU_DECLARE(create='[x_cb,y_cb,z_cb,x_cc,y_cc,z_cc,dx,dy,dz,dt,dtau,dts_cfl,dts_r_tol,dts_a_tol,dts_iter_max,dts_cutoff,m,n,p]')
 
     !> @name Starting time-step iteration, stopping time-step iteration and the number
     !! of time-step iterations between successive solution backups, respectively
@@ -576,6 +581,11 @@ contains
 
         dt = dflt_real
         dtau = dflt_real
+        dts_cfl = dflt_real
+        dts_r_tol = dflt_real
+        dts_a_tol = dflt_real
+        dts_iter_max = 1000
+        dts_cutoff = dflt_real
 
         cfl_adap_dt = .false.
         cfl_const_dt = .false.
@@ -1273,7 +1283,8 @@ contains
         $:GPU_UPDATE(device='[cfl_target,m,n,p]')
 
         $:GPU_UPDATE(device='[alt_soundspeed,acoustic_source,num_source]')
-        $:GPU_UPDATE(device='[dt,dtau,sys_size,buff_size,pref,rhoref, &
+        $:GPU_UPDATE(device='[dt,dtau,dts_cfl,dts_r_tol,dts_a_tol,dts_iter_max, &
+            & dts_cutoff, sys_size,buff_size,pref,rhoref, &
             & gamma_idx,pi_inf_idx,E_idx,alf_idx,stress_idx, &
             & mpp_lim,bubbles_euler,hypoelasticity,alt_soundspeed, &
             & avg_state,model_eqns, &

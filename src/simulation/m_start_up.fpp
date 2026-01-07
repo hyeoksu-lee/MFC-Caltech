@@ -147,7 +147,8 @@ contains
         character(len=1000) :: line
 
         ! Namelist of the global parameters which may be specified by user
-        namelist /user_inputs/ case_dir, run_time_info, m, n, p, dt, dtau, &
+        namelist /user_inputs/ case_dir, run_time_info, m, n, p, dt, &
+            dtau, dts_cfl, dts_r_tol, dts_a_tol, dts_iter_max, dts_cutoff, &
             t_step_start, t_step_stop, t_step_save, t_step_print, &
             model_eqns, mpp_lim, time_stepper, weno_eps, &
             rdma_mpi, teno_CT, mp_weno, weno_avg, &
@@ -1134,7 +1135,7 @@ contains
         if (any(time_stepper == (/1, 2, 3/))) then
             call s_tvd_rk(t_step, time_avg, time_stepper)
         else if (time_stepper == 4) then
-            call s_bdf2(t_step, time_avg)
+            call s_dts(t_step, time_avg)
         end if
 
         if (relax) call s_infinite_relaxation_k(q_cons_ts(1)%vf)

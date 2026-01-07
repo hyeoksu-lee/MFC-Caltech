@@ -3327,10 +3327,10 @@ contains
                                                                                                    rho_R*(s_R - vel_R(dir_idx(1))))
                                     else
                                         if (preconditioning) then
-                                            beta2_L = min(max(0.01_wp, vel_L_rms/c_L**2._wp), 1._wp)
-                                            beta2_R = min(max(0.01_wp, vel_R_rms/c_R**2._wp), 1._wp)
                                             u_L = vel_L(dir_idx(1))
                                             u_R = vel_R(dir_idx(1))
+                                            beta2_L = min(max(dts_cutoff**2._wp, vel_L_rms/c_L**2._wp), 1._wp)
+                                            beta2_R = min(max(dts_cutoff**2._wp, vel_R_rms/c_R**2._wp), 1._wp)
                                             s_L = min(0.5_wp*((beta2_L + 1._wp)*u_L - sqrt(((beta2_L - 1._wp)*u_L)**2._wp + 4._wp*beta2_L*c_L**2._wp)), &
                                                       0.5_wp*((beta2_R + 1._wp)*u_R - sqrt(((beta2_R - 1._wp)*u_R)**2._wp + 4._wp*beta2_R*c_R**2._wp)))
                                             s_R = max(0.5_wp*((beta2_L + 1._wp)*u_L + sqrt(((beta2_L - 1._wp)*u_L)**2._wp + 4._wp*beta2_L*c_L**2._wp)), &
@@ -3339,8 +3339,6 @@ contains
                                             s_L = min(vel_L(dir_idx(1)) - c_L, vel_R(dir_idx(1)) - c_R)
                                             s_R = max(vel_R(dir_idx(1)) + c_R, vel_L(dir_idx(1)) + c_L)
                                         end if
-                                        ! s_L = min(vel_L(dir_idx(1)) - c_L, vel_R(dir_idx(1)) - c_R)
-                                        ! s_R = max(vel_R(dir_idx(1)) + c_R, vel_L(dir_idx(1)) + c_L)
                                         s_S = (pres_R - pres_L + rho_L*vel_L(dir_idx(1))* &
                                                (s_L - vel_L(dir_idx(1))) - rho_R*vel_R(dir_idx(1))*(s_R - vel_R(dir_idx(1)))) &
                                               /(rho_L*(s_L - vel_L(dir_idx(1))) - rho_R*(s_R - vel_R(dir_idx(1))))
@@ -3431,6 +3429,15 @@ contains
                                                        (rho_R*s_S + pres_R/ &
                                                         (s_R - vel_R(dir_idx(1))))) - E_R)) &
                                     + (s_M/s_L)*(s_P/s_R)*pcorr*s_S
+
+                                if ( flux_rs${XYZ}$_vf(j, k, l, E_idx) /= flux_rs${XYZ}$_vf(j, k, l, E_idx)) then
+                                    print *, j, k, l, flux_rs${XYZ}$_vf(j, k, l, E_idx)
+                                    print *, xi_M, vel_L(dir_idx(1)), E_L, pres_L
+                                    print *, s_M, xi_L, s_S, rho_L
+                                    print *, xi_P, vel_R(dir_idx(1)), E_R, pres_R
+                                    print *, s_P, xi_R, rho_R
+                                    call s_mpi_abort()
+                                end if
 
                                 ! ELASTICITY. Elastic shear stress additions for the momentum and energy flux
                                 if (elasticity) then
