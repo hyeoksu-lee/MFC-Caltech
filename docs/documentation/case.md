@@ -384,12 +384,12 @@ Details of implementation of viscosity in MFC can be found in [Coralic (2015)](r
 - `fluid_pp(i)%%G` is required for `hypoelasticity`.
 
 ### 6. Simulation Algorithm
-.  
-| Parameter               .  | Type    | Description                                    |
-| ---:                    .  | :----:  |          :---                                  |
-| `bc_[x,y,z]%%beg[end]`  .  | Integer | Beginning [ending] boundary condition in the $[x,y,z]$-direction (negative integer, see table [Boundary Conditions](#boundary-conditions)) |
-| `bc_[x,y,z]%%vb[1,2,3]`‡.  | Real    | Velocity in the (x,1), (y, 2), (z,3) direction applied to `bc_[x,y,z]%%beg` |
-| `bc_[x,y,z]%%ve[1,2,3]`‡.  | Real    | Velocity in the (x,1), (y, 2), (z,3) direction applied to `bc_[x,y,z]%%end` |
+  
+| Parameter                  | Type    | Description                                    |
+| ---:                       | :----:  |          :---                                  |
+| `bc_[x,y,z]%%beg[end]`     | Integer | Beginning [ending] boundary condition in the $[x,y,z]$-direction (negative integer, see table [Boundary Conditions](#boundary-conditions)) |
+| `bc_[x,y,z]%%vb[1,2,3]`‡   | Real    | Velocity in the (x,1), (y, 2), (z,3) direction applied to `bc_[x,y,z]%%beg` |
+| `bc_[x,y,z]%%ve[1,2,3]`‡   | Real    | Velocity in the (x,1), (y, 2), (z,3) direction applied to `bc_[x,y,z]%%end` |
 | `model_eqns`               | Integer | Multicomponent model: [1] $\Gamma/\Pi_\infty$; [2] 5-equation; [3] 6-equation; [4] 4-equation |
 | `alt_soundspeed` *         | Logical | Alternate sound speed and $K \nabla \cdot u$ for 5-equation model |
 | `adv_n`   	               | Logical | Solving directly for the number density (in the method of classes) and compute void fraction from the number density |
@@ -992,6 +992,22 @@ When ``cyl_coord = 'T'`` is set in 3D the following constraints must be met:
 When ``cyl_coord = 'T'`` is set in 2D the following constraints must be met:
 
 - `bc_y%beg = -2` to enable reflective boundary conditions
+
+### 17. Chemistry
+
+| Parameter                     | Type    | Description                                              |
+| ---:                          | :---:   | :---                                                     |
+| `chemistry`                   | Logical | Enable chemistry simulation                              |
+| `chem_params%diffusion`       | Logical | Enable multispecies diffusion                            |
+| `chem_params%reactions`       | Logical | Enable chemical reactions                                |
+| `chem_params%gamma_method`    | Integer | Methodology for calculating the heat capacity ratio      |
+| `chem_params%transport_model` | Integer | Methodology for calculating the diffusion coefficients   |
+| `cantera_file`                | String  | Cantera-format mechanism file (e.g., .yaml)              |
+
+- `chem_params%transport_model` specifies the methodology for calculating diffusion coefficients and other transport properties, `1` for mixture-average, `2` for Unity-Lewis
+
+- `cantera_file` specifies the chemical mechanism file. If the file is part of the standard Cantera library, only the filename is required. Otherwise, the file must be located in the same directory as your `case.py` file
+
 
 ## Enumerations
 
