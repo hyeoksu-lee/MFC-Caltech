@@ -78,6 +78,8 @@ module m_time_steppers
     integer, private :: num_ts !<
     !! Number of time stages in the time-stepping scheme
 
+    real(wp), allocatable, dimension(:, :, :, :, :) :: fjacobian
+
     integer :: stor !< storage index
     real(wp), allocatable, dimension(:, :) :: rk_coef
     integer, private :: num_probe_ts
@@ -93,6 +95,11 @@ module m_time_steppers
     integer(kind=8) :: pool_size
     type(c_ptr) :: cptr_host, cptr_device
 #endif
+
+    real(wp), allocatable, dimension(:, :, :) :: rho_avg_x, vel_avg_rms_x, H_avg_x, gamma_avg_x
+    real(wp), allocatable, dimension(:, :, :, :) :: vel_avg_x
+    real(wp), allocatable, dimension(:, :, :) :: rho_avg_y, vel_avg_rms_y, H_avg_y, gamma_avg_y
+    real(wp), allocatable, dimension(:, :, :, :) :: vel_avg_y
 
 contains
 
@@ -143,9 +150,9 @@ contains
                                           1:sys_size))
             ! host allocation for q_cons_pts(2)%vf(j)%sf for all j
             allocate (q_cons_pts_pool_host(idwbuff(1)%beg:idwbuff(1)%end, &
-                                          idwbuff(2)%beg:idwbuff(2)%end, &
-                                          idwbuff(3)%beg:idwbuff(3)%end, &
-                                          1:sys_size))
+                                           idwbuff(2)%beg:idwbuff(2)%end, &
+                                           idwbuff(3)%beg:idwbuff(3)%end, &
+                                           1:sys_size))
         end if
 
         do j = 1, sys_size
@@ -167,8 +174,8 @@ contains
                                           idwbuff(3)%beg:idwbuff(3)%end) => q_cons_ts_pool_host(:, :, :, j)
                     ! q_cons_pts(2) lives on the host
                     q_cons_pts(2)%vf(j)%sf(idwbuff(1)%beg:idwbuff(1)%end, &
-                                          idwbuff(2)%beg:idwbuff(2)%end, &
-                                          idwbuff(3)%beg:idwbuff(3)%end) => q_cons_pts_pool_host(:, :, :, j)
+                                           idwbuff(2)%beg:idwbuff(2)%end, &
+                                           idwbuff(3)%beg:idwbuff(3)%end) => q_cons_pts_pool_host(:, :, :, j)
                 else
                     @:ALLOCATE(q_cons_ts(2)%vf(j)%sf(idwbuff(1)%beg:idwbuff(1)%end, &
                         idwbuff(2)%beg:idwbuff(2)%end, &
@@ -229,8 +236,8 @@ contains
                                   idwbuff(3)%beg:idwbuff(3)%end) => q_cons_ts_pool_device(:, :, :, j)
             ! q_cons_pts(1) lives on the device
             q_cons_pts(1)%vf(j)%sf(idwbuff(1)%beg:idwbuff(1)%end, &
-                                  idwbuff(2)%beg:idwbuff(2)%end, &
-                                  idwbuff(3)%beg:idwbuff(3)%end) => q_cons_pts_pool_device(:, :, :, j)
+                                   idwbuff(2)%beg:idwbuff(2)%end, &
+                                   idwbuff(3)%beg:idwbuff(3)%end) => q_cons_pts_pool_device(:, :, :, j)
             if (num_ts == 2) then
                 ! q_cons_ts(2) lives on the host
                 q_cons_ts(2)%vf(j)%sf(idwbuff(1)%beg:idwbuff(1)%end, &
@@ -238,8 +245,8 @@ contains
                                       idwbuff(3)%beg:idwbuff(3)%end) => q_cons_ts_pool_host(:, :, :, j)
                 ! q_cons_pts(2) lives on the host
                 q_cons_pts(2)%vf(j)%sf(idwbuff(1)%beg:idwbuff(1)%end, &
-                                      idwbuff(2)%beg:idwbuff(2)%end, &
-                                      idwbuff(3)%beg:idwbuff(3)%end) => q_cons_pts_pool_host(:, :, :, j)
+                                       idwbuff(2)%beg:idwbuff(2)%end, &
+                                       idwbuff(3)%beg:idwbuff(3)%end) => q_cons_pts_pool_host(:, :, :, j)
             end if
         end do
 
@@ -540,6 +547,11 @@ contains
             $:GPU_UPDATE(device='[rk_coef, stor]')
         end if
 
+        @:ALLOCATE (rho_avg_x(-1:m, 0:n, 0:p), vel_avg_rms_x(-1:m, 0:n, 0:p), H_avg_x(-1:m, 0:n, 0:p), gamma_avg_x(-1:m, 0:n, 0:p))
+        @:ALLOCATE (vel_avg_x(-1:m, 0:n, 0:p, 1:num_dims))
+        @:ALLOCATE (rho_avg_y(0:m, -1:n, 0:p), vel_avg_rms_y(0:m, -1:n, 0:p), H_avg_y(0:m, -1:n, 0:p), gamma_avg_y(0:m, -1:n, 0:p))
+        @:ALLOCATE (vel_avg_y(0:m, -1:n, 0:p, 1:num_dims))
+
     end subroutine s_initialize_time_steppers_module
 
     impure subroutine s_tvd_rk(t_step, time_avg, nstage)
@@ -701,25 +713,6 @@ contains
         ! Adaptive dt: final stage
         if (adap_dt) call s_adaptive_dt_bubble(3)
 
-       ! do j = 0, 127
-       !     do k = 0, 127
-       !         do i = 1, sys_size
-       !             if (q_cons_ts(1)%vf(i)%sf(j, k, 0) - q_cons_ts(2)%vf(i)%sf(j, k, 0) > 1.e-12_wp) then
-       !                 print *, i, j, k, q_cons_ts(1)%vf(i)%sf(j, k, 0), &
-       !                         q_cons_ts(2)%vf(i)%sf(j, k, 0), &
-       !                         q_cons_ts(1)%vf(i)%sf(j, k, 0) - q_cons_ts(2)%vf(i)%sf(j, k, 0)
-       !             end if
-       !         end do
-       !     end do
-       ! end do
-
-        j = 112; k = 71
-        do i = 1, sys_size
-            print *, i, q_cons_ts(1)%vf(i)%sf(j, k, 0), &
-                        q_cons_ts(2)%vf(i)%sf(j, k, 0), &
-                        q_cons_ts(1)%vf(i)%sf(j, k, 0) - q_cons_ts(2)%vf(i)%sf(j, k, 0)
-        end do
-
         call nvtxEndRange
         call cpu_time(finish)
 
@@ -737,11 +730,10 @@ contains
         integer, intent(in) :: t_step
         real(wp), intent(inout) :: time_avg
         real(wp) :: start, finish
-        
+
         integer :: iter
         logical :: dts_conv
-
-        integer :: i
+        real(wp) :: phi
 
         ! Start subroutine
         call cpu_time(start)
@@ -752,10 +744,10 @@ contains
 
         ! Perform pseudo time iteration
         iter = 0; dts_conv = .false.
-        do while(.true.)
-            call s_dts_iteration(iter, dts_conv, t_step, time_avg)
+        do while (.true.)
+            call s_dts_iteration()
             if (dts_conv) exit
-            if (iter >= dts_iter_max .and. proc_rank == 0) call s_mpi_abort("iter >= dts_iter_max")
+            if (iter >= dts_iter_max) call s_mpi_abort("iter >= dts_iter_max")
         end do
 
         ! End subroutine
@@ -769,189 +761,369 @@ contains
         else
             wall_time_avg = 0._wp
         end if
-    
-    contains
-    subroutine s_dts_initialize()
-        integer :: i, j, k, l
 
-        $:GPU_PARALLEL_LOOP(collapse=4)
-        do i = 1, sys_size
-            do l = idwbuff(3)%beg, idwbuff(3)%end
-                do k = idwbuff(2)%beg, idwbuff(2)%end
-                    do j = idwbuff(1)%beg, idwbuff(1)%end
-                        q_cons_pts(1)%vf(i)%sf(j, k, l) = q_cons_ts(1)%vf(i)%sf(j, k, l)
-                        q_cons_pts(2)%vf(i)%sf(j, k, l) = q_cons_pts(1)%vf(i)%sf(j, k, l)
+    contains
+        subroutine s_dts_initialize()
+            integer :: i, j, k, l
+
+            $:GPU_PARALLEL_LOOP(collapse=4)
+            do i = 1, sys_size
+                do l = idwbuff(3)%beg, idwbuff(3)%end
+                    do k = idwbuff(2)%beg, idwbuff(2)%end
+                        do j = idwbuff(1)%beg, idwbuff(1)%end
+                            q_cons_pts(1)%vf(i)%sf(j, k, l) = q_cons_ts(1)%vf(i)%sf(j, k, l)
+                            q_cons_pts(2)%vf(i)%sf(j, k, l) = q_cons_ts(1)%vf(i)%sf(j, k, l)
+                        end do
                     end do
                 end do
             end do
-        end do
-    end subroutine s_dts_initialize
 
-    subroutine s_dts_iteration(iter, dts_conv, t_step, time_avg)
-        integer, intent(inout) :: iter
-        logical, intent(inout) :: dts_conv
-        integer, intent(in) :: t_step
-        real(wp), intent(inout) :: time_avg
+            if (t_step == 0) then
+                phi = 0._wp
+            else
+                phi = 0.5_wp
+            end if
+        end subroutine s_dts_initialize
 
-        real(wp) :: phi, velsum
-        real(wp) :: max_err, max_err_glb, max_err_tmp, max_q, beta
-        real(wp), dimension(sys_size) :: dq
+        subroutine s_dts_iteration()
+            ! Compute pseudo time variables
+            call s_dts_update_pseudo_var_rk()
 
-        integer :: i, j, k, l
+            ! Check convergence
+            call s_dts_check_convergence()
 
-        ! Compute RHS
-        call s_compute_rhs(q_cons_pts(1)%vf, q_T_sf, q_prim_vf, bc_type, rhs_vf, pb_ts(1)%sf, rhs_pb, mv_ts(1)%sf, rhs_mv, t_step, time_avg, 1)
+            ! Update physical time variables
+            if (dts_conv) call s_dts_update_physical_vars()
+        end subroutine s_dts_iteration
 
-        if (t_step == 0) then
-            phi = 0._wp
-        else
-            phi = 0.5_wp
-        end if
+        subroutine s_dts_update_pseudo_var_rk()
+            real(wp), dimension(sys_size) :: dq
+            real(wp), dimension(3) :: coeffs
+            real(wp) :: dtp, dtp0
+            integer :: nstage
+            integer :: i, j, k, l, s
 
-        ! Compute 
-        max_err = 0._wp
-        $:GPU_PARALLEL_LOOP(collapse=3)
-        do l = 0, p
-            do k = 0, n
-                do j = 0, m
-                  ! Compute RHS for pseudo time step
-                  do i = 1, sys_size
-                      dq(i) = rhs_vf(i)%sf(j, k, l) &
-                              - ((1._wp + phi) * (q_cons_pts(1)%vf(i)%sf(j, k, l) - q_cons_ts(1)%vf(i)%sf(j, k, l)) &
-                                        + phi  * (q_cons_ts(1)%vf(i)%sf(j, k, l) - q_cons_ts(2)%vf(i)%sf(j, k, l))) / dt
-
-                      ! NaN checker
-                      if (dq(i) /= dq(i)) then
-                          print *, i, j, k, l, iter, rhs_vf(i)%sf(j, k, l), q_cons_pts(1)%vf(i)%sf(j, k, l), q_prim_vf(i)%sf(j, k, l)
-                          call s_mpi_abort("dq is NaN")
-                      end if
-                  end do
-
-                  ! Preconditioning (if flagged) and determining pseudo time step size
-                  call s_dts_aux(dq, j, k, l)
-
-                  ! Residual check
-                  max_err_tmp = 0._wp
-                  do i = 1, sys_size
-                      max_err_tmp = max_err_tmp + abs(dq(i)) / (dts_a_tol + dts_r_tol * abs(q_cons_pts(1)%vf(i)%sf(j, k, l)))
-                  end do
-                  if (max_err_tmp > max_err) max_err = max_err_tmp
-
-                  ! Update variables
-                  do i = 1, sys_size
-                      q_cons_pts(1)%vf(i)%sf(j, k, l) = q_cons_pts(1)%vf(i)%sf(j, k, l) + dq(i)
-                  end do
+            $:GPU_PARALLEL_LOOP(collapse=4)
+            do i = 1, sys_size
+                do l = idwbuff(3)%beg, idwbuff(3)%end
+                    do k = idwbuff(2)%beg, idwbuff(2)%end
+                        do j = idwbuff(1)%beg, idwbuff(1)%end
+                            q_cons_pts(2)%vf(i)%sf(j, k, l) = q_cons_pts(1)%vf(i)%sf(j, k, l)
+                        end do
+                    end do
                 end do
             end do
-        end do
+            
+            nstage = 3
+            coeffs = (/0.1918_wp, 0.4929_wp, 1.0_wp/)
 
-#ifdef MFC_MPI
-        call s_mpi_allreduce_max(max_err, max_err_glb)
-       ! print *, iter, proc_rank, max_err, max_err_glb
-#else
-        max_err_glb = max_err
-#endif
+            do s = 1, nstage
+                ! Compute RHS
+                call s_compute_rhs(q_cons_pts(1)%vf, q_T_sf, q_prim_vf, bc_type, rhs_vf, pb_ts(1)%sf, rhs_pb, mv_ts(1)%sf, rhs_mv, t_step, time_avg, 1)
 
-        ! Check max error
-        if (max_err_glb < 1._wp) then
-            if (proc_rank == 0) print *, "converged at pseudo-time iteration: ", iter
-            call s_dts_update_vars()
-            dts_conv = .true.
-        else
-            iter = iter + 1
-        end if
-    end subroutine s_dts_iteration
+                $:GPU_PARALLEL_LOOP(collapse=3)
+                do l = 0, p
+                    do k = 0, n
+                        do j = 0, m
+                            ! Compute RHS for pseudo time step
+                            do i = 1, sys_size
+                                dq(i) = rhs_vf(i)%sf(j, k, l) &
+                                        - ((1._wp + phi)*(q_cons_pts(1)%vf(i)%sf(j, k, l) - q_cons_ts(1)%vf(i)%sf(j, k, l)) &
+                                           + phi*(q_cons_ts(1)%vf(i)%sf(j, k, l) - q_cons_ts(2)%vf(i)%sf(j, k, l)))/dt
+                                ! NaN checker
+                                if (dq(i) /= dq(i)) call s_mpi_abort("dq is NaN")
+                            end do                                
 
-    subroutine s_dts_update_vars()
-        integer :: i, j, k, l
-        $:GPU_PARALLEL_LOOP(collapse=4)
-        do i = 1, sys_size
+                            ! Preconditioning (if flagged) and determining pseudo time step size
+                            call s_dts_aux(dq, dtp, j, k, l)
+                            if (s == 1) dtp0 = dtp
+
+                            ! call s_dts_residual_smoothing()
+
+                            ! Update pseudo time variables
+                            do i = 1, sys_size
+                                q_cons_pts(1)%vf(i)%sf(j, k, l) = q_cons_pts(2)%vf(i)%sf(j, k, l) + coeffs(s)*dtp0*dq(i)
+                            end do
+                        end do
+                    end do
+                end do
+            end do
+        end subroutine s_dts_update_pseudo_var_rk
+
+        subroutine s_dts_update_pseudo_var_bdf2()
+            real(wp), dimension(sys_size) :: dq
+            real(wp) :: bb
+            real(wp) :: phi, dtp
+            integer :: i, j, k, l
+
+            ! Compute RHS
+            call s_compute_rhs(q_cons_pts(1)%vf, q_T_sf, q_prim_vf, bc_type, rhs_vf, pb_ts(1)%sf, rhs_pb, mv_ts(1)%sf, rhs_mv, t_step, time_avg, 1)
+
+            if (t_step == 0) then
+                phi = 0._wp
+            else
+                phi = 0.5_wp
+            end if
+
+            $:GPU_PARALLEL_LOOP(collapse=3)
             do l = 0, p
                 do k = 0, n
                     do j = 0, m
-                        q_cons_ts(2)%vf(i)%sf(j, k, l) = q_cons_ts(1)%vf(i)%sf(j, k, l)
-                        q_cons_ts(1)%vf(i)%sf(j, k, l) = q_cons_pts(1)%vf(i)%sf(j, k, l)
+                        ! Compute RHS for pseudo time step
+                        do i = 1, sys_size
+                            dq(i) = rhs_vf(i)%sf(j, k, l) &
+                                    - ((1._wp + phi)*(q_cons_pts(1)%vf(i)%sf(j, k, l) - q_cons_ts(1)%vf(i)%sf(j, k, l)) &
+                                       + phi*(q_cons_ts(1)%vf(i)%sf(j, k, l) - q_cons_ts(2)%vf(i)%sf(j, k, l)))/dt
+
+                            ! NaN checker
+                            if (dq(i) /= dq(i)) then
+                                print *, i, j, k, l, iter, rhs_vf(i)%sf(j, k, l), q_cons_pts(1)%vf(i)%sf(j, k, l), q_prim_vf(i)%sf(j, k, l)
+                                call s_mpi_abort("dq is NaN")
+                            end if
+                        end do
+
+                        ! Preconditioning (if flagged) and determining pseudo time step size
+                        call s_dts_aux(dq, dtp, j, k, l)
+
+                        ! Update pseudo time variables
+                        do i = 1, sys_size
+                            q_cons_pts(1)%vf(i)%sf(j, k, l) = q_cons_pts(1)%vf(i)%sf(j, k, l) + dtp*dq(i)
+                        end do
                     end do
                 end do
             end do
-        end do
-    end subroutine s_dts_update_vars
+        end subroutine s_dts_update_pseudo_var_bdf2
 
-    subroutine s_dts_aux(dq, j, k, l)
-        real(wp), dimension(sys_size), intent(inout) :: dq
-        real(wp), dimension(sys_size) :: pcond
-        real(wp) :: dtp
-        real(wp) :: rho        !< Cell-avg. density
-        real(wp), dimension(num_vels) :: vel        !< Cell-avg. velocity
-        real(wp) :: vel_sum    !< Cell-avg. velocity sum
-        real(wp) :: pres       !< Cell-avg. pressure
-        real(wp), dimension(num_fluids) :: alpha      !< Cell-avg. volume fraction
-        real(wp) :: gamma      !< Cell-avg. sp. heat ratio
-        real(wp) :: pi_inf     !< Cell-avg. liquid stiffness function
-        real(wp) :: qv         !< Cell-avg. fluid reference energy
-        real(wp) :: c          !< Cell-avg. sound speed
-        real(wp) :: H          !< Cell-avg. enthalpy
-        real(wp), dimension(2) :: Re         !< Cell-avg. Reynolds numbers
-        real(wp) :: rho_K, gamma_K, pi_inf_K, vel_sum_K
-        real(wp) :: beta, lambda
-        real(wp) :: ds
-        real(wp) :: aa, bb, cc
-        integer :: i, j, k, l
+        subroutine s_dts_check_convergence()
+            real(wp) :: max_err, max_err_glb
 
-        call s_compute_enthalpy(q_prim_vf, pres, rho, gamma, pi_inf, Re, H, alpha, vel, vel_sum, qv, j, k, l)
-        call s_compute_speed_of_sound(pres, rho, gamma, pi_inf, H, alpha, vel_sum, 0._wp, c, qv)
-        beta = min(max(dts_cutoff**2._wp, vel_sum/c**2._wp), 1._wp)
+            ! Compute error
+            call s_dts_compute_error(max_err)
 
-        ! Largest eigenvalue
-        if (preconditioning) then
-            lambda = 0.5_wp*((1._wp + beta)*sqrt(vel_sum) + sqrt((1._wp - beta)**2._wp*vel_sum + 4._wp*beta*c**2._wp))
-        else
-            lambda = sqrt(vel_sum) + c
-        end if
+#ifdef MFC_MPI
+            call s_mpi_allreduce_max(max_err, max_err_glb)
+#else
+            max_err_glb = max_err
+#endif
 
-        print *, beta, lambda, sqrt(vel_sum), c
+            if (proc_rank == 0) write(99,*) iter, max_err_glb
+            if (proc_rank == 0) print *, iter, max_err_glb
 
-        ! Pseudo time step size
-        ds = minval(dx); if (n > 0) ds = min(ds, minval(dy)); if (p > 0) ds = min(ds, minval(dz))
-        dtp = dts_cfl / (lambda / ds)
-
-        aa = 1.5_wp*dtp/dt; bb = 1._wp / (1._wp + aa); cc = bb / (1._wp + aa*beta)
-        if (preconditioning) then
-            ! Continuity
-            do i = contxb, contxe
-               pcond(i) = (beta - 1._wp)*vel_sum/2._wp*cc
-            end do
-
-            ! Momentum
-            do i = 1, num_dims
-              pcond(momxb - 1 + i) = (1._wp - beta)*vel(i)*cc
-            end do
-
-            ! Energy
-            pcond(E_idx) = beta*cc
-                    
-            ! Volume fractions
-            do i = 1, num_fluids
-               pcond(advxb - 1 + i) = (1._wp - beta)*(gammas(i)*pres + pi_infs(i))*cc
-            end do
-        else
-            pcond = 1._wp
-            pcond(E_idx) = bb
-        end if
-
-        ! Apply preconditioning to dq
-        do i = 1, sys_size
-            if (i == E_idx) then
-                dq(E_idx) = sum(pcond*dq)
+            ! Check convergence
+            if (max_err_glb < 1._wp) then
+                if (proc_rank == 0) print *, "converged at pseudo-time iteration: ", iter
+                dts_conv = .true.
             else
-                dq(i) = dq(i)*bb
+                iter = iter + 1
             end if
-        end do
+        end subroutine s_dts_check_convergence
 
-        ! dq
-        dq = dq * dtp
-    end subroutine s_dts_aux
+        subroutine s_dts_compute_error(max_err)
+            real(wp), intent(out) :: max_err
+            real(wp) :: max_err_tmp
+            real(wp), dimension(sys_size) :: err
+            integer :: i, j, k, l
+
+            call s_compute_rhs(q_cons_pts(1)%vf, q_T_sf, q_prim_vf, bc_type, rhs_vf, pb_ts(1)%sf, rhs_pb, mv_ts(1)%sf, rhs_mv, t_step, time_avg, 1)
+
+            max_err = 0._wp
+            $:GPU_PARALLEL_LOOP(collapse=3)
+            do l = 0, p
+                do k = 0, n
+                    do j = 0, m
+                        ! Compute error
+                        max_err_tmp = 0._wp
+                        do i = 1, sys_size
+                            err(i) = rhs_vf(i)%sf(j, k, l)*dt &
+                                     - ((1._wp + phi)*(q_cons_pts(1)%vf(i)%sf(j, k, l) - q_cons_ts(1)%vf(i)%sf(j, k, l)) &
+                                        + phi*(q_cons_ts(1)%vf(i)%sf(j, k, l) - q_cons_ts(2)%vf(i)%sf(j, k, l)))
+                            ! max_err_tmp = max_err_tmp + abs(err(i))/(dts_a_tol)
+                            max_err_tmp = max_err_tmp + abs(err(i))/(dts_a_tol + dts_r_tol*abs(q_cons_ts(1)%vf(i)%sf(j, k, l)))
+                        end do
+                        ! Update max err
+                        if (max_err_tmp > max_err) max_err = max_err_tmp
+                    end do
+                end do
+            end do
+        end subroutine s_dts_compute_error
+
+        subroutine s_dts_update_physical_vars()
+            integer :: i, j, k, l
+            $:GPU_PARALLEL_LOOP(collapse=4)
+            do i = 1, sys_size
+                do l = 0, p
+                    do k = 0, n
+                        do j = 0, m
+                            q_cons_ts(2)%vf(i)%sf(j, k, l) = q_cons_ts(1)%vf(i)%sf(j, k, l)
+                            q_cons_ts(1)%vf(i)%sf(j, k, l) = q_cons_pts(1)%vf(i)%sf(j, k, l)
+                        end do
+                    end do
+                end do
+            end do
+        end subroutine s_dts_update_physical_vars
+
+        subroutine s_dts_aux(dq, dtp, j, k, l)
+            real(wp), dimension(sys_size), intent(inout) :: dq
+            real(wp), intent(inout) :: dtp
+            real(wp), dimension(sys_size) :: pcond
+            real(wp) :: rho        !< Cell-avg. density
+            real(wp), dimension(num_vels) :: vel        !< Cell-avg. velocity
+            real(wp) :: vel_sum    !< Cell-avg. velocity sum
+            real(wp) :: pres       !< Cell-avg. pressure
+            real(wp), dimension(num_fluids) :: alpha      !< Cell-avg. volume fraction
+            real(wp) :: gamma      !< Cell-avg. sp. heat ratio
+            real(wp) :: pi_inf     !< Cell-avg. liquid stiffness function
+            real(wp) :: qv         !< Cell-avg. fluid reference energy
+            real(wp) :: c          !< Cell-avg. sound speed
+            real(wp) :: H          !< Cell-avg. enthalpy
+            real(wp), dimension(2) :: Re         !< Cell-avg. Reynolds numbers
+            real(wp) :: rho_K, gamma_K, pi_inf_K, vel_sum_K
+            real(wp) :: beta, lambda
+            real(wp) :: ds
+            real(wp) :: aa, bb, cc
+            integer :: i, j, k, l
+
+            call s_compute_enthalpy(q_prim_vf, pres, rho, gamma, pi_inf, Re, H, alpha, vel, vel_sum, qv, j, k, l)
+            call s_compute_speed_of_sound(pres, rho, gamma, pi_inf, H, alpha, vel_sum, 0._wp, c, qv)
+            beta = min(max(dts_cutoff**2._wp, vel_sum/c**2._wp), 1._wp)
+
+            ! Largest eigenvalue
+            if (preconditioning) then
+                lambda = 0.5_wp*((1._wp + beta)*sqrt(vel_sum) + sqrt((1._wp - beta)**2._wp*vel_sum + 4._wp*beta*c**2._wp))
+            else
+                lambda = sqrt(vel_sum) + c
+            end if
+
+            ! Pseudo time step size
+            ds = minval(dx); if (n > 0) ds = min(ds, minval(dy)); if (p > 0) ds = min(ds, minval(dz))
+            dtp = dts_cfl/(lambda/ds)
+
+            aa = 1.5_wp*dtp/dt; bb = 1._wp/(1._wp + aa); cc = bb/(1._wp + aa*beta)
+            if (preconditioning) then
+                ! Continuity
+                do i = contxb, contxe
+                    pcond(i) = (beta - 1._wp)*vel_sum/2._wp*cc
+                end do
+
+                ! Momentum
+                do i = 1, num_dims
+                    pcond(momxb - 1 + i) = (1._wp - beta)*vel(i)*cc
+                end do
+
+                ! Energy
+                pcond(E_idx) = beta*cc/bb
+
+                ! Volume fractions
+                do i = 1, num_fluids
+                    pcond(advxb - 1 + i) = (1._wp - beta)*(gammas(i)*pres + pi_infs(i))*cc
+                end do
+            else
+                pcond = 1._wp
+                pcond(E_idx) = bb
+            end if
+
+            do i = 1, sys_size
+                if (i == E_idx) then
+                    dq(E_idx) = sum(pcond*dq)
+                else
+                    dq(i) = dq(i)*bb
+                end if
+            end do
+        end subroutine s_dts_aux
+
+        subroutine s_dts_residual_smoothing()
+            ! integer :: id
+
+            ! do id = 1, num_dims
+            !     ! Compute Jacobian
+            !     call s_dts_compute_flux_jacobian(&
+            !       !----->In
+            !       q_cons_left, &
+            !       q_cons_right, &
+            !       !----->Out
+            !       fjacobian_p, &
+            !       fjacobian_m, &
+            !       id &
+            !     )
+            ! end do
+
+            ! ! Compute smoothed residual
+            ! call s_dts_red_black_solver(&
+            !   !----->In
+            !   fjacobian_p_total, &
+            !   fjacobian_m_total, &
+            !   !----->Out
+            !   q_smoothed_residual &
+            ! )
+        end subroutine s_dts_residual_smoothing
+
+        subroutine s_dts_compute_flux_jacobian()
+            real(wp), dimension(sys_size, sys_size) :: fjacobian
+
+            ! ! Compute Jacobian - pseudo code now
+            ! fjacobian = 0._wp
+            ! fjacobian(1, 2) = 1._wp
+            ! fjacobian(2, 1) = -vel_avg(1)**2._wp / rho_avg + vel_avg_rms/(2._wp*rho_avg*gamma_avg)
+            ! fjacobian(2, 2) = (1._wp - 1._wp / gamma_avg) * vel_avg(1) / rho_avg
+            ! fjacobian(2, 3) = -vel_avg(2) / (rho_avg * gamma_avg)
+            ! fjacobian(2, 4) = 
+            ! fjacobian(3, 1) = -vel_avg(1)*vel_avg(2) / rho_avg
+            ! fjacobian(3, 3) = vel_avg(1) / rho_avg
+            ! fjacobian(4, 1) = 
+            ! fjacobian(4, 2) = 
+            ! fjacobian(4, 3) = 
+            ! fjacobian(4, 4) = 
+
+            ! fjacobian_p = 0.5_wp*(fjacobian + abs(fjacobian))
+            ! fjacobian_m = 0.5_wp*(fjacobian - abs(fjacobian))
+
+            ! ! Compute LHS contribution
+            ! call s_dts_add_flux_jacobian(&
+            !   !----->In
+            !   fjacobian_p, &
+            !   !----->Inout
+            !   fjacobian_p_total &
+            ! )
+
+            ! ! Compute LHS contribution
+            ! call s_dts_add_flux_jacobian(&
+            !   !----->In
+            !   fjacobian_m, &
+            !   !----->Inout
+            !   fjacobian_m_total &
+            ! )            
+        end subroutine s_dts_compute_flux_jacobian
+
+        subroutine s_dts_add_flux_jacobian()
+
+        end subroutine s_dts_add_flux_jacobian
+
+        subroutine s_dts_red_black_solver()
+
+        end subroutine s_dts_red_black_solver
+
     end subroutine s_dts
+
+    ! subroutine s_dts_update_states(rho_avg, vel_avg, vel_avg_rms, H_avg, gamma_avg, 
+    !                                                           j, k, l, norm_dir)
+    !     if (norm_dir == 1) then
+    !         rho_avg_x(j, k, l) = rho_avg
+    !         do i = 1, num_dims
+    !             vel_avg_x(j, k, l, i) = vel_avg(i)
+    !         end do
+    !         vel_avg_rms_x(j, k, l) = vel_avg_rms
+    !         H_avg_x(j, k, l) = H_avg
+    !         gamma_avg_x(j, k, l) = gamma_avg
+    !       else if (norm_dir == 2) then
+    !         rho_avg_y(j, k, l) = rho_avg
+    !         do i = 1, num_dims
+    !             vel_avg_y(j, k, l, i) = vel_avg(i)
+    !         end do
+    !         vel_avg_rms_y(j, k, l) = vel_avg_rms
+    !         H_avg_y(j, k, l) = H_avg
+    !         gamma_avg_y(j, k, l) = gamma_avg
+    !       end if
+    ! end subroutine s_dts_update_states
 
     !> Bubble source part in Strang operator splitting scheme
         !! @param t_step Current time-step

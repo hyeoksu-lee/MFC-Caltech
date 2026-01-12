@@ -57,15 +57,15 @@
         p0 = umax**2*(1._wp/(gam*patch_icpp(patch_id)%vel(2)**2) - 0.5_wp)
 
         if (r < rmax) then
-            q_prim_vf(momxb)%sf(i, j, 0) = -(y_cc(j) - 0.5_wp)*umax/rmax
+            q_prim_vf(momxb)%sf(i, j, 0) = 0.01_wp - (y_cc(j) - 0.5_wp)*umax/rmax
             q_prim_vf(momxe)%sf(i, j, 0) = (x_cc(i) - 0.5_wp)*umax/rmax
             q_prim_vf(E_idx)%sf(i, j, 0) = p0 + umax**2*((r/rmax)**2._wp/2._wp)
         else if (r < 2*rmax) then
-            q_prim_vf(momxb)%sf(i, j, 0) = -((y_cc(j) - 0.5_wp)/r)*umax*(2._wp - r/rmax)
+            q_prim_vf(momxb)%sf(i, j, 0) = 0.01_wp - ((y_cc(j) - 0.5_wp)/r)*umax*(2._wp - r/rmax)
             q_prim_vf(momxe)%sf(i, j, 0) = ((x_cc(i) - 0.5_wp)/r)*umax*(2._wp - r/rmax)
             q_prim_vf(E_idx)%sf(i, j, 0) = p0 + umax**2*((r/rmax)**2/2._wp + 4._wp*(1._wp - (r/rmax) + log(r/rmax)))
         else
-            q_prim_vf(momxb)%sf(i, j, 0) = 0._wp
+            q_prim_vf(momxb)%sf(i, j, 0) = 0.01_wp + 0._wp
             q_prim_vf(momxe)%sf(i, j, 0) = 0._wp
             q_prim_vf(E_idx)%sf(i, j, 0) = p0 + umax**2._wp*(-2._wp + 4*log(2._wp))
         end if

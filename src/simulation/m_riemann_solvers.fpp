@@ -43,6 +43,8 @@ module m_riemann_solvers
 
     use m_chemistry
 
+    use m_time_steppers
+
     use m_thermochem, only: &
         gas_constant, get_mixture_molecular_weight, &
         get_mixture_specific_heat_cv_mass, get_mixture_energy_mass, &
@@ -1940,6 +1942,7 @@ contains
         real(wp) :: gamma_avg
         real(wp) :: qv_avg
         real(wp) :: c_avg
+        real(wp), dimension(num_dims) :: vel_avg
 
         real(wp) :: s_L, s_R, s_M, s_P, s_S
         real(wp) :: xi_L, xi_R !< Left and right wave speeds functions
@@ -3298,6 +3301,12 @@ contains
                                 call s_compute_speed_of_sound(pres_R, rho_avg, gamma_avg, pi_inf_R, H_avg, alpha_R, &
                                                               vel_avg_rms, c_sum_Yi_Phi, c_avg, qv_avg)
 
+                                ! if (time_stepper == 4) then
+                                !     @:roe_avg()
+                                !     call s_dts_update_states(rho_avg, vel_avg, vel_avg_rms, H_avg, gamma_avg, 
+                                !                               j, k, l, norm_dir)
+                                ! end if
+
                                 if (viscous) then
                                     if (chemistry) then
                                         call compute_viscosity_and_inversion(T_L, Ys_L, T_R, Ys_R, Re_L(1), Re_R(1))
@@ -3430,7 +3439,7 @@ contains
                                                         (s_R - vel_R(dir_idx(1))))) - E_R)) &
                                     + (s_M/s_L)*(s_P/s_R)*pcorr*s_S
 
-                                if ( flux_rs${XYZ}$_vf(j, k, l, E_idx) /= flux_rs${XYZ}$_vf(j, k, l, E_idx)) then
+                                if (flux_rs${XYZ}$_vf(j, k, l, E_idx) /= flux_rs${XYZ}$_vf(j, k, l, E_idx)) then
                                     print *, j, k, l, flux_rs${XYZ}$_vf(j, k, l, E_idx)
                                     print *, xi_M, vel_L(dir_idx(1)), E_L, pres_L
                                     print *, s_M, xi_L, s_S, rho_L

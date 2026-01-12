@@ -20,6 +20,9 @@
 
     $:GPU_LOOP(parallelism='[seq]')
     do i = 1, num_vels
+        ! vel_avg(i) = sqrt(rho_L)*vel_L(i) + sqrt(rho_R)*vel_R(i))**2._wp/ &
+        !               (sqrt(rho_L) + sqrt(rho_R))
+        ! vel_avg_rms = vel_avg_rms + vel_avg(i)**2._wp
         vel_avg_rms = vel_avg_rms + (sqrt(rho_L)*vel_L(i) + sqrt(rho_R)*vel_R(i))**2._wp/ &
                       (sqrt(rho_L) + sqrt(rho_R))**2._wp
     end do
@@ -30,8 +33,10 @@
     gamma_avg = (sqrt(rho_L)*gamma_L + sqrt(rho_R)*gamma_R)/ &
                 (sqrt(rho_L) + sqrt(rho_R))
 
-    vel_avg_rms = (sqrt(rho_L)*vel_L(1) + sqrt(rho_R)*vel_R(1))**2._wp/ &
-                  (sqrt(rho_L) + sqrt(rho_R))**2._wp
+    ! vel_avg_rms = (sqrt(rho_L)*vel_L(1) + sqrt(rho_R)*vel_R(1))**2._wp/ &
+    !               (sqrt(rho_L) + sqrt(rho_R))**2._wp
+
+    c_avg = sqrt(H_avg - 0.5_wp * vel_avg_rms) / gamma_avg
 
     qv_avg = (sqrt(rho_L)*qv_L + sqrt(rho_R)*qv_R)/ &
              (sqrt(rho_L) + sqrt(rho_R))
