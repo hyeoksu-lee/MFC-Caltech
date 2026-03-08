@@ -344,7 +344,8 @@ contains
             k(i) = hit_kappa_min + dk*(i - 1._wp)
             Ek(i) = hit_alpha &
                     *(hit_uprime**2._wp/hit_kappa_e) &
-                    *(k(i)/hit_kappa_e)**4._wp/(1._wp + (k(i)/hit_kappa_e))**(17._wp/6._wp) &
+                    *(k(i)/hit_kappa_e)**4._wp &
+                    /(1._wp + (k(i)/hit_kappa_e)**2._wp)**(17._wp/6._wp) &
                     *exp(-2._wp*(k(i)/hit_kappa_eta)**2._wp)
         end do
 
