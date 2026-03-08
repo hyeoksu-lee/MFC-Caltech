@@ -214,13 +214,12 @@ contains
         integer :: mixlayer_idx_beg, mixlayer_idx_end
         real(wp), dimension(-offset_x%beg:m + offset_x%end, &
                             -offset_y%beg:n + offset_y%end, &
-                            -offset_z%beg:p + offset_z%end) :: liutex_mag, liutex_mag_filtered, &
-                                                              vort_stretch_proj, vort_stretch_res, &
-                                                              A_rr, A_ps, A_ns, A_sr, &
-                                                              q_sf_group
+                            -offset_z%beg:p + offset_z%end) :: q_sf_group, liutex_mag, &
+                                                              vort_stretch_proj, strain_rate_proj, &
+                                                              A_rr, A_ps, A_ns, A_sr
         real(wp), dimension(-offset_x%beg:m + offset_x%end, &
                             -offset_y%beg:n + offset_y%end, &
-                            -offset_z%beg:p + offset_z%end, 3) :: liutex_axis, omega, vort_stretch, vel_filtered
+                            -offset_z%beg:p + offset_z%end, 3) :: liutex_axis, omega, vort_stretch
 
         real(wp), dimension(-offset_x%beg:m + offset_x%end, &
                             -offset_y%beg:n + offset_y%end, &
@@ -626,9 +625,8 @@ contains
 
             ! Compute Liutex vector and its magnitude
             call s_derive_liutex(q_prim_vf, mixlayer_idx_beg, mixlayer_idx_end, &
-                                liutex_mag, liutex_axis, &
-                                omega, &
-                                vort_stretch, vort_stretch_proj, vort_stretch_res, &
+                                liutex_mag, liutex_axis, omega, &
+                                vort_stretch_proj, strain_rate_proj, &
                                 A_rr, A_ps, A_ns, A_sr)
 
             ! Liutex magnitude
@@ -671,12 +669,18 @@ contains
             call s_write_variable_to_formatted_database_file(varname, t_step)
             varname(:) = ' '
             
-            call s_write_qsv_data_file(qsv_info(0:m, 0:n, 0:p, 1:5), &
+            call s_write_qsv_data_file(qsv_info(0:m, 0:n, 0:p, :), &
+                                      q_sf_group(0:m, 0:n, 0:p), &
                                       liutex_mag(0:m, 0:n, 0:p), & 
+                                      liutex_axis(0:m, 0:n, 0:p, :), &
                                       q_prim_vf(E_idx)%sf(0:m, 0:n, 0:p), &
-                                      omega(0:m, 0:n, 0:p, 3), &
+                                      omega(0:m, 0:n, 0:p, :), &
                                       vort_stretch_proj(0:m, 0:n, 0:p), &
-                                      vort_stretch_res(0:m, 0:n, 0:p))
+                                      strain_rate_proj(0:m, 0:n, 0:p), &
+                                      A_rr(0:m, 0:n, 0:p), &
+                                      A_ps(0:m, 0:n, 0:p), & 
+                                      A_ns(0:m, 0:n, 0:p), & 
+                                      A_sr(0:m, 0:n, 0:p))
 
         end if
 

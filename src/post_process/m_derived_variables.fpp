@@ -571,9 +571,8 @@ contains
         !!  @param liutex_mag Liutex magnitude
         !!  @param liutex_axis Liutex axis
     impure subroutine s_derive_liutex(q_prim_vf, y_idx_beg, y_idx_end, &
-                                    liutex_mag, liutex_axis, &
-                                    omega, &
-                                    vort_stretch, vort_stretch_proj, vort_stretch_res, &
+                                    liutex_mag, liutex_axis, omega, &
+                                    vort_stretch_proj, strain_rate_proj, &
                                     A_rr, A_ps, A_ns, A_sr)
         integer, parameter :: ndim = 3
         type(scalar_field), &
@@ -598,21 +597,21 @@ contains
             dimension(-offset_x%beg:m + offset_x%end, &
                       -offset_y%beg:n + offset_y%end, &
                       -offset_z%beg:p + offset_z%end, ndim), &
-            intent(out) :: omega, vort_stretch !< Vorticity
+            intent(out) :: omega !< Vorticity
 
         real(wp), &
             dimension(-offset_x%beg:m + offset_x%end, &
                       -offset_y%beg:n + offset_y%end, &
                       -offset_z%beg:p + offset_z%end), &
-            intent(out) :: vort_stretch_proj, vort_stretch_res, A_rr, A_ps, A_ns, A_sr
+            intent(out) :: vort_stretch_proj, strain_rate_proj, A_rr, A_ps, A_ns, A_sr
 
         real(wp), dimension(ndim, ndim) :: A_S, A_W
-        real(wp), dimension(ndim) :: vort_ps
+        real(wp), dimension(ndim) :: vort_stretch, vort_ps
         real(wp) :: S2, W2
 
         character, parameter :: ivl = 'N' !< compute left eigenvectors
         character, parameter :: ivr = 'V' !< compute right eigenvectors
-        real(wp), dimension(ndim, ndim) :: vgt !< velocity gradient tensor
+        real(wp), dimension(ndim, ndim) :: vgt, vgt0 !< velocity gradient tensor
         real(wp), dimension(ndim) :: lr, li !< real and imaginary parts of eigenvalues
         real(wp), dimension(ndim, ndim) :: vl, vr !< left and right eigenvectors
         integer, parameter :: lwork = 4*ndim !< size of work array (4*ndim recommended)
@@ -632,7 +631,7 @@ contains
         liutex_mag = 0._wp
         liutex_axis = 0._wp
         vort_stretch_proj = 0._wp 
-        vort_stretch_res = 0._wp 
+        strain_rate_proj = 0._wp
         A_rr = 0._wp
         A_ps = 0._wp
         A_ns = 0._wp
@@ -664,6 +663,7 @@ contains
                                     q_prim_vf(mom_idx%beg + i - 1)%sf(j, k, r + l)
                             end do
                         end do
+                        vgt0 = vgt
 
                         ! Compute vorticity
                         omega(j, k, l, 1) = vgt(3,2) - vgt(2,3)
@@ -672,9 +672,9 @@ contains
 
                         ! Compute vortex stretching term
                         do r = 1, 3
-                            vort_stretch(j, k, l, r) = omega(j, k, l, 1)*vgt(r,1) &
-                                                    + omega(j, k, l, 2)*vgt(r,2) &
-                                                    + omega(j, k, l, 3)*vgt(r,3)
+                            vort_stretch(r) = omega(j, k, l, 1)*vgt(r,1) &
+                                            + omega(j, k, l, 2)*vgt(r,2) &
+                                            + omega(j, k, l, 3)*vgt(r,3)
                         end do
                         
                         A_S = 0.5_wp*(vgt + transpose(vgt))
@@ -745,14 +745,21 @@ contains
 
                         ! Compute projection of vortex stretching term on Liutex axis
                         vort_stretch_proj(j, k, l) = &
-                            abs(liutex_axis(j, k, l, 1)*vort_stretch(j, k, l, 1) + &
-                                liutex_axis(j, k, l, 2)*vort_stretch(j, k, l, 2) + &
-                                liutex_axis(j, k, l, 3)*vort_stretch(j, k, l, 3))
+                               (liutex_axis(j, k, l, 1)*vort_stretch(1) + &
+                                liutex_axis(j, k, l, 2)*vort_stretch(2) + &
+                                liutex_axis(j, k, l, 3)*vort_stretch(3))
 
-                        vort_stretch_res(j, k, l) = &
-                            sqrt((vort_stretch(j, k, l, 1) - liutex_axis(j, k, l, 1)*vort_stretch_proj(j, k, l))**2._wp + &
-                                (vort_stretch(j, k, l, 2) - liutex_axis(j, k, l, 2)*vort_stretch_proj(j, k, l))**2._wp + &
-                                (vort_stretch(j, k, l, 3) - liutex_axis(j, k, l, 3)*vort_stretch_proj(j, k, l))**2._wp)
+                        ! Compute projection of strain rate tensor on Liutex axis
+                        strain_rate_proj(j, k, l) = &
+                               (liutex_axis(j, k, l, 1)*vgt0(1, 1)*liutex_axis(j, k, l, 1) + &
+                                liutex_axis(j, k, l, 1)*vgt0(2, 1)*liutex_axis(j, k, l, 2) + &
+                                liutex_axis(j, k, l, 1)*vgt0(3, 1)*liutex_axis(j, k, l, 3) + &
+                                liutex_axis(j, k, l, 2)*vgt0(1, 2)*liutex_axis(j, k, l, 1) + &
+                                liutex_axis(j, k, l, 2)*vgt0(2, 2)*liutex_axis(j, k, l, 2) + &
+                                liutex_axis(j, k, l, 2)*vgt0(3, 2)*liutex_axis(j, k, l, 3) + &
+                                liutex_axis(j, k, l, 3)*vgt0(1, 3)*liutex_axis(j, k, l, 1) + &
+                                liutex_axis(j, k, l, 3)*vgt0(2, 3)*liutex_axis(j, k, l, 2) + &
+                                liutex_axis(j, k, l, 3)*vgt0(3, 3)*liutex_axis(j, k, l, 3))
 
                         ! Strength
                         vort_ps(1) = omega(j, k, l, 1) - liutex_mag(j, k, l)*liutex_axis(j, k, l, 1)

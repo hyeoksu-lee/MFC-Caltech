@@ -1387,35 +1387,41 @@ contains
 
     end subroutine s_write_energy_data_file
 
-    impure subroutine s_write_qsv_data_file(qsv_info, liutex_mag, pres, omega, vort_stretch_proj, vort_stretch_res)
+    impure subroutine s_write_qsv_data_file(qsv_info, qsv_group, liutex_mag, liutex_axis, pres, omega, vort_stretch_proj, strain_rate_proj, A_rr, A_ps, A_ns, A_sr)
 
         real(wp), dimension(0:m, 0:n, 0:p, 5), intent(in) :: qsv_info
-        real(wp), dimension(0:m, 0:n, 0:p, 3), intent(in) :: omega
-        real(wp), dimension(0:m, 0:n, 0:p), intent(in) :: liutex_mag, pres, vort_stretch_proj, vort_stretch_res
+        real(wp), dimension(0:m, 0:n, 0:p, 3), intent(in) :: liutex_axis, omega
+        real(wp), dimension(0:m, 0:n, 0:p), intent(in) :: qsv_group, liutex_mag, pres, vort_stretch_proj, strain_rate_proj, A_rr, A_ps, A_ns, A_sr
         real(wp), dimension(:), allocatable :: buffer
-        integer :: ndata
+        integer :: ndata, nvar
         integer :: i, j, k, l, ii, jj, kk
         integer :: amode, fh, ierr
         
         character(LEN=path_len + 3*name_len) :: file_path !<
               !! Relative path to a file in the case directory
 
-        ndata = (m + 1)*(n + 1)*(p + 1)*9
+        nvar = 14
+        ndata = (m + 1)*(n + 1)*(p + 1)*nvar
         allocate (buffer(ndata))
 
         l = 0
         do k = 0, p
           do j = 0, n
             do i = 0, m
-              buffer(l*9 + 1) = qsv_info(i, j, k, 1)
-              buffer(l*9 + 2) = qsv_info(i, j, k, 5)
-              buffer(l*9 + 3) = pres(i, j, k)
-              buffer(l*9 + 4) = liutex_mag(i, j, k)
-              buffer(l*9 + 5) = omega(i, j, k, 1)
-              buffer(l*9 + 6) = omega(i, j, k, 2)
-              buffer(l*9 + 7) = omega(i, j, k, 3)
-              buffer(l*9 + 8) = vort_stretch_proj(i, j, k)
-              buffer(l*9 + 9) = vort_stretch_res(i, j, k)
+              buffer(l*nvar + 1) = qsv_info(i, j, k, 1)
+              buffer(l*nvar + 2) = qsv_info(i, j, k, 5)
+              buffer(l*nvar + 3) = pres(i, j, k)
+              buffer(l*nvar + 4) = liutex_mag(i, j, k)
+              buffer(l*nvar + 5) = omega(i, j, k, 1)
+              buffer(l*nvar + 6) = omega(i, j, k, 2)
+              buffer(l*nvar + 7) = omega(i, j, k, 3)
+              buffer(l*nvar + 8) = vort_stretch_proj(i, j, k)
+              buffer(l*nvar + 9) = strain_rate_proj(i, j, k)
+              buffer(l*nvar + 10) = qsv_group(i, j, k)
+              buffer(l*nvar + 11) = A_rr(i, j, k)
+              buffer(l*nvar + 12) = A_ps(i, j, k)
+              buffer(l*nvar + 13) = A_ns(i, j, k)
+              buffer(l*nvar + 14) = A_sr(i, j, k)
               l = l + 1
             end do
           end do
