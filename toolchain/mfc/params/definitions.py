@@ -963,7 +963,7 @@ def _load():  # pylint: disable=too-many-locals,too-many-statements
               "dist_type", "mixlayer_perturb_nk", "elliptic_smoothing_iters",
               "n_start_old", "n_start", "fd_order", "num_igr_iters",
               "num_igr_warm_start_iters", "igr_iter_solver", "nv_uvm_igr_temps_on_gpu",
-              "flux_lim"]:
+              "flux_lim", "hit_nmode"]:
         _r(n, INT)
     _r("pref", REAL, math=r"\f$p_\text{ref}\f$")
     _r("poly_sigma", REAL, math=r"\f$\sigma_\text{poly}\f$")
@@ -974,13 +974,15 @@ def _load():  # pylint: disable=too-many-locals,too-many-statements
     for n in ["mixlayer_vel_coef", "mixlayer_domain", "mixlayer_perturb_k0",
               "perturb_flow_mag", "fluid_rho", "sigR", "sigV", "rhoRV",
               "tau_star", "cont_damage_s", "alpha_bar", "alf_factor",
-              "ic_eps", "ic_beta"]:
+              "ic_eps", "ic_beta", "hit_alpha", "hit_kappa_e", "hit_uprime", 
+              "hit_kappa_eta", "hit_kappa_min", "hit_kappa_max"]:
         _r(n, REAL)
     for n in ["mpp_lim", "relax", "adv_n", "cont_damage", "igr", "down_sample",
               "old_grid", "old_ic", "mixlayer_vel_profile", "mixlayer_perturb",
               "perturb_flow", "perturb_sph", "pre_stress", "elliptic_smoothing",
               "simplex_perturb", "alt_soundspeed", "mixture_err", "rdma_mpi",
-              "igr_pres_lim", "int_comp", "nv_uvm_out_of_core", "nv_uvm_pref_gpu"]:
+              "igr_pres_lim", "int_comp", "nv_uvm_out_of_core", "nv_uvm_pref_gpu",
+              "hit_perturb"]:
         _r(n, LOG)
     _r("case_dir", STR)
 

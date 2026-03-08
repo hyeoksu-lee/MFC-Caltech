@@ -327,6 +327,87 @@ contains
 
     end subroutine s_perturb_mixlayer
 
+    !>  This subroutine computes velocity perturbations for a homogeneous
+        !!              isotropic turbulence using the spectrum-based synthetic
+        !!              turbulence generation method proposed by Guo et al.
+        !!              (2023, JFM).
+    subroutine s_perturb_hit(q_prim_vf)
+        type(scalar_field), dimension(sys_size), intent(inout) :: q_prim_vf
+        real(wp), dimension(hit_nmode) :: k, Ek
+        real(wp), dimension(3) :: velfluc, sig_tmp, sig, khat, xi
+        real(wp) :: dk, alpha, q, phi
+        integer :: i, j, l, r, ierr
+
+        ! Compute prescribed energy spectra
+        dk = (hit_kappa_max - hit_kappa_min)/(hit_nmode - 1._wp)
+        do i = 1, hit_nmode
+            k(i) = hit_kappa_min + dk*(i - 1._wp)
+            Ek(i) = hit_alpha &
+                    *(hit_uprime**2._wp/hit_kappa_e) &
+                    *(k(i)/hit_kappa_e)**4._wp/(1._wp + (k(i)/hit_kappa_e))**(17._wp/6._wp) &
+                    *exp(-2._wp*(k(i)/hit_kappa_eta)**2._wp)
+        end do
+
+        ! Compute perturbation for each Fourier component
+        do i = 1, hit_nmode
+            ! Compute wave amplitude
+            q = sqrt(Ek(i)*dk)
+
+            ! Generate random numbers for unit wavevector khat,
+            ! random unit vector xi, and random mode phase phi
+            if (proc_rank == 0) then
+                call s_generate_random_perturbation_hit(khat, xi, phi, i)
+            end if
+
+#ifdef MFC_MPI
+            call MPI_BCAST(khat, 3, mpi_p, 0, MPI_COMM_WORLD, ierr)
+            call MPI_BCAST(xi, 3, mpi_p, 0, MPI_COMM_WORLD, ierr)
+            call MPI_BCAST(phi, 1, mpi_p, 0, MPI_COMM_WORLD, ierr)
+#endif
+
+            ! Compute mode direction by two-time cross product
+            sig_tmp = f_cross(xi, khat)
+            sig_tmp = sig_tmp/sqrt(sum(sig_tmp**2._wp))
+            sig = f_cross(khat, sig_tmp)
+
+            ! Compute perturbation for each grid
+            do l = 0, p
+                do r = 0, n
+                    do j = 0, m
+                        alpha = k(i)*(khat(1)*x_cc(j) + khat(2)*y_cc(r) + khat(3)*z_cc(l)) + 2._wp*pi*phi
+                        velfluc = 2._wp*q*sig*cos(alpha)
+                        q_prim_vf(momxb)%sf(j, r, l) = q_prim_vf(momxb)%sf(j, r, l) + velfluc(1)
+                        q_prim_vf(momxb + 1)%sf(j, r, l) = q_prim_vf(momxb + 1)%sf(j, r, l) + velfluc(2)
+                        q_prim_vf(momxb + 2)%sf(j, r, l) = q_prim_vf(momxb + 2)%sf(j, r, l) + velfluc(3)
+                    end do
+                end do
+            end do
+        end do
+
+    end subroutine s_perturb_hit
+
+    !> @brief Generates deterministic pseudo-random wave vector, polarization, and phase for a perturbation mode.
+    subroutine s_generate_random_perturbation_hit(khat, xi, phi, ik)
+        integer, intent(in) :: ik
+        real(wp), dimension(3), intent(out) :: khat, xi
+        real(wp), intent(out) :: phi
+        real(wp) :: theta, eta
+        integer :: seed
+
+        seed = ik*amplifier
+
+        call s_prng(theta, seed)
+        call s_prng(eta, seed)
+        khat = f_unit_vector(theta, eta)
+
+        call s_prng(theta, seed)
+        call s_prng(eta, seed)
+        xi = f_unit_vector(theta, eta)
+
+        call s_prng(phi, seed)
+
+    end subroutine s_generate_random_perturbation_hit
+
     !> @brief Generates deterministic pseudo-random wave vector, polarization, and phase for a perturbation mode.
     subroutine s_generate_random_perturbation(khat, xi, phi, ik, yloc)
         integer, intent(in) :: ik

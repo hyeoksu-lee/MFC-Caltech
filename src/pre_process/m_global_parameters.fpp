@@ -156,6 +156,10 @@ module m_global_parameters
                                      !! Default value (k0 = 0.4446) is most unstable mode obtained from linear stability analysis
                                      !! See Michalke (1964, JFM) for details
     logical :: simplex_perturb
+    logical :: hit_perturb !< Superimpose instability waves to surrounding fluid flow
+    integer :: hit_nmode  !< Number of Fourier modes for perturbation with hit_perturb flag
+    real(wp) :: hit_alpha, hit_kappa_e, hit_uprime, hit_kappa_eta, hit_kappa_min, hit_kappa_max
+
     type(simplex_noise_params) :: simplex_params
 
     real(wp) :: pi_fac !< Factor for artificial pi_inf
@@ -397,6 +401,16 @@ contains
         mixlayer_perturb = .false.
         mixlayer_perturb_nk = 100
         mixlayer_perturb_k0 = 0.4446_wp
+
+        hit_perturb = .false.
+        hit_nmode = dflt_int
+        hit_alpha = dflt_real
+        hit_kappa_e = dflt_real
+        hit_uprime = dflt_real
+        hit_kappa_eta = dflt_real
+        hit_kappa_min = dflt_real
+        hit_kappa_max = dflt_real
+
         perturb_flow = .false.
         perturb_flow_fluid = dflt_int
         perturb_flow_mag = dflt_real
