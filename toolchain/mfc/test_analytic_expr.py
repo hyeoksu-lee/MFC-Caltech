@@ -152,6 +152,7 @@ def test_sharp_screen_working_precision(tmp_path):
     """Compile the actual screen expression and compare to its MERGE definition."""
     import shutil
     import subprocess
+
     from mfc.analytic_expr import fortranize_expr
 
     compiler = shutil.which("gfortran")

@@ -103,8 +103,7 @@ program p_main
 
     call nvtxEndRange  ! Simulation
 
-    if (poem_euler .and. proc_rank == 0) &
-        call s_poem_write_profile(trim(case_dir) // '/D/poem_backend_profile.dat')
+    if (poem_euler .and. proc_rank == 0) call s_poem_write_profile(trim(case_dir) // '/D/poem_backend_profile.dat')
 
     deallocate (proc_time, io_proc_time)
 

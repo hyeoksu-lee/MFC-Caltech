@@ -42,15 +42,12 @@ POEM = {
 
 class PoemConstraints(ConstraintTestCase):
     def test_openacc_allowed_but_openmp_and_reduced_precision_rejected(self):
-        for gpu, single, mixed, accepted in (("acc", False, False, True),
-                                             ("mp", False, False, False),
-                                             ("acc", True, False, False),
-                                             ("acc", False, True, False)):
+        for gpu, single, mixed, accepted in (("acc", False, False, True), ("mp", False, False, False), ("acc", True, False, False), ("acc", False, True, False)):
             with self.subTest(gpu=gpu, single=single, mixed=mixed):
-                with patch('mfc.case_validator.CFG',return_value=SimpleNamespace(gpu=gpu,single=single,mixed=mixed)):
-                    validator=CaseValidator(POEM)
+                with patch("mfc.case_validator.CFG", return_value=SimpleNamespace(gpu=gpu, single=single, mixed=mixed)):
+                    validator = CaseValidator(POEM)
                     validator.check_poem()
-                    self.assertEqual(not validator.errors,accepted)
+                    self.assertEqual(not validator.errors, accepted)
 
     def test_supported_case(self):
         self.assertAccepts(POEM)

@@ -61,8 +61,8 @@ contains
         real(wp)                             :: E_L, E_R
         real(wp)                             :: H_L, H_R
         real(wp)                             :: poem_left(4), poem_right(4)
-        real(wp), allocatable                 :: poem_face_states(:, :), poem_face_moments(:, :)
-        integer                               :: poem_face, poem_face_count, poem_j_count, poem_k_count
+        real(wp), allocatable                :: poem_face_states(:,:), poem_face_moments(:,:)
+        integer                              :: poem_face, poem_face_count, poem_j_count, poem_k_count
         real(wp), dimension(${NUM_SPECIES}$) :: Ys_L, Ys_R, Xs_L, Xs_R, Gamma_iL, Gamma_iR, Cp_iL, Cp_iR, R_species, h_iL, h_iR
         real(wp)                             :: c_sum_Yi_Phi
         real(wp)                             :: T_L, T_R
@@ -490,16 +490,16 @@ contains
                         poem_face_count = poem_j_count*poem_k_count*max(0, ${Z_BND}$%end - ${Z_BND}$%beg + 1)
                         if (poem_face_count > 0) then
                             @:ALLOCATE(poem_face_states(poem_dimension, 2*poem_face_count), poem_face_moments(4, 2*poem_face_count))
-                            $:GPU_PARALLEL_LOOP(private='[j,k,l,poem_face]', collapse=3)
+                            $:GPU_PARALLEL_LOOP(private='[j, k, l, poem_face]', collapse=3)
                             do l = ${Z_BND}$%beg, ${Z_BND}$%end
                                 do k = ${Y_BND}$%beg, ${Y_BND}$%end
                                     do j = ${X_BND}$%beg, ${X_BND}$%end
-                                        poem_face = 1 + j - ${X_BND}$%beg + poem_j_count* &
-                                            & (k - ${Y_BND}$%beg + poem_k_count*(l - ${Z_BND}$%beg))
-                                        poem_face_states(:, 2*poem_face - 1) = &
-                                            & qL_prim_rsx_vf(${SF('')}$, eqn_idx%bub%beg:eqn_idx%bub%end)
-                                        poem_face_states(:, 2*poem_face) = &
-                                            & qR_prim_rsx_vf(${SF(' + 1')}$, eqn_idx%bub%beg:eqn_idx%bub%end)
+                                        poem_face = 1 + j - ${X_BND}$%beg + poem_j_count*(k - ${Y_BND}$%beg + poem_k_count*(l &
+                                            & - ${Z_BND}$%beg))
+                                        poem_face_states(:,2*poem_face - 1) = qL_prim_rsx_vf(${SF('')}$, &
+                                                         & eqn_idx%bub%beg:eqn_idx%bub%end)
+                                        poem_face_states(:,2*poem_face) = qR_prim_rsx_vf(${SF(' + 1')}$, &
+                                                         & eqn_idx%bub%beg:eqn_idx%bub%end)
                                     end do
                                 end do
                             end do
@@ -519,7 +519,8 @@ contains
                                         & vel_avg_rms, Ms_L, Ms_R, pres_SL, pres_SR, alpha_L_sum, alpha_R_sum, s_L, s_R, s_M, &
                                         & s_P, s_S, xi_M, xi_P, xi_L, xi_R, xi_L_m1, xi_R_m1, xi_MP, xi_PP, nbub_L, nbub_R, &
                                         & PbwR3Lbar, PbwR3Rbar, R3Lbar, R3Rbar, R3V2Lbar, R3V2Rbar, Ys_L, Ys_R, Cp_iL, Cp_iR, &
-                                        & Xs_L, Xs_R, Gamma_iL, Gamma_iR, poem_face, poem_left, poem_right]', firstprivate='[Re_size_loc1, Re_size_loc2]')
+                                        & Xs_L, Xs_R, Gamma_iL, Gamma_iR, poem_face, poem_left, poem_right]', &
+                                        & firstprivate='[Re_size_loc1, Re_size_loc2]')
                     do l = ${Z_BND}$%beg, ${Z_BND}$%end
                         do k = ${Y_BND}$%beg, ${Y_BND}$%end
                             do j = ${X_BND}$%beg, ${X_BND}$%end
@@ -585,10 +586,10 @@ contains
 
                                 if (avg_state == avg_state_arithmetic) then
                                     if (poem_euler) then
-                                        poem_face = 1 + j - ${X_BND}$%beg + poem_j_count* &
-                                            & (k - ${Y_BND}$%beg + poem_k_count*(l - ${Z_BND}$%beg))
-                                        poem_left = poem_face_moments(:, 2*poem_face - 1)
-                                        poem_right = poem_face_moments(:, 2*poem_face)
+                                        poem_face = 1 + j - ${X_BND}$%beg + poem_j_count*(k - ${Y_BND}$%beg + poem_k_count*(l &
+                                            & - ${Z_BND}$%beg))
+                                        poem_left = poem_face_moments(:,2*poem_face - 1)
+                                        poem_right = poem_face_moments(:,2*poem_face)
                                         nbub_L = qL_prim_rsx_vf(${SF('')}$, eqn_idx%n)
                                         nbub_R = qR_prim_rsx_vf(${SF(' + 1')}$, eqn_idx%n)
                                         R3Lbar = poem_left(1); R3Rbar = poem_right(1)

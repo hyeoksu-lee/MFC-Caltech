@@ -30,8 +30,8 @@ module m_bubbles_EE
     integer, allocatable, dimension(:) :: rs, vs, ms, ps
     real(wp)                           :: poem_max_source_ratio = 0._wp, poem_max_root_residual = 0._wp
     $:GPU_DECLARE(create='[rs, vs, ms, ps]')
-    real(wp), allocatable :: poem_gpu_y(:,:), poem_gpu_next(:,:), poem_gpu_p(:), poem_gpu_ratio(:), poem_gpu_root(:)
-    real(wp), allocatable :: poem_gpu_moments(:,:)
+    real(wp), allocatable       :: poem_gpu_y(:,:), poem_gpu_next(:,:), poem_gpu_p(:), poem_gpu_ratio(:), poem_gpu_root(:)
+    real(wp), allocatable       :: poem_gpu_moments(:,:)
     integer(c_int), allocatable :: poem_gpu_active(:)
     $:GPU_DECLARE(create='[poem_gpu_y, poem_gpu_next, poem_gpu_p, poem_gpu_ratio, poem_gpu_root, poem_gpu_moments, poem_gpu_active]')
 
@@ -120,13 +120,13 @@ contains
     subroutine s_advance_poem_source(q_cons_vf, q_prim_vf)
 
         type(scalar_field), intent(inout) :: q_cons_vf(sys_size)
-        type(scalar_field), intent(in)    :: q_prim_vf(sys_size)
-        real(wp)                          :: y(poem_dimension, m + 1), following(poem_dimension, m + 1), pressure(m + 1), ratio(m + 1), root(m + 1), number
-        logical                           :: active(m + 1)
-        integer                           :: j, i
+        type(scalar_field), intent(in) :: q_prim_vf(sys_size)
+        real(wp) :: y(poem_dimension, m + 1), following(poem_dimension, m + 1), pressure(m + 1), ratio(m + 1), root(m + 1), number
+        logical :: active(m + 1)
+        integer :: j, i
 
 #ifdef MFC_OpenACC
-        call s_advance_poem_source_gpu(q_cons_vf,q_prim_vf)
+        call s_advance_poem_source_gpu(q_cons_vf, q_prim_vf)
         return
 #endif
         y = 0._wp
@@ -134,8 +134,8 @@ contains
         do j = 0, m
             ! Match the direct-source cutoff, including an active equality case.
             ! Re-evaluate at every half step; advection can change the local void.
-            if (.not. ieee_is_finite(q_prim_vf(eqn_idx%alf)%sf(j, 0, 0))) &
-                call s_mpi_abort('POEM source requires finite bubble volume fraction.')
+            if (.not. ieee_is_finite(q_prim_vf(eqn_idx%alf)%sf(j, 0, &
+                & 0))) call s_mpi_abort('POEM source requires finite bubble volume fraction.')
             active(j + 1) = .not. (q_prim_vf(eqn_idx%alf)%sf(j, 0, 0) < small_alf)
             if (.not. active(j + 1)) cycle
             pressure(j + 1) = q_prim_vf(eqn_idx%E)%sf(j, 0, 0)
@@ -160,59 +160,65 @@ contains
     end subroutine s_advance_poem_source
 
 #ifdef MFC_OpenACC
-    subroutine s_advance_poem_source_gpu(q_cons_vf,q_prim_vf)
+    subroutine s_advance_poem_source_gpu(q_cons_vf, q_prim_vf)
+
         type(scalar_field), intent(inout) :: q_cons_vf(sys_size)
-        type(scalar_field), intent(in) :: q_prim_vf(sys_size)
-        integer :: j,i,bad
-        real(wp) :: number, alf, max_ratio, max_root
-        bad=0
-        $:GPU_PARALLEL_LOOP(private='[j,i,alf,number]', reduction='[[bad]]', reductionOp='[max]')
-        do j=0,m
-            alf=q_prim_vf(eqn_idx%alf)%sf(j,0,0)
-            if (.not. ieee_is_finite(alf)) bad=1
-            poem_gpu_active(j+1)=0_c_int
-            if (.not. (alf < small_alf)) poem_gpu_active(j+1)=1_c_int
-            number=q_cons_vf(eqn_idx%n)%sf(j,0,0)
-            if (poem_gpu_active(j+1)==1 .and. (.not. ieee_is_finite(number) .or. number <= 0._wp)) bad=1
-            poem_gpu_p(j+1)=q_prim_vf(eqn_idx%E)%sf(j,0,0)
+        type(scalar_field), intent(in)    :: q_prim_vf(sys_size)
+        integer                           :: j, i, bad
+        real(wp)                          :: number, alf, max_ratio, max_root
+
+        bad = 0
+        $:GPU_PARALLEL_LOOP(private='[j, i, alf, number]', reduction='[[bad]]', reductionOp='[max]')
+        do j = 0, m
+            alf = q_prim_vf(eqn_idx%alf)%sf(j, 0, 0)
+            if (.not. ieee_is_finite(alf)) bad = 1
+            poem_gpu_active(j + 1) = 0_c_int
+            if (.not. (alf < small_alf)) poem_gpu_active(j + 1) = 1_c_int
+            number = q_cons_vf(eqn_idx%n)%sf(j, 0, 0)
+            if (poem_gpu_active(j + 1) == 1 .and. (.not. ieee_is_finite(number) .or. number <= 0._wp)) bad = 1
+            poem_gpu_p(j + 1) = q_prim_vf(eqn_idx%E)%sf(j, 0, 0)
             $:GPU_LOOP(parallelism='[seq]')
-            do i=1,poem_dimension
-                poem_gpu_y(i,j+1)=q_prim_vf(eqn_idx%bub%beg+i-1)%sf(j,0,0)
+            do i = 1, poem_dimension
+                poem_gpu_y(i, j + 1) = q_prim_vf(eqn_idx%bub%beg + i - 1)%sf(j, 0, 0)
             end do
         end do
         $:END_GPU_PARALLEL_LOOP()
-        if (bad/=0) call s_mpi_abort('Invalid POEM void fraction or active bubble number density.')
-        call s_poem_advance_device(m+1,poem_gpu_active,poem_gpu_p,dt/2._wp,poem_gpu_y, &
-                                  poem_gpu_next,poem_gpu_ratio,poem_gpu_root)
-        max_ratio=0._wp; max_root=0._wp
-        $:GPU_PARALLEL_LOOP(private='[j,i,number]', reduction='[[max_ratio,max_root]]', reductionOp='[max]')
-        do j=0,m
-            max_ratio=max(max_ratio,poem_gpu_ratio(j+1))
-            max_root=max(max_root,poem_gpu_root(j+1))
-            if (poem_gpu_active(j+1)==0) cycle
-            number=q_cons_vf(eqn_idx%n)%sf(j,0,0)
+        if (bad /= 0) call s_mpi_abort('Invalid POEM void fraction or active bubble number density.')
+        call s_poem_advance_device(m + 1, poem_gpu_active, poem_gpu_p, dt/2._wp, poem_gpu_y, poem_gpu_next, poem_gpu_ratio, &
+                                   & poem_gpu_root)
+        max_ratio = 0._wp; max_root = 0._wp
+        $:GPU_PARALLEL_LOOP(private='[j, i, number]', reduction='[[max_ratio, max_root]]', reductionOp='[max]')
+        do j = 0, m
+            max_ratio = max(max_ratio, poem_gpu_ratio(j + 1))
+            max_root = max(max_root, poem_gpu_root(j + 1))
+            if (poem_gpu_active(j + 1) == 0) cycle
+            number = q_cons_vf(eqn_idx%n)%sf(j, 0, 0)
             $:GPU_LOOP(parallelism='[seq]')
-            do i=1,poem_dimension
-                q_cons_vf(eqn_idx%bub%beg+i-1)%sf(j,0,0)=number*poem_gpu_next(i,j+1)
+            do i = 1, poem_dimension
+                q_cons_vf(eqn_idx%bub%beg + i - 1)%sf(j, 0, 0) = number*poem_gpu_next(i, j + 1)
             end do
         end do
         $:END_GPU_PARALLEL_LOOP()
-        poem_max_source_ratio=max(poem_max_source_ratio,max_ratio)
-        poem_max_root_residual=max(poem_max_root_residual,max_root)
-    end subroutine
+        poem_max_source_ratio = max(poem_max_source_ratio, max_ratio)
+        poem_max_root_residual = max(poem_max_root_residual, max_root)
+
+    end subroutine s_advance_poem_source_gpu
 
     subroutine s_decode_poem_cells_gpu(q_prim_vf)
+
         type(scalar_field), intent(in) :: q_prim_vf(sys_size)
-        integer :: j,i
-        $:GPU_PARALLEL_LOOP(private='[j,i]', collapse=2)
-        do j=0,m
-            do i=1,poem_dimension
-                poem_gpu_y(i,j+1)=q_prim_vf(eqn_idx%bub%beg+i-1)%sf(j,0,0)
+        integer                        :: j, i
+
+        $:GPU_PARALLEL_LOOP(private='[j, i]', collapse=2)
+        do j = 0, m
+            do i = 1, poem_dimension
+                poem_gpu_y(i, j + 1) = q_prim_vf(eqn_idx%bub%beg + i - 1)%sf(j, 0, 0)
             end do
         end do
         $:END_GPU_PARALLEL_LOOP()
-        call s_poem_decode_device(m+1,poem_gpu_y,poem_gpu_moments)
-    end subroutine
+        call s_poem_decode_device(m + 1, poem_gpu_y, poem_gpu_moments)
+
+    end subroutine s_decode_poem_cells_gpu
 #endif
 
     !> Compact diagnostics at full-step endpoints for the one-dimensional CPU study.
@@ -228,11 +234,11 @@ contains
 
         if (poem_euler) then
             if (n /= 0 .or. p /= 0) call s_mpi_abort('POEM diagnostics require the supported one-dimensional domain.')
-            allocate(y(poem_dimension, m + 1), decoded(4, m + 1))
+            allocate (y(poem_dimension, m + 1), decoded(4, m + 1))
 #ifdef MFC_OpenACC
             call s_decode_poem_cells_gpu(q_prim_vf)
             $:GPU_UPDATE(host='[poem_gpu_moments]')
-            decoded=poem_gpu_moments
+            decoded = poem_gpu_moments
 #else
             do j = 0, m
                 do i = 1, poem_dimension
@@ -244,7 +250,7 @@ contains
         end if
 #ifdef MFC_OpenACC
         ! Explicit output-only host transfer; simulation kernels stay on device.
-        do i=1,sys_size
+        do i = 1, sys_size
             $:GPU_UPDATE(host='[q_cons_vf(i)%sf, q_prim_vf(i)%sf]')
         end do
 #endif
@@ -257,7 +263,7 @@ contains
         end if
         do j = 0, m
             if (poem_euler) then
-                moments = decoded(:, j + 1)
+                moments = decoded(:,j + 1)
             else
                 moments = 0._wp
                 do q = 1, nb
@@ -519,7 +525,7 @@ contains
         type(scalar_field), dimension(sys_size), intent(in) :: q_cons_vf, q_prim_vf
         real(wp)                                            :: R3bar, R3V2bar, PbwR3bar
         real(wp)                                            :: myRho, myP, alf, myR, myV, myPb
-        real(wp), allocatable                              :: poem_y(:,:), poem_moments(:,:)
+        real(wp), allocatable                               :: poem_y(:,:), poem_moments(:,:)
         integer                                             :: j, k, l, q, ii
 
 #ifdef MFC_OpenACC
@@ -528,7 +534,7 @@ contains
 #if !defined(MFC_OpenACC) && !defined(MFC_OpenMP)
         if (poem_euler) then
             if (n /= 0 .or. p /= 0) call s_mpi_abort('POEM cell decoding requires the supported one-dimensional domain.')
-            allocate(poem_y(poem_dimension, m + 1), poem_moments(4, m + 1))
+            allocate (poem_y(poem_dimension, m + 1), poem_moments(4, m + 1))
             do j = 0, m
                 do q = 1, poem_dimension
                     poem_y(q, j + 1) = q_prim_vf(eqn_idx%bub%beg + q - 1)%sf(j, 0, 0)
@@ -552,9 +558,9 @@ contains
 
                     if (poem_euler) then
 #ifdef MFC_OpenACC
-                        R3bar = poem_gpu_moments(1,j+1)
-                        R3V2bar = poem_gpu_moments(2,j+1)
-                        PbwR3bar = poem_gpu_moments(3,j+1)
+                        R3bar = poem_gpu_moments(1, j + 1)
+                        R3V2bar = poem_gpu_moments(2, j + 1)
+                        PbwR3bar = poem_gpu_moments(3, j + 1)
 #endif
 #if !defined(MFC_OpenACC) && !defined(MFC_OpenMP)
                         R3bar = poem_moments(1, j + 1)
