@@ -190,6 +190,14 @@ class TestBodyForceSpatialSupport(ConstraintTestCase):
         self.assertAccepts({**BASE_2D, "bf_spatial_support": "T"})
 
 
+class TestChemistryDiffusion(ConstraintTestCase):
+    def test_rejects_diffusion_without_chemistry(self):
+        self.assertRejects({**BASE, "chem_params%diffusion": "T"}, "chem_params%diffusion requires chemistry")
+
+    def test_accepts_diffusion_with_chemistry(self):
+        self.assertAccepts({**CHEMISTRY, "chem_params%diffusion": "T"})
+
+
 class TestChemistrySubstepping(ConstraintTestCase):
     def test_rejects_negative_substeps(self):
         self.assertRejects({**CHEMISTRY, "chem_params%reaction_substeps": -1}, "reaction_substeps must be >= 0")
@@ -603,6 +611,79 @@ class TestGrcbcOutflowTargets(ConstraintTestCase):
         y = {**BASE_2D, "bc_y%beg": -7, "bc_y%end": -8, "bc_y%grcbc_out": "T", "bc_y%pres_out": 1.0, "bc_y%grcbc_vel_out": "T"}
         self.assertRejects(y, "bc_y%vel_out(2) must be specified")
         self.assertAccepts({**y, "bc_y%vel_out(2)": 0.0})
+
+
+class TestImmersedBoundarySurfaceChemistry(ConstraintTestCase):
+    """patch_ib surface injection, thermal condition and heterogeneous reaction.
+
+    These used to live in m_checker.fpp. They are relations between case-file parameters, so
+    they belong here: the Fortran copy could not be unit tested, and a constraint that is only
+    exercised by running a full simulation is one that drifts. Only inj_species <= num_species
+    stays in Fortran, because Cantera populates num_species at run time.
+    """
+
+    IB = {"ib": "T", "num_ibs": 1, "fd_order": 2, "patch_ib(1)%geometry": 2, "patch_ib(1)%x_centroid": 0.5, "patch_ib(1)%y_centroid": 0.5, "patch_ib(1)%radius": 0.1}
+
+    def case(self, **patch):
+        p = {**BASE_2D, **self.IB}
+        p.update({f"patch_ib(1)%{k}": v for k, v in patch.items()})
+        return p
+
+    def test_ranges_are_enforced(self):
+        self.assertRejects(self.case(thermal_bc=3), "thermal_bc must be 0, 1 or 2")
+        self.assertRejects(self.case(surface_reaction=2), "surface_reaction must be 0 or 1")
+        self.assertRejects(self.case(inj_species=-1), "inj_species must be >= 0")
+
+    def test_an_isothermal_wall_needs_a_conduction_path(self):
+        conducting = {"fluid_pp(1)%k_therm": 1.0e-3, "fluid_pp(1)%cv": 1.0}
+        self.assertRejects(self.case(thermal_bc=1, Twall=1200.0), "requires chemistry = T or fluid_pp(1)%k_therm > 0")
+        self.assertAccepts({**self.case(thermal_bc=1, Twall=1200.0), "chemistry": "T"})
+        self.assertAccepts({**self.case(thermal_bc=1, Twall=50.0), **conducting})
+        self.assertRejects({**self.case(thermal_bc=1, Twall=0.0), **conducting}, "Twall must be positive")
+        self.assertRejects({**self.case(thermal_bc=1, Twall=1.0), **conducting, "num_fluids": 2}, "requires num_fluids = 1")
+        self.assertRejects({**self.case(thermal_bc=2), **conducting}, "thermal_bc = 2 requires chemistry = T")
+
+    def test_a_thermal_condition_on_an_injecting_surface_is_refused(self):
+        """An injecting surface bypasses the reconstruction entirely, so the two cannot combine."""
+        self.assertRejects(
+            {**self.case(thermal_bc=1, Twall=1200.0, inj_species=1), "chemistry": "T"},
+            "thermal_bc /= 0 cannot be combined with inj_species > 0",
+        )
+
+    def test_twall_must_lie_in_the_tabulated_range(self):
+        """Not merely positive: outside the NASA fit range the thermodynamic evaluation is
+        extrapolating, and the ghost reconstruction can only hand such a value straight back."""
+        self.assertRejects({**self.case(thermal_bc=1, Twall=50.0), "chemistry": "T"}, "Twall must be within")
+        self.assertRejects({**self.case(thermal_bc=1, Twall=9000.0), "chemistry": "T"}, "Twall must be within")
+        self.assertAccepts({**self.case(thermal_bc=1, Twall=210.0), "chemistry": "T"})
+
+    def test_the_energy_balance_needs_a_reacting_surface(self):
+        self.assertRejects({**self.case(thermal_bc=2), "chemistry": "T"}, "thermal_bc = 2 requires surface_reaction = 1")
+        self.assertAccepts({**self.case(thermal_bc=2, surface_reaction=1), "chemistry": "T", "surface_cantera_file": "s.yaml", "surface_phase": "surf"})
+
+    def test_a_reacting_surface_needs_chemistry_and_no_injection(self):
+        self.assertRejects(self.case(surface_reaction=1), "surface_reaction = 1 requires chemistry = T")
+        self.assertRejects({**self.case(surface_reaction=1), "chemistry": "F"}, "surface_reaction = 1 requires chemistry = T")
+        self.assertRejects(
+            {**self.case(surface_reaction=1, inj_species=1), "chemistry": "T"},
+            "surface_reaction = 1 cannot be combined with inj_species > 0",
+        )
+
+    def test_a_reacting_surface_needs_a_surface_mechanism(self):
+        """Without one the generated surface module returns zero rates, a silently inert wall."""
+        reacting = {**self.case(surface_reaction=1), "chemistry": "T"}
+        self.assertRejects(reacting, "requires surface_cantera_file and surface_phase")
+        self.assertRejects({**reacting, "surface_cantera_file": "s.yaml"}, "requires surface_cantera_file and surface_phase")
+        self.assertAccepts({**reacting, "surface_cantera_file": "s.yaml", "surface_phase": "surf"})
+
+    def test_the_twall_window_is_read_from_m_constants(self):
+        """The bound must track the Fortran parameter the solver actually clamps to, or the two
+        drift and a case the validator accepts is one the reconstruction cannot represent."""
+        from mfc.params.namelist_parser import get_fortran_real_constants
+
+        window = get_fortran_real_constants()
+        self.assertEqual(window.get("T_surface_min"), 200.0)
+        self.assertEqual(window.get("T_surface_max"), 5000.0)
 
 
 class TestHeatConduction(ConstraintTestCase):

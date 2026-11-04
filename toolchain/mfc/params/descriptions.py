@@ -147,6 +147,8 @@ DESCRIPTIONS = {
     "num_particle_clouds": "Number of particle bed specifications to generate immersed boundary patches from",
     "ib_neighborhood_radius": "Neighborhood radius in ranks for IB awareness",
     "many_ib_patch_parallelism": "Parallelize over IB patches instead of grid cells (better for many small patches)",
+    "ib_second_order_vel": "Extrapolate IB ghost-point velocity linearly through the boundary intercept (second order)",
+    "ib_ip_min_dist": "Minimum boundary-to-image-point distance in local cell widths for ib_second_order_vel",
     # Acoustic sources
     "acoustic_source": "Enable acoustic source terms",
     "num_source": "Number of acoustic sources",
@@ -159,6 +161,8 @@ DESCRIPTIONS = {
     "files_dir": "The relative path to the directory containing the extrusion IC files",
     "file_extension": "The last 6 digits of the extrusion files prim.XX.YY.123456.dat",
     "cantera_file": "Cantera mechanism file for chemistry",
+    "surface_cantera_file": "Cantera mechanism file for heterogeneous surface chemistry",
+    "surface_phase": "Cantera interface phase name for heterogeneous surface chemistry",
     "old_grid": "Use grid from previous simulation",
     "old_ic": "Use initial conditions from previous simulation",
     "t_step_old": "Time step to restart from",

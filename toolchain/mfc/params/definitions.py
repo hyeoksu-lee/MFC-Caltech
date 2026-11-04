@@ -14,7 +14,7 @@ from .schema import ParamDef, ParamType
 
 # Index limits — sourced from Fortran compile-time constants (m_constants.fpp).
 # Falls back to the inline default when src/ is unavailable (e.g. Homebrew).
-# Default must match src/common/m_constants.fpp — enforced by co-location.
+# Default must match src/common/m_constants.fpp — enforced by test_definitions.py.
 _FC = get_fortran_constants()
 
 
@@ -31,10 +31,11 @@ NF = _fc("num_fluids_max", 10)  # fluid_pp
 NPR = _fc("num_probes_max", 64)  # probe, acoustic
 NB = _fc("num_bc_patches_max", 10)  # patch_bc
 NUM_PATCHES_MAX = _fc("num_patches_max", 10)  # patch_icpp (Fortran array bound)
-NIB = _fc("num_ib_patches_max_namelist", 54000)  # patch_ib namelist array bound
+NIB = _fc("num_ib_patches_max_namelist", 810000)  # patch_ib namelist array bound
 NAF = _fc("num_ib_airfoils_max", 5)  # ib_airfoil (Fortran array bound)
 NSM = _fc("num_stl_models_max", 10)  # stl_models (Fortran array bound)
 NPB = _fc("num_particle_clouds_max", 10)  # particle_cloud (Fortran array bound)
+NTS = _fc("num_turb_sources_max", 10)  # turb_pos, synth_L (Fortran array bound)
 # Enumeration limits for families not yet converted to IndexedFamily.
 # These are smaller than the Fortran array bounds to keep the registry compact.
 # The CONSTRAINTS dict below uses the Fortran constants for validation.
@@ -683,6 +684,8 @@ def _load():
 
     # Chemistry
     _r("cantera_file", STR, {"chemistry"})
+    _r("surface_cantera_file", STR, {"chemistry"})
+    _r("surface_phase", STR, {"chemistry"})
     _r("chemistry", LOG, {"chemistry"})
 
     # Condensed-phase reactive burn (programmed pressure burn on the multi-fluid model)
@@ -707,6 +710,8 @@ def _load():
     _r("collision_time", REAL, {"ib"})
     _r("ib_coefficient_of_friction", REAL, {"ib"})
     _r("many_ib_patch_parallelism", LOG, {"ib"})
+    _r("ib_second_order_vel", LOG, {"ib"})
+    _r("ib_ip_min_dist", REAL, {"ib"})
 
     # Probes
     _r("num_probes", INT, {"probes"})
@@ -872,7 +877,6 @@ def _load():
     _r("num_turbulent_sources", INT, {"synthetic_turbulence"})
     _r("synth_U_inf", REAL, {"synthetic_turbulence"}, math=r"\f$U_\infty\f$")
     NSS = _fc("num_synth_shells_max", 50)
-    NTS = _fc("num_turb_sources_max", 10)
     for i in range(1, NSS + 1):
         _r(f"synth_n_waves_per_shell({i})", INT, {"synthetic_turbulence"})
         _r(f"synth_k_shell({i})", REAL, {"synthetic_turbulence"}, math=r"\f$k_s\f$")
@@ -999,9 +1003,9 @@ def _load():
     # grow patch_ib beyond this at runtime, but those entries are never in the namelist.
     _ib_tags = {"ib"}
     _ib_attrs: Dict[str, tuple] = {}
-    for a in ["geometry", "moving_ibm", "airfoil_id", "model_id", "inj_species"]:
+    for a in ["geometry", "moving_ibm", "airfoil_id", "model_id", "inj_species", "thermal_bc", "surface_reaction"]:
         _ib_attrs[a] = (INT, _ib_tags)
-    for a, pt in [("radius", REAL), ("slip", LOG), ("mass", REAL), ("v_blow", REAL), ("burn_rate_exp", REAL), ("burn_rate_pref", REAL)]:
+    for a, pt in [("radius", REAL), ("slip", LOG), ("mass", REAL), ("Twall", REAL), ("v_blow", REAL), ("burn_rate_exp", REAL), ("burn_rate_pref", REAL)]:
         _ib_attrs[a] = (pt, _ib_tags)
     for j in range(1, 4):
         _ib_attrs[f"angles({j})"] = (REAL, _ib_tags)
@@ -1466,6 +1470,8 @@ _nv(
     "ib_coefficient_of_friction",
     "ib_neighborhood_radius",
     "many_ib_patch_parallelism",
+    "ib_second_order_vel",
+    "ib_ip_min_dist",
     "tau_star",
     "cont_damage_s",
     "alpha_bar",

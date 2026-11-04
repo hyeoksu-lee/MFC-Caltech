@@ -4,7 +4,7 @@
 #:include 'case.fpp'
 #:include 'macros.fpp'
 
-!> @brief WENO/WENO-Z/TENO reconstruction with optional monotonicity-preserving bounds and mapped weights
+!> @brief WENO/WENO-Z/TENO reconstructions with optional monotonicity-preserving bounds and mapped weights
 module m_weno
 
     use m_derived_types
@@ -61,7 +61,6 @@ module m_weno
     real(wp), target, allocatable, dimension(:,:,:) :: beta_coef_z
     !> @}
     $:GPU_DECLARE(create='[beta_coef_x, beta_coef_y, beta_coef_z]')
-
     ! END: WENO Coefficients
 
     integer :: v_size  !< Number of WENO-reconstructed cell-average variables
@@ -117,7 +116,10 @@ contains
 
         call s_compute_weno_coefficients(1, is1_weno)
 
-        @:ALLOCATE(v_rs_weno(is1_weno%beg:is1_weno%end, is2_weno%beg:is2_weno%end, is3_weno%beg:is3_weno%end, 1:sys_size))
+        ! Only MP-WENO and THINC read the packed copy; the reconstruction kernels read v_vf directly
+        if (mp_weno .or. int_comp > 0) then
+            @:ALLOCATE(v_rs_weno(is1_weno%beg:is1_weno%end, is2_weno%beg:is2_weno%end, is3_weno%beg:is3_weno%end, 1:sys_size))
+        end if
 
         ! Allocating/Computing WENO Coefficients in y-direction
         if (n == 0) return
@@ -390,18 +392,7 @@ contains
                                            & i + 1) = ((w(1) - w(5))*(w(2) - w(5))*(w(3) - w(5)))/((w(1) - w(8))*(w(2) - w(8)) &
                                            & *(w(3) - w(8)))
 
-                            ! Element-wise on purpose - do NOT rewrite as a reversed-stride section (e.g. s_cb(i+1:i-2:-1)):
-                            ! negative-stride sections of descriptor arrays lower to address arithmetic whose no-wrap
-                            ! (nuw) claims are false, which amdflang (AFAR drop-23.2.x, flang PR #184573; fixed upstream
-                            ! in #198014) turns into silently wrong WENO7 coefficients at -O2/-O3.
-                            w(1) = s_cb(i + 4) - s_cb(i)
-                            w(2) = s_cb(i + 3) - s_cb(i)
-                            w(3) = s_cb(i + 2) - s_cb(i)
-                            w(4) = s_cb(i + 1) - s_cb(i)
-                            w(5) = s_cb(i) - s_cb(i)
-                            w(6) = s_cb(i - 1) - s_cb(i)
-                            w(7) = s_cb(i - 2) - s_cb(i)
-                            w(8) = s_cb(i - 3) - s_cb(i)
+                            w = s_cb(i + 4:i - 3:-1) - s_cb(i)
                             d_cbL_${XYZ}$ (0, &
                                            & i + 1) = ((w(1) - w(5))*(w(2) - w(5))*(w(3) - w(5)))/((w(1) - w(8))*(w(2) - w(8)) &
                                            & *(w(3) - w(8)))
@@ -471,11 +462,7 @@ contains
                                                    & 2) = (y(4)*(y(3) + y(4))*(y(2) + y(3) + y(4)))/((y(1) + y(2))*(y(1) + y(2) &
                                                    & + y(3))*(y(1) + y(2) + y(3) + y(4)))
 
-                            ! Element-wise: see the no-reversed-sections note above.
-                            y(1) = s_cb(i + 1) - s_cb(i)
-                            y(2) = s_cb(i) - s_cb(i - 1)
-                            y(3) = s_cb(i - 1) - s_cb(i - 2)
-                            y(4) = s_cb(i - 2) - s_cb(i - 3)
+                            y = s_cb(i + 1:i - 2:-1) - s_cb(i:i - 3:-1)
                             poly_coef_cbL_${XYZ}$ (i + 1, 3, &
                                                    & 2) = (y(1)*y(2)*(y(2) + y(3)))/((y(3) + y(4))*(y(2) + y(3) + y(4))*(y(1) &
                                                    & + y(2) + y(3) + y(4)))
@@ -488,11 +475,7 @@ contains
                                                    & + 4*y(2)*y(3) + 2*y(4)*y(2) + y(3)**2 + y(4)*y(3)))/((y(1) + y(2))*(y(1) &
                                                    & + y(2) + y(3))*(y(1) + y(2) + y(3) + y(4)))
 
-                            ! Element-wise: see the no-reversed-sections note above.
-                            y(1) = s_cb(i + 2) - s_cb(i + 1)
-                            y(2) = s_cb(i + 1) - s_cb(i)
-                            y(3) = s_cb(i) - s_cb(i - 1)
-                            y(4) = s_cb(i - 1) - s_cb(i - 2)
+                            y = s_cb(i + 2:i - 1:-1) - s_cb(i + 1:i - 2:-1)
                             poly_coef_cbL_${XYZ}$ (i + 1, 2, &
                                                    & 2) = -(y(2)*y(3)*(y(1) + y(2)))/((y(3) + y(4))*(y(2) + y(3) + y(4))*(y(1) &
                                                    & + y(2) + y(3) + y(4)))
@@ -504,11 +487,7 @@ contains
                                                    & 0) = (y(2)*y(3)*(y(3) + y(4)))/((y(1) + y(2))*(y(1) + y(2) + y(3))*(y(1) &
                                                    & + y(2) + y(3) + y(4)))
 
-                            ! Element-wise: see the no-reversed-sections note above.
-                            y(1) = s_cb(i + 3) - s_cb(i + 2)
-                            y(2) = s_cb(i + 2) - s_cb(i + 1)
-                            y(3) = s_cb(i + 1) - s_cb(i)
-                            y(4) = s_cb(i) - s_cb(i - 1)
+                            y = s_cb(i + 3:i:-1) - s_cb(i + 2:i - 1:-1)
                             poly_coef_cbL_${XYZ}$ (i + 1, 1, &
                                                    & 2) = (y(3)*(y(2) + y(3))*(y(1) + y(2) + y(3)))/((y(3) + y(4))*(y(2) + y(3) &
                                                    & + y(4))*(y(1) + y(2) + y(3) + y(4)))
@@ -520,11 +499,7 @@ contains
                                                    & 0) = -(y(3)*y(4)*(y(2) + y(3)))/((y(1) + y(2))*(y(1) + y(2) + y(3))*(y(1) &
                                                    & + y(2) + y(3) + y(4)))
 
-                            ! Element-wise: see the no-reversed-sections note above.
-                            y(1) = s_cb(i + 4) - s_cb(i + 3)
-                            y(2) = s_cb(i + 3) - s_cb(i + 2)
-                            y(3) = s_cb(i + 2) - s_cb(i + 1)
-                            y(4) = s_cb(i + 1) - s_cb(i)
+                            y = s_cb(i + 4:i + 1:-1) - s_cb(i + 3:i:-1)
                             poly_coef_cbL_${XYZ}$ (i + 1, 0, &
                                                    & 2) = (y(4)*(y(2)**2 + 4*y(2)*y(3) + 4*y(2)*y(4) + y(1)*y(2) + 3*y(3)**2 &
                                                    & + 6*y(3)*y(4) + 2*y(1)*y(3) + 3*y(4)**2 + 2*y(1)*y(4)))/((y(3) + y(4))*(y(2) &
@@ -895,11 +870,12 @@ contains
         type(scalar_field), dimension(1:), intent(in) :: v_vf
         integer                                       :: i, j, k, l, n_vars
 
-        $:GPU_PARALLEL_LOOP(collapse=4)
-        do i = 1, v_size
-            do l = idwbuff(3)%beg, idwbuff(3)%end
-                do k = idwbuff(2)%beg, idwbuff(2)%end
-                    do j = idwbuff(1)%beg, idwbuff(1)%end
+        $:GPU_PARALLEL_LOOP(collapse=3)
+        do l = idwbuff(3)%beg, idwbuff(3)%end
+            do k = idwbuff(2)%beg, idwbuff(2)%end
+                do j = idwbuff(1)%beg, idwbuff(1)%end
+                    $:GPU_LOOP(parallelism='[seq]')
+                    do i = 1, v_size
                         v_rs_weno(j, k, l, i) = v_vf(i)%sf(j, k, l)
                     end do
                 end do
@@ -990,7 +966,8 @@ contains
             end if
         end if
 
-        if (weno_order /= 1) then
+        ! The reconstruction kernels read the stencil straight from v_vf; only MP-WENO and THINC still read the packed copy
+        if (weno_order /= 1 .and. (mp_weno .or. int_comp > 0)) then
             call s_pack_weno_input_arr(v_vf)
         end if
 
@@ -1011,9 +988,9 @@ contains
 
                                     alpha(:) = 0._wp
 
-                                    vp0 = v_rs_weno(${SF('')}$, i)
-                                    vm1 = v_rs_weno(${SF(' - 1')}$, i)
-                                    vp1 = v_rs_weno(${SF(' + 1')}$, i)
+                                    vp0 = v_vf(i)%sf(${SF('')}$)
+                                    vm1 = v_vf(i)%sf(${SF(' - 1')}$)
+                                    vp1 = v_vf(i)%sf(${SF(' + 1')}$)
 
                                     dvd(0) = vp1 - vp0
                                     dvd(-1) = vp0 - vm1
@@ -1104,11 +1081,11 @@ contains
 
                                         alpha(:) = 0._wp
 
-                                        vp0 = v_rs_weno(${SF('')}$, i)
-                                        vm1 = v_rs_weno(${SF(' - 1')}$, i)
-                                        vm2 = v_rs_weno(${SF(' - 2')}$, i)
-                                        vp1 = v_rs_weno(${SF(' + 1')}$, i)
-                                        vp2 = v_rs_weno(${SF(' + 2')}$, i)
+                                        vp0 = v_vf(i)%sf(${SF('')}$)
+                                        vm1 = v_vf(i)%sf(${SF(' - 1')}$)
+                                        vm2 = v_vf(i)%sf(${SF(' - 2')}$)
+                                        vp1 = v_vf(i)%sf(${SF(' + 1')}$)
+                                        vp2 = v_vf(i)%sf(${SF(' + 2')}$)
 
                                         dvd(1) = vp2 - vp1
                                         dvd(0) = vp1 - vp0
@@ -1261,13 +1238,13 @@ contains
                                     do i = 1, v_size
                                         alpha(:) = 0._wp
 
-                                        vp0 = v_rs_weno(${SF('')}$, i)
-                                        vm1 = v_rs_weno(${SF(' - 1')}$, i)
-                                        vm2 = v_rs_weno(${SF(' - 2')}$, i)
-                                        vm3 = v_rs_weno(${SF(' - 3')}$, i)
-                                        vp1 = v_rs_weno(${SF(' + 1')}$, i)
-                                        vp2 = v_rs_weno(${SF(' + 2')}$, i)
-                                        vp3 = v_rs_weno(${SF(' + 3')}$, i)
+                                        vp0 = v_vf(i)%sf(${SF('')}$)
+                                        vm1 = v_vf(i)%sf(${SF(' - 1')}$)
+                                        vm2 = v_vf(i)%sf(${SF(' - 2')}$)
+                                        vm3 = v_vf(i)%sf(${SF(' - 3')}$)
+                                        vp1 = v_vf(i)%sf(${SF(' + 1')}$)
+                                        vp2 = v_vf(i)%sf(${SF(' + 2')}$)
+                                        vp3 = v_vf(i)%sf(${SF(' + 3')}$)
 
                                         if (teno) then
                                             v(-3) = vm3
@@ -1605,7 +1582,9 @@ contains
 
         ! Deallocating the WENO-stencil of the WENO-reconstructed variables
 
-        @:DEALLOCATE(v_rs_weno)
+        if (mp_weno .or. int_comp > 0) then
+            @:DEALLOCATE(v_rs_weno)
+        end if
 
         ! Deallocating WENO coefficients in x-direction
         @:DEALLOCATE(poly_coef_cbL_x, poly_coef_cbR_x)

@@ -97,7 +97,7 @@ is_terminal_state() {
 
 # Optionally bound how long a job may sit un-started in the queue. On the
 # preemptible Phoenix 'embers' QOS a job routinely stays PENDING for hours and
-# needs most of the job-level `timeout-minutes` (480m) window to backfill onto a
+# needs most of the job-level `timeout-minutes` (1380m) window to backfill onto a
 # free node; that job timeout is the real backstop. Default to 0 (wait
 # indefinitely, up to the job timeout) so ordinary queue pressure does not turn
 # otherwise-healthy jobs into red CI. Set SLURM_MAX_QUEUE_SECONDS>0 to opt into
@@ -239,7 +239,7 @@ if [ -f "$output_file" ]; then
   last_size=-1
   same_count=0
   while true; do
-    size=$(stat -c%s "$output_file" 2>/dev/null || echo -1)
+    size=$(wc -c < "$output_file" 2>/dev/null || echo -1)
     if [ "$size" -eq "$last_size" ] && [ "$size" -ge 0 ]; then
       same_count=$((same_count + 1))
     else
