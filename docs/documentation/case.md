@@ -950,6 +950,10 @@ Details of the transducer acoustic source model can be found in \cite Maeda17.
 | Parameter          | Type    | Description                                    |
 | ---:               | :----:  |          :---                                  |
 | `bubbles_euler`    | Logical | Ensemble-averaged bubble modeling |
+| `poem_euler` | Logical | Use the frozen 64-state POEM model on CPU or experimental NVIDIA OpenACC, double precision; default `F` |
+| `poem_distribution` | Logical | Use raw log-radius bounds [-2.8, 2.8] with unnormalized Simpson weights for the matched POEM distribution; default `F` |
+| `poem_fixed_density` | Logical | Use reference density 1 and zero void correction only in the split polytropic KM source, leaving resolved flow density dynamic; default `F` |
+| `poem_diagnostics` | Logical | Write full-step pressure, void fraction, moments, and source diagnostics for the one-dimensional study; GPU fields are explicitly copied for output; default `F` |
 | `bubbles_lagrange` | Logical | Volume-averaged bubble modeling |
 | `bubble_model`     | Integer | [1] Gilmore; [2] Keller--Miksis; [3] Rayleigh-Plesset |
 | `Ca`               | Real    | Cavitation number |
@@ -984,6 +988,8 @@ Details of the transducer acoustic source model can be found in \cite Maeda17.
 This table lists the sub-grid bubble model parameters, which can be utilized in both the ensemble-averaged and volume-averaged bubble models.
 
 - `bubbles_euler` activates the ensemble-averaged bubble model.
+
+- `poem_euler` selects a frozen-checkpoint research backend, not radius-bin quadrature. It requires CPU or experimental NVIDIA OpenACC double precision, one spatial dimension, one MPI rank, `num_fluids = 1`, `nb = 1`, `polydisperse = F`, `adv_n = T`, and the `adap_dt = T` split-source path. The input validator enforces the checkpoint's physical parameters and reference-equilibrium bubble initialization. Set `POEM_REPO_ROOT` and `POEM_MFC_LIBRARY` to the model repository and matching CPU/device backend library. GPU builds require POEM's `--backend jax-gpu`; see `../POEM/docs/GPU_MFC.md` in the sibling repository for A100 testing. The backend advances 64 auxiliary coordinates plus separately transported bubble number; it does not use adaptive microscopic substeps. Radius-bin probes and `post_process` are unsupported; use `poem_diagnostics` and conservative simulation output. The other three POEM flags also support matched direct-method comparisons. All four flags default to `F`, retaining stock behavior.
 
 - `bubbles_lagrange` activates the volume-averaged bubble model.
 

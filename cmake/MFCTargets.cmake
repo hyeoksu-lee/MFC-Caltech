@@ -20,6 +20,9 @@ function(MFC_SETUP_TARGET)
     cmake_parse_arguments(ARGS "OpenACC;MPI;SILO;HDF5;FFTW;LAPACK;OpenMP" "TARGET" "SOURCES" ${ARGN})
 
     add_executable(${ARGS_TARGET} ${ARGS_SOURCES})
+    if (NOT ARGS_TARGET STREQUAL "syscheck")
+        target_sources(${ARGS_TARGET} PRIVATE "${CMAKE_SOURCE_DIR}/src/common/poem_loader.c")
+    endif()
     set(IPO_TARGETS ${ARGS_TARGET})
     # Here we need to split into "library" and "executable" to perform IPO on the NVIDIA compiler.
     # A little hacky, but it *is* an edge-case for *one* compiler.

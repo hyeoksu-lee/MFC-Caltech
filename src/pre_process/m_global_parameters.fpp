@@ -505,7 +505,7 @@ contains
         call s_initialize_eqn_idx(nmom, nb, six_eqn_alf_is_advected=.false.)
 
         ! Per-target (pre_process): qbmm_idx allocations and fills
-        if (model_eqns == model_eqns_5eq .and. bubbles_euler) then
+        if (model_eqns == model_eqns_5eq .and. bubbles_euler .and. .not. poem_euler) then
             allocate (qbmm_idx%rs(nb), qbmm_idx%vs(nb))
             allocate (qbmm_idx%ps(nb), qbmm_idx%ms(nb))
 
@@ -608,7 +608,7 @@ contains
 
         integer :: i
 
-        if (bubbles_euler) then
+        if (bubbles_euler .and. .not. poem_euler) then
             deallocate (qbmm_idx%rs, qbmm_idx%vs, qbmm_idx%ps, qbmm_idx%ms)
             if (qbmm) deallocate (qbmm_idx%moms, qbmm_idx%fullmom)
         end if

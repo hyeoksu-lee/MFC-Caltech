@@ -134,6 +134,11 @@ contains
             call s_elliptic_smoothing(ic%q_prim_vf, ic%bc_type)
         end if
 
+        ! Analytic alpha assignments occur after patch-local number initialization; preserve restart number density.
+        if (poem_distribution .and. adv_n .and. .not. old_ic) then
+            call s_reconstruct_matched_number_density(ic%q_prim_vf)
+        end if
+
         call s_convert_primitive_to_conservative_variables(ic%q_prim_vf, ic%q_cons_vf)
 
         if (qbmm .and. .not. polytropic) then

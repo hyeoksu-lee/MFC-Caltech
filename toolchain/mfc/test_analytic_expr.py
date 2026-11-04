@@ -20,14 +20,14 @@ def test_simple_expression():
     from mfc.analytic_expr import fortranize_expr
 
     out = fortranize_expr("0.5 + 0.2*sin(2.0*pi*x/lx)", IC_MAP)
-    assert out.replace(" ", "") == "0.5+0.2*sin(2.0*pi*x_cc(i)/patch_icpp(1)%length_x)"
+    assert out.replace(" ", "") == "0.5_wp+0.2_wp*sin(2.0_wp*pi*x_cc(i)/patch_icpp(1)%length_x)"
 
 
 def test_parentheses_regenerated_by_precedence():
     from mfc.analytic_expr import fortranize_expr
 
     out = fortranize_expr("2.0 * (x / lx + y / ly)", IC_MAP)
-    assert out.replace(" ", "") == "2.0*(x_cc(i)/patch_icpp(1)%length_x+y_cc(j)/patch_icpp(1)%length_y)"
+    assert out.replace(" ", "") == "2.0_wp*(x_cc(i)/patch_icpp(1)%length_x+y_cc(j)/patch_icpp(1)%length_y)"
 
 
 def test_power_and_unary_minus():
@@ -51,9 +51,9 @@ def test_scientific_notation_is_safe():
     # Legacy regex corrupted the 'e' in 2e-3 inside larger expressions.
     from mfc.analytic_expr import fortranize_expr
 
-    # 2e-3 constant-folds to 0.002 (no exponent in repr), unlike 1e20 below which keeps e-form and gains _wp.
+    # AST stores 2e-3 as 0.002; both decimal and exponent forms need _wp.
     out = fortranize_expr("1.0 + 2e-3*x", IC_MAP)
-    assert out.replace(" ", "") == "1.0+0.002*x_cc(i)"
+    assert out.replace(" ", "") == "1.0_wp+0.002_wp*x_cc(i)"
 
 
 def test_unknown_variable_raises_listing_valid():
@@ -143,6 +143,39 @@ def test_corpus_equivalence_with_legacy():
         "radii": "patch_icpp(1)%radii",
     }
     for expr in CORPUS:
-        new = fortranize_expr(expr, var_map).replace(" ", "")
+        new = fortranize_expr(expr, var_map).replace(" ", "").replace("_wp", "")
         old = _legacy_fortranize(expr, var_map).replace(" ", "")
         assert new == old, f"divergence for {expr!r}:\n  legacy: {old}\n  ast:    {new}"
+
+
+def test_sharp_screen_working_precision(tmp_path):
+    """Compile the actual screen expression and compare to its MERGE definition."""
+    import shutil
+    import subprocess
+    from mfc.analytic_expr import fortranize_expr
+
+    compiler = shutil.which("gfortran")
+    if compiler is None:
+        pytest.skip("gfortran unavailable")
+    expression = "1e-12+(2e-5-1e-12)*0.5*(1+sign(1.0,300.0-abs(x)))"
+    rhs = fortranize_expr(expression, {"x": "x"})
+    assert "sign(1.0_wp, 300.0_wp - abs(x))" in rhs
+    source = tmp_path / "screen.f90"
+    source.write_text(f"""program screen
+use iso_fortran_env, only: real64
+implicit none
+integer, parameter :: wp = real64
+real(wp) :: x, alpha, expected
+real(wp), parameter :: points(5) = [-301._wp, -300._wp, 0._wp, 300._wp, 301._wp]
+integer :: i
+do i = 1, size(points)
+    x = points(i)
+    alpha = {rhs}
+    expected = merge(2e-5_wp, 1e-12_wp, abs(x) <= 300._wp)
+    if (abs(alpha-expected) > 4*epsilon(alpha)*expected) error stop 1
+end do
+end program screen
+""")
+    binary = tmp_path / "screen"
+    subprocess.run([compiler, "-std=f2008", "-ffree-line-length-none", str(source), "-o", str(binary)], check=True)
+    subprocess.run([str(binary)], check=True)

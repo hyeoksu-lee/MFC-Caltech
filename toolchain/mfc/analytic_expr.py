@@ -95,8 +95,8 @@ def _emit(node, expr: str, var_map: Dict[str, str], parent_prec: int) -> str:
     if isinstance(node, ast.Constant):
         if isinstance(node.value, (int, float)) and not isinstance(node.value, bool):
             s = repr(node.value)
-            if isinstance(node.value, float) and ("e" in s or "E" in s):
-                s += "_wp"  # exponent form defaults to single precision in Fortran
+            if isinstance(node.value, float):
+                s += "_wp"  # All real literals must match coordinate working precision.
             return s
         raise AnalyticExprError(f"unsupported literal {node.value!r} in {expr!r}")
     raise AnalyticExprError(f"unsupported syntax in {expr!r}: {type(node).__name__}")

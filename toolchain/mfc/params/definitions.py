@@ -399,6 +399,11 @@ CONSTRAINTS = {
 
 # Parameter dependencies (requires, recommends)
 DEPENDENCIES = {
+    "poem_euler": {
+        "when_true": {
+            "requires_value": {"model_eqns": [2], "num_fluids": [1], "nb": [1], "riemann_solver": [2], "avg_state": [2]},
+        }
+    },
     "bubbles_euler": {
         "when_true": {
             "recommends": ["nb", "polytropic"],
@@ -649,7 +654,17 @@ def _load():
     _r("Ca", REAL, {"bubbles"}, math=r"\f$\mathrm{Ca}\f$")
     _r("Re_inv", REAL, {"bubbles", "viscosity"}, math=r"\f$\mathrm{Re}^{-1}\f$")
     _r("bubble_model", INT, {"bubbles"})
-    for n in ["polytropic", "bubbles_euler", "polydisperse", "qbmm", "bubbles_lagrange"]:
+    for n in [
+        "polytropic",
+        "bubbles_euler",
+        "polydisperse",
+        "qbmm",
+        "bubbles_lagrange",
+        "poem_euler",
+        "poem_distribution",
+        "poem_fixed_density",
+        "poem_diagnostics",
+    ]:
         _r(n, LOG, {"bubbles"})
 
     # Viscosity
@@ -1316,6 +1331,10 @@ _nv(
     "fluid_pp",
     "bub_pp",
     "bubbles_euler",
+    "poem_euler",
+    "poem_distribution",
+    "poem_fixed_density",
+    "poem_diagnostics",
     "bubbles_lagrange",
     "R0ref",
     "polytropic",

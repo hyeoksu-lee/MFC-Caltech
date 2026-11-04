@@ -9,6 +9,7 @@ program p_main
     use m_start_up
     use m_time_steppers
     use m_nvtx
+    use m_poem_backend, only: s_poem_write_profile
 
     implicit none
 
@@ -59,6 +60,11 @@ program p_main
 
     call nvtxEndRange  ! INIT
 
+    if (poem_diagnostics) then
+        call s_convert_conservative_to_primitive_variables(q_cons_ts(1)%vf, q_T_sf, q_prim_vf, idwbuff)
+        call s_write_poem_diagnostics(q_cons_ts(1)%vf, q_prim_vf, t_step, mytime)
+    end if
+
     call nvtxStartRange("SIMULATION-TIME-MARCH")
     ! Time-stepping Loop
     do
@@ -78,6 +84,11 @@ program p_main
 
         call s_perform_time_step(t_step, time_avg)
 
+        if (poem_diagnostics) then
+            call s_convert_conservative_to_primitive_variables(q_cons_ts(1)%vf, q_T_sf, q_prim_vf, idwbuff)
+            call s_write_poem_diagnostics(q_cons_ts(1)%vf, q_prim_vf, t_step, mytime)
+        end if
+
         if (cfl_dt) then
             if (abs(mod(mytime, t_save)) < dt .or. mytime >= t_stop) then
                 call s_save_data(t_step, start, finish, io_time_avg, nt)
@@ -92,6 +103,9 @@ program p_main
     end do
 
     call nvtxEndRange  ! Simulation
+
+    if (poem_euler .and. proc_rank == 0) &
+        call s_poem_write_profile(trim(case_dir) // '/D/poem_backend_profile.dat')
 
     deallocate (proc_time, io_proc_time)
 

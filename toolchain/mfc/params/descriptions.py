@@ -89,6 +89,10 @@ DESCRIPTIONS = {
     "num_bc_patches": "Number of boundary condition patches",
     # Physics models
     "bubbles_euler": "Enable Euler-Euler bubble model",
+    "poem_euler": "Use the frozen POEM auxiliary-memory bubble model (CPU or experimental NVIDIA OpenACC double precision, 1D single rank)",
+    "poem_distribution": "Use unnormalized Simpson weights on raw log-radius [-2.8, 2.8] for the matched POEM population",
+    "poem_fixed_density": "Use reference density 1 and zero void correction only inside the split polytropic Keller-Miksis source; flow density remains dynamic",
+    "poem_diagnostics": "Write full-step pressure, void fraction, bubble moments, and source diagnostics for the one-dimensional study (explicit host output)",
     "bubbles_lagrange": "Enable Lagrangian bubble tracking",
     "bubble_model": "Bubble dynamics model",
     "polytropic": "Enable polytropic gas behavior for bubbles",
