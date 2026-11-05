@@ -593,6 +593,46 @@ class CaseValidator:
                 self.prohibit(bc_z_beg is not None and bc_z_beg not in [-1, -2], "bc_z%beg must be -1 (periodic) or -2 (reflective) for 3D cylindrical coordinates")
                 self.prohibit(bc_z_end is not None and bc_z_end not in [-1, -2], "bc_z%end must be -1 (periodic) or -2 (reflective) for 3D cylindrical coordinates")
 
+    def check_poem(self):
+        """The retained POEM checkpoint uses fixed-density, nondimensional KM physics."""
+        poem = self.get("poem_euler", "F") == "T"
+        matched = self.get("poem_distribution", "F") == "T"
+        fixed = self.get("poem_fixed_density", "F") == "T"
+        diagnostics = self.get("poem_diagnostics", "F") == "T"
+        if poem or matched or fixed or diagnostics:
+            self.prohibit(self.get("bubbles_euler", "F") != "T", "POEM options require bubbles_euler = T")
+        if poem or diagnostics:
+            self.prohibit((self.get("n", 0) or 0) != 0 or (self.get("p", 0) or 0) != 0, "POEM research integration currently requires a 1D domain")
+            self.prohibit(CFG().gpu not in ("no", "acc") or CFG().single or CFG().mixed, "POEM requires CPU or NVIDIA OpenACC double precision")
+        if not poem:
+            return
+
+        self.prohibit(self.get("model_eqns") != 2 or self.get("num_fluids") != 1, "poem_euler requires model_eqns = 2 and num_fluids = 1")
+        self.prohibit(self.get("nb") != 1 or self.get("polydisperse", "F") == "T", "poem_euler uses auxiliary states, not radius bins; set nb = 1 and polydisperse = F")
+        self.prohibit(self.get("adv_n", "F") != "T", "poem_euler requires adv_n = T")
+        self.prohibit(self.get("polytropic", "F") != "T" or self.get("qbmm", "F") == "T", "poem_euler requires polytropic = T and qbmm = F")
+        self.prohibit(not matched or not fixed, "poem_euler requires poem_distribution = T and poem_fixed_density = T")
+        self.prohibit(self.get("igr", "F") == "T", "poem_euler currently requires HLLC transport, not igr")
+        frozen_parameters = {
+            "bub_pp%R0ref": 1.0,
+            "bub_pp%p0ref": 1.0,
+            "bub_pp%rho0ref": 1.0,
+            "bub_pp%gam_g": 1.4,
+            "bub_pp%ss": 0.0728 / (101325.0 * 1e-5),
+            "bub_pp%pv": 2338.8 / 101325.0,
+            "bub_pp%mu_l": 0.001 / (1000.0 * 1e-5 * math.sqrt(101325.0 / 1000.0)),
+            "fluid_pp(1)%gamma": 1.0 / 6.1,
+            "fluid_pp(1)%pi_inf": 7.1 * (3.06e8 / 101325.0) / 6.1,
+            "poly_sigma": 0.7,
+        }
+        for key, expected in frozen_parameters.items():
+            value = self.get(key)
+            matches = self._is_numeric(value) and math.isclose(value, expected, rel_tol=1e-12, abs_tol=1e-14)
+            self.prohibit(not matches, f"poem_euler frozen checkpoint requires explicit {key} = {expected:.16g}")
+        for i in range(1, (self.get("num_patches", 0) or 0) + 1):
+            self.prohibit(self.get(f"patch_icpp({i})%r0", 1.0) != 1.0, "poem_euler initialization currently requires reference bubble radii (r0 = 1)")
+            self.prohibit(self.get(f"patch_icpp({i})%v0", 0.0) != 0.0, "poem_euler initialization currently requires zero wall velocity (v0 = 0)")
+
     def check_bubbles_euler(self):
         """Checks constraints on bubble parameters"""
         bubbles_euler = self.get("bubbles_euler", "F") == "T"
@@ -629,8 +669,9 @@ class CaseValidator:
         num_patches = self.get("num_patches", 0) or 0
         for i in range(1, num_patches + 1):
             alpha = self.get(f"patch_icpp({i})%alpha({void_idx})")
+            # Analytic initial conditions cannot be range-checked statically.
             self.warn(
-                alpha is not None and alpha > DILUTE_VOID_FRACTION_MAX,
+                self._is_numeric(alpha) and alpha > DILUTE_VOID_FRACTION_MAX,
                 f"patch_icpp({i})%alpha({void_idx}) = {alpha} is not a dilute void fraction; the "
                 f"Ensemble-Averaged Bubble Model is an O(alpha) expansion and is not recommended above "
                 f"{DILUTE_VOID_FRACTION_MAX}",
@@ -1462,6 +1503,15 @@ class CaseValidator:
         self.prohibit(riemann_solver is not None and riemann_solver != 2, "Bubble modeling requires HLLC Riemann solver (riemann_solver = 2)")
         self.prohibit(avg_state is not None and avg_state != 2, "Bubble modeling requires arithmetic average (avg_state = 2)")
         self.prohibit(model_eqns == 2 and bubble_model == 1, "The 5-equation bubbly flow model does not support bubble_model = 1 (Gilmore)")
+        if self.get("poem_euler", "F") == "T":
+            self.prohibit(self.get("adap_dt", "F") != "T", "poem_euler requires the split source path (adap_dt = T)")
+            self.prohibit(bubble_model != 2, "poem_euler requires Keller-Miksis bubble_model = 2")
+            self.prohibit(self.get("probe_wrt", "F") == "T", "POEM does not support radius-bin probes; use poem_diagnostics = T")
+        if self.get("poem_fixed_density", "F") == "T":
+            self.prohibit(bubble_model != 2, "poem_fixed_density is supported only for Keller-Miksis bubble_model = 2")
+            self.prohibit(self.get("adap_dt", "F") != "T", "poem_fixed_density requires the split source path (adap_dt = T)")
+            self.prohibit(self.get("polytropic", "F") != "T", "poem_fixed_density requires polytropic = T")
+            self.prohibit(self.get("num_fluids") != 1, "poem_fixed_density requires num_fluids = 1")
 
     def check_synthetic_turbulence(self):
         """Checks constraints on synthetic-turbulence forcing zones (simulation)"""
@@ -3171,6 +3221,7 @@ class CaseValidator:
         self.check_weno()
         self.check_muscl()
         self.check_boundary_conditions()
+        self.check_poem()
         self.check_bubbles_euler()
         self.check_qbmm_and_polydisperse()
         self.check_adv_n()
@@ -3235,6 +3286,7 @@ class CaseValidator:
     def validate_post_process(self):
         """Validate post-process-specific parameters"""
         self.validate_common()
+        self.prohibit(self.get("poem_euler", "F") == "T", "POEM post_process radius-bin output is unsupported; use simulation poem_diagnostics and conservative output")
         self.check_finite_difference()
         self.check_time_stepping()
         self.check_output_format()

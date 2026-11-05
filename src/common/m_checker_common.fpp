@@ -26,6 +26,18 @@ contains
         integer(kind=8), intent(in) :: n_global
 
         if (check_total_cells) call s_check_total_cells(n_global)
+        if (poem_euler .or. poem_diagnostics) then
+            ! lint: runtime-check MPI world size is determined by the executable launch.
+            @:PROHIBIT(num_procs /= 1, "POEM research integration requires one MPI rank")
+#if defined(MFC_OpenMP) || defined(MFC_SINGLE_PRECISION) || defined(MFC_MIXED_PRECISION)
+            call s_mpi_abort("POEM requires CPU or NVIDIA OpenACC double precision")
+#endif
+        end if
+#ifdef MFC_POST_PROCESS
+        if (poem_euler) then
+            call s_mpi_abort("POEM post_process radius-bin output is unsupported; use poem_diagnostics")
+        end if
+#endif
         #:if USING_AMD
             call s_check_amd
         #:endif

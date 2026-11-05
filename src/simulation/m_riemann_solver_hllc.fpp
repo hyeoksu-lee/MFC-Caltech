@@ -21,6 +21,7 @@ module m_riemann_solver_hllc
     use m_thermochem, only: gas_constant, get_mixture_molecular_weight, get_species_enthalpies_rt, molecular_weights
     use m_thermochem_state, only: get_mixture_caloric_state
     use m_riemann_state
+    use m_poem_backend, only: s_poem_decode_batch, s_poem_decode_device
 
     implicit none
 
@@ -59,6 +60,9 @@ contains
         real(wp)                             :: pres_L, pres_R
         real(wp)                             :: E_L, E_R
         real(wp)                             :: H_L, H_R
+        real(wp)                             :: poem_left(4), poem_right(4)
+        real(wp), allocatable                :: poem_face_states(:,:), poem_face_moments(:,:)
+        integer                              :: poem_face, poem_face_count, poem_j_count, poem_k_count
         real(wp), dimension(${NUM_SPECIES}$) :: Ys_L, Ys_R, Xs_L, Xs_R, Gamma_iL, Gamma_iR, Cp_iL, Cp_iR, R_species, h_iL, h_iR
         real(wp)                             :: c_sum_Yi_Phi
         real(wp)                             :: T_L, T_R
@@ -478,6 +482,36 @@ contains
                     $:END_GPU_PARALLEL_LOOP()
                 else if (model_eqns == model_eqns_5eq .and. bubbles_euler) then
                     ! 5-equation model with Euler-Euler bubble dynamics
+                    if (poem_euler .and. avg_state == avg_state_arithmetic) then
+                        ! Decode the reconstructed states used by this directional flux evaluation.
+                        ! Columns are interleaved left/right for each face, with j varying fastest.
+                        poem_j_count = max(0, ${X_BND}$%end - ${X_BND}$%beg + 1)
+                        poem_k_count = max(0, ${Y_BND}$%end - ${Y_BND}$%beg + 1)
+                        poem_face_count = poem_j_count*poem_k_count*max(0, ${Z_BND}$%end - ${Z_BND}$%beg + 1)
+                        if (poem_face_count > 0) then
+                            @:ALLOCATE(poem_face_states(poem_dimension, 2*poem_face_count), poem_face_moments(4, 2*poem_face_count))
+                            $:GPU_PARALLEL_LOOP(private='[j, k, l, poem_face]', collapse=3)
+                            do l = ${Z_BND}$%beg, ${Z_BND}$%end
+                                do k = ${Y_BND}$%beg, ${Y_BND}$%end
+                                    do j = ${X_BND}$%beg, ${X_BND}$%end
+                                        poem_face = 1 + j - ${X_BND}$%beg + poem_j_count*(k - ${Y_BND}$%beg + poem_k_count*(l &
+                                            & - ${Z_BND}$%beg))
+                                        poem_face_states(:,2*poem_face - 1) = qL_prim_rsx_vf(${SF('')}$, &
+                                                         & eqn_idx%bub%beg:eqn_idx%bub%end)
+                                        poem_face_states(:,2*poem_face) = qR_prim_rsx_vf(${SF(' + 1')}$, &
+                                                         & eqn_idx%bub%beg:eqn_idx%bub%end)
+                                    end do
+                                end do
+                            end do
+                            $:END_GPU_PARALLEL_LOOP()
+#ifdef MFC_OpenACC
+                            call s_poem_decode_device(2*poem_face_count, poem_face_states, poem_face_moments)
+#else
+                            call s_poem_decode_batch(2*poem_face_count, poem_face_states, poem_face_moments)
+#endif
+                            @:DEALLOCATE(poem_face_states)
+                        end if
+                    end if
                     $:GPU_PARALLEL_LOOP(collapse=3, private='[i, q, R0_L, R0_R, V0_L, V0_R, P0_L, P0_R, pbw_L, pbw_R, vel_L, &
                                         & vel_R, rho_avg, alpha_L, alpha_R, alpha_rho_L, alpha_rho_R, h_avg, gamma_avg, Re_L, &
                                         & Re_R, pcorr, rho_L, rho_R, pres_L, pres_R, E_L, E_R, H_L, H_R, gamma_L, gamma_R, &
@@ -485,7 +519,8 @@ contains
                                         & vel_avg_rms, Ms_L, Ms_R, pres_SL, pres_SR, alpha_L_sum, alpha_R_sum, s_L, s_R, s_M, &
                                         & s_P, s_S, xi_M, xi_P, xi_L, xi_R, xi_L_m1, xi_R_m1, xi_MP, xi_PP, nbub_L, nbub_R, &
                                         & PbwR3Lbar, PbwR3Rbar, R3Lbar, R3Rbar, R3V2Lbar, R3V2Rbar, Ys_L, Ys_R, Cp_iL, Cp_iR, &
-                                        & Xs_L, Xs_R, Gamma_iL, Gamma_iR]', firstprivate='[Re_size_loc1, Re_size_loc2]')
+                                        & Xs_L, Xs_R, Gamma_iL, Gamma_iR, poem_face, poem_left, poem_right]', &
+                                        & firstprivate='[Re_size_loc1, Re_size_loc2]')
                     do l = ${Z_BND}$%beg, ${Z_BND}$%end
                         do k = ${Y_BND}$%beg, ${Y_BND}$%end
                             do j = ${X_BND}$%beg, ${X_BND}$%end
@@ -550,80 +585,93 @@ contains
                                 H_R = (E_R + pres_R)/rho_R
 
                                 if (avg_state == avg_state_arithmetic) then
-                                    $:GPU_LOOP(parallelism='[seq]')
-                                    do i = 1, nb
-                                        R0_L(i) = qL_prim_rsx_vf(${SF('')}$, rs(i))
-                                        R0_R(i) = qR_prim_rsx_vf(${SF(' + 1')}$, rs(i))
-
-                                        V0_L(i) = qL_prim_rsx_vf(${SF('')}$, vs(i))
-                                        V0_R(i) = qR_prim_rsx_vf(${SF(' + 1')}$, vs(i))
-                                        if (.not. polytropic .and. .not. qbmm) then
-                                            P0_L(i) = qL_prim_rsx_vf(${SF('')}$, ps(i))
-                                            P0_R(i) = qR_prim_rsx_vf(${SF(' + 1')}$, ps(i))
-                                        end if
-                                    end do
-
-                                    if (.not. qbmm) then
-                                        if (adv_n) then
-                                            nbub_L = qL_prim_rsx_vf(${SF('')}$, eqn_idx%n)
-                                            nbub_R = qR_prim_rsx_vf(${SF(' + 1')}$, eqn_idx%n)
-                                        else
-                                            nbub_L = 0._wp
-                                            nbub_R = 0._wp
-                                            $:GPU_LOOP(parallelism='[seq]')
-                                            do i = 1, nb
-                                                nbub_L = nbub_L + (R0_L(i)**3._wp)*weight(i)
-                                                nbub_R = nbub_R + (R0_R(i)**3._wp)*weight(i)
-                                            end do
-
-                                            nbub_L = (3._wp/(4._wp*pi))*qL_prim_rsx_vf(${SF('')}$, eqn_idx%E + num_fluids)/nbub_L
-                                            nbub_R = (3._wp/(4._wp*pi))*qR_prim_rsx_vf(${SF(' + 1')}$, &
-                                                      & eqn_idx%E + num_fluids)/nbub_R
-                                        end if
+                                    if (poem_euler) then
+                                        poem_face = 1 + j - ${X_BND}$%beg + poem_j_count*(k - ${Y_BND}$%beg + poem_k_count*(l &
+                                            & - ${Z_BND}$%beg))
+                                        poem_left = poem_face_moments(:,2*poem_face - 1)
+                                        poem_right = poem_face_moments(:,2*poem_face)
+                                        nbub_L = qL_prim_rsx_vf(${SF('')}$, eqn_idx%n)
+                                        nbub_R = qR_prim_rsx_vf(${SF(' + 1')}$, eqn_idx%n)
+                                        R3Lbar = poem_left(1); R3Rbar = poem_right(1)
+                                        R3V2Lbar = poem_left(2); R3V2Rbar = poem_right(2)
+                                        PbwR3Lbar = poem_left(3); PbwR3Rbar = poem_right(3)
                                     else
-                                        ! nb stored in 0th moment of first R0 bin in variable conversion module
-                                        nbub_L = qL_prim_rsx_vf(${SF('')}$, eqn_idx%bub%beg)
-                                        nbub_R = qR_prim_rsx_vf(${SF(' + 1')}$, eqn_idx%bub%beg)
-                                    end if
+                                        $:GPU_LOOP(parallelism='[seq]')
+                                        do i = 1, nb
+                                            R0_L(i) = qL_prim_rsx_vf(${SF('')}$, rs(i))
+                                            R0_R(i) = qR_prim_rsx_vf(${SF(' + 1')}$, rs(i))
 
-                                    $:GPU_LOOP(parallelism='[seq]')
-                                    do i = 1, nb
+                                            V0_L(i) = qL_prim_rsx_vf(${SF('')}$, vs(i))
+                                            V0_R(i) = qR_prim_rsx_vf(${SF(' + 1')}$, vs(i))
+                                            if (.not. polytropic .and. .not. qbmm) then
+                                                P0_L(i) = qL_prim_rsx_vf(${SF('')}$, ps(i))
+                                                P0_R(i) = qR_prim_rsx_vf(${SF(' + 1')}$, ps(i))
+                                            end if
+                                        end do
+
                                         if (.not. qbmm) then
-                                            pbw_L(i) = f_cpbw_KM(R0(i), R0_L(i), V0_L(i), P0_L(i))
-                                            pbw_R(i) = f_cpbw_KM(R0(i), R0_R(i), V0_R(i), P0_R(i))
+                                            if (adv_n) then
+                                                nbub_L = qL_prim_rsx_vf(${SF('')}$, eqn_idx%n)
+                                                nbub_R = qR_prim_rsx_vf(${SF(' + 1')}$, eqn_idx%n)
+                                            else
+                                                nbub_L = 0._wp
+                                                nbub_R = 0._wp
+                                                $:GPU_LOOP(parallelism='[seq]')
+                                                do i = 1, nb
+                                                    nbub_L = nbub_L + (R0_L(i)**3._wp)*weight(i)
+                                                    nbub_R = nbub_R + (R0_R(i)**3._wp)*weight(i)
+                                                end do
+
+                                                nbub_L = (3._wp/(4._wp*pi))*qL_prim_rsx_vf(${SF('')}$, &
+                                                          & eqn_idx%E + num_fluids)/nbub_L
+                                                nbub_R = (3._wp/(4._wp*pi))*qR_prim_rsx_vf(${SF(' + 1')}$, &
+                                                          & eqn_idx%E + num_fluids)/nbub_R
+                                            end if
+                                        else
+                                            ! nb stored in 0th moment of first R0 bin in variable conversion module
+                                            nbub_L = qL_prim_rsx_vf(${SF('')}$, eqn_idx%bub%beg)
+                                            nbub_R = qR_prim_rsx_vf(${SF(' + 1')}$, eqn_idx%bub%beg)
                                         end if
-                                    end do
-
-                                    if (qbmm) then
-                                        PbwR3Lbar = mom_sp_rsx_vf(${SF('')}$, 4)
-                                        PbwR3Rbar = mom_sp_rsx_vf(${SF(' + 1')}$, 4)
-
-                                        R3Lbar = mom_sp_rsx_vf(${SF('')}$, 1)
-                                        R3Rbar = mom_sp_rsx_vf(${SF(' + 1')}$, 1)
-
-                                        R3V2Lbar = mom_sp_rsx_vf(${SF('')}$, 3)
-                                        R3V2Rbar = mom_sp_rsx_vf(${SF(' + 1')}$, 3)
-                                    else
-                                        PbwR3Lbar = 0._wp
-                                        PbwR3Rbar = 0._wp
-
-                                        R3Lbar = 0._wp
-                                        R3Rbar = 0._wp
-
-                                        R3V2Lbar = 0._wp
-                                        R3V2Rbar = 0._wp
 
                                         $:GPU_LOOP(parallelism='[seq]')
                                         do i = 1, nb
-                                            PbwR3Lbar = PbwR3Lbar + pbw_L(i)*(R0_L(i)**3._wp)*weight(i)
-                                            PbwR3Rbar = PbwR3Rbar + pbw_R(i)*(R0_R(i)**3._wp)*weight(i)
-
-                                            R3Lbar = R3Lbar + (R0_L(i)**3._wp)*weight(i)
-                                            R3Rbar = R3Rbar + (R0_R(i)**3._wp)*weight(i)
-
-                                            R3V2Lbar = R3V2Lbar + (R0_L(i)**3._wp)*(V0_L(i)**2._wp)*weight(i)
-                                            R3V2Rbar = R3V2Rbar + (R0_R(i)**3._wp)*(V0_R(i)**2._wp)*weight(i)
+                                            if (.not. qbmm) then
+                                                pbw_L(i) = f_cpbw_KM(R0(i), R0_L(i), V0_L(i), P0_L(i))
+                                                pbw_R(i) = f_cpbw_KM(R0(i), R0_R(i), V0_R(i), P0_R(i))
+                                            end if
                                         end do
+
+                                        if (qbmm) then
+                                            PbwR3Lbar = mom_sp_rsx_vf(${SF('')}$, 4)
+                                            PbwR3Rbar = mom_sp_rsx_vf(${SF(' + 1')}$, 4)
+
+                                            R3Lbar = mom_sp_rsx_vf(${SF('')}$, 1)
+                                            R3Rbar = mom_sp_rsx_vf(${SF(' + 1')}$, 1)
+
+                                            R3V2Lbar = mom_sp_rsx_vf(${SF('')}$, 3)
+                                            R3V2Rbar = mom_sp_rsx_vf(${SF(' + 1')}$, 3)
+                                        else
+                                            PbwR3Lbar = 0._wp
+                                            PbwR3Rbar = 0._wp
+
+                                            R3Lbar = 0._wp
+                                            R3Rbar = 0._wp
+
+                                            R3V2Lbar = 0._wp
+                                            R3V2Rbar = 0._wp
+
+                                            $:GPU_LOOP(parallelism='[seq]')
+                                            do i = 1, nb
+                                                PbwR3Lbar = PbwR3Lbar + pbw_L(i)*(R0_L(i)**3._wp)*weight(i)
+                                                PbwR3Rbar = PbwR3Rbar + pbw_R(i)*(R0_R(i)**3._wp)*weight(i)
+
+                                                R3Lbar = R3Lbar + (R0_L(i)**3._wp)*weight(i)
+                                                R3Rbar = R3Rbar + (R0_R(i)**3._wp)*weight(i)
+
+                                                R3V2Lbar = R3V2Lbar + (R0_L(i)**3._wp)*(V0_L(i)**2._wp)*weight(i)
+                                                R3V2Rbar = R3V2Rbar + (R0_R(i)**3._wp)*(V0_R(i)**2._wp)*weight(i)
+                                            end do
+                                        end if
                                     end if
 
                                     rho_avg = 5.e-1_wp*(rho_L + rho_R)
@@ -836,6 +884,9 @@ contains
                         end do
                     end do
                     $:END_GPU_PARALLEL_LOOP()
+                    if (allocated(poem_face_moments)) then
+                        @:DEALLOCATE(poem_face_moments)
+                    end if
                     #:for HYPO in [True, False]
                         #:if HYPO
                         else if (hypoelasticity) then

@@ -13,6 +13,7 @@ module m_global_parameters_common
     use mpi
 #endif
 
+    use m_poem_backend, only: s_poem_initialize, poem_dimension
     use m_derived_types
     use m_thermochem, only: num_species
     use m_constants, only: num_fluids_max, model_eqns_gamma_law, model_eqns_5eq, model_eqns_6eq, recon_type_weno, &
@@ -166,7 +167,11 @@ contains
 
             if (bubbles_euler) then
                 eqn_idx%bub%beg = sys_size + 1
-                if (qbmm) then
+                if (poem_euler) then
+                    ! Auxiliary coordinates (a,Q,z), not radius/velocity bins.
+                    call s_poem_initialize()
+                    eqn_idx%bub%end = sys_size + poem_dimension
+                else if (qbmm) then
                     eqn_idx%bub%end = eqn_idx%adv%end + nb_in*nmom_in
                 else
                     if (.not. polytropic) then
@@ -390,6 +395,10 @@ contains
         ! Bubble modeling flags and parameters
         R0ref = dflt_real
         bubbles_euler = .false.
+        poem_euler = .false.
+        poem_distribution = .false.
+        poem_fixed_density = .false.
+        poem_diagnostics = .false.
         polydisperse = .false.
         poly_sigma = dflt_real
         qbmm = .false.

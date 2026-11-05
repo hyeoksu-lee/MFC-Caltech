@@ -10,6 +10,7 @@ module m_assign_variables
 
     use m_derived_types
     use m_global_parameters
+    use m_poem_backend, only: poem_Aref
     use m_variables_conversion
     use m_helper_basic
     use m_thermochem, only: num_species, gas_constant, get_mixture_molecular_weight
@@ -48,9 +49,49 @@ module m_assign_variables
 
     private
     public :: s_initialize_assign_variables_module, s_assign_patch_primitive_variables, &
-        & s_assign_patch_mixture_primitive_variables, s_assign_patch_species_primitive_variables, s_finalize_assign_variables_module
+        & s_assign_patch_mixture_primitive_variables, s_assign_patch_species_primitive_variables, &
+        & s_finalize_assign_variables_module, s_reconstruct_matched_number_density
 
 contains
+
+    !> Reference-pressure microequilibrium, independent of the initial flow pressure.
+    subroutine s_assign_poem_reference(q_prim_vf, j, k, l)
+
+        type(scalar_field), dimension(1:sys_size), intent(inout) :: q_prim_vf
+        integer, intent(in)                                      :: j, k, l
+        integer                                                  :: i
+
+        do i = eqn_idx%bub%beg, eqn_idx%bub%end
+            q_prim_vf(i)%sf(j, k, l) = 0._wp
+        end do
+        q_prim_vf(eqn_idx%n)%sf(j, k, l) = 3._wp*q_prim_vf(eqn_idx%alf)%sf(j, k, l)/(4._wp*pi*poem_Aref)
+
+    end subroutine s_assign_poem_reference
+
+    !> Reconstruct number density after analytic/perturbed initial fields are final, without changing bubble states.
+    subroutine s_reconstruct_matched_number_density(q_prim_vf)
+
+        type(scalar_field), dimension(1:sys_size), intent(inout) :: q_prim_vf
+        integer                                                  :: i, j, k, l
+        real(wp)                                                 :: R3bar
+
+        do l = 0, p
+            do k = 0, n
+                do j = 0, m
+                    if (poem_euler) then
+                        R3bar = poem_Aref + 3._wp*q_prim_vf(eqn_idx%bub%beg)%sf(j, k, l)
+                    else
+                        R3bar = 0._wp
+                        do i = 1, nb
+                            R3bar = R3bar + weight(i)*q_prim_vf(qbmm_idx%rs(i))%sf(j, k, l)**3._wp
+                        end do
+                    end if
+                    q_prim_vf(eqn_idx%n)%sf(j, k, l) = 3._wp*q_prim_vf(eqn_idx%alf)%sf(j, k, l)/(4._wp*pi*R3bar)
+                end do
+            end do
+        end do
+
+    end subroutine s_reconstruct_matched_number_density
 
     !> Allocate volume fraction sum and set the patch primitive variable assignment procedure pointer.
     impure subroutine s_initialize_assign_variables_module
@@ -302,7 +343,9 @@ contains
             end do
         end if
 
-        if (bubbles_euler) then
+        if (poem_euler) then
+            call s_assign_poem_reference(q_prim_vf, j, k, l)
+        else if (bubbles_euler) then
             do i = 1, nb
                 muR = R0(i)*patch_icpp(smooth_patch_id)%r0/R0ref
                 muV = patch_icpp(smooth_patch_id)%v0
@@ -436,7 +479,9 @@ contains
             end do
         end if
 
-        if (bubbles_euler) then
+        if (poem_euler) then
+            call s_assign_poem_reference(q_prim_vf, j, k, l)
+        else if (bubbles_euler) then
             do i = 1, nb
                 muR = R0(i)*patch_icpp(patch_id)%r0/R0ref
                 muV = patch_icpp(patch_id)%v0

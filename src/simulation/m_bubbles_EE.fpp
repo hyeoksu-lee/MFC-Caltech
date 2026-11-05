@@ -13,6 +13,10 @@ module m_bubbles_EE
     use m_variables_conversion
     use m_eos
     use m_bubbles
+    use m_poem_backend, only: s_poem_initialize, s_poem_decode_cells, s_poem_advance_active, poem_Aref
+    use m_poem_backend, only: s_poem_decode_device, s_poem_advance_device
+    use iso_c_binding, only: c_int
+    use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
 
     implicit none
 
@@ -24,7 +28,12 @@ module m_bubbles_EE
     $:GPU_DECLARE(create='[divu]')
 
     integer, allocatable, dimension(:) :: rs, vs, ms, ps
+    real(wp)                           :: poem_max_source_ratio = 0._wp, poem_max_root_residual = 0._wp
     $:GPU_DECLARE(create='[rs, vs, ms, ps]')
+    real(wp), allocatable       :: poem_gpu_y(:,:), poem_gpu_next(:,:), poem_gpu_p(:), poem_gpu_ratio(:), poem_gpu_root(:)
+    real(wp), allocatable       :: poem_gpu_moments(:,:)
+    integer(c_int), allocatable :: poem_gpu_active(:)
+    $:GPU_DECLARE(create='[poem_gpu_y, poem_gpu_next, poem_gpu_p, poem_gpu_ratio, poem_gpu_root, poem_gpu_moments, poem_gpu_active]')
 
 contains
 
@@ -63,6 +72,12 @@ contains
         @:ALLOCATE(bub_m_src(0:m, 0:n, 0:p, 1:nb))
 
         if (adap_dt .and. f_is_default(adap_dt_tol)) adap_dt_tol = dflt_adap_dt_tol
+#ifdef MFC_OpenACC
+        if (poem_euler) then
+            @:ALLOCATE(poem_gpu_y(poem_dimension,m+1), poem_gpu_next(poem_dimension,m+1), poem_gpu_moments(4,m+1))
+            @:ALLOCATE(poem_gpu_p(m+1), poem_gpu_ratio(m+1), poem_gpu_root(m+1), poem_gpu_active(m+1))
+        end if
+#endif
 
     end subroutine s_initialize_bubbles_EE_module
 
@@ -72,6 +87,17 @@ contains
         type(scalar_field), dimension(sys_size), intent(inout) :: q_cons_vf
         real(wp)                                               :: nR3bar
         integer                                                :: i, j, k, l
+
+        if (poem_euler) then
+            call s_poem_initialize()
+            $:GPU_PARALLEL_LOOP(private='[j]')
+            do j = 0, m
+                q_cons_vf(eqn_idx%alf)%sf(j, 0, 0) = (4._wp*pi/3._wp)*(poem_Aref*q_cons_vf(eqn_idx%n)%sf(j, 0, &
+                          & 0) + 3._wp*q_cons_vf(eqn_idx%bub%beg)%sf(j, 0, 0))
+            end do
+            $:END_GPU_PARALLEL_LOOP()
+            return
+        end if
 
         $:GPU_PARALLEL_LOOP(private='[i, j, k, l, nR3bar]', collapse=3)
         do l = 0, p
@@ -89,6 +115,174 @@ contains
         $:END_GPU_PARALLEL_LOOP()
 
     end subroutine s_comp_alpha_from_n
+
+    !> Frozen-pressure half source step; density, momentum, energy and number are unchanged.
+    subroutine s_advance_poem_source(q_cons_vf, q_prim_vf)
+
+        type(scalar_field), intent(inout) :: q_cons_vf(sys_size)
+        type(scalar_field), intent(in) :: q_prim_vf(sys_size)
+        real(wp) :: y(poem_dimension, m + 1), following(poem_dimension, m + 1), pressure(m + 1), ratio(m + 1), root(m + 1), number
+        logical :: active(m + 1)
+        integer :: j, i
+
+#ifdef MFC_OpenACC
+        call s_advance_poem_source_gpu(q_cons_vf, q_prim_vf)
+        return
+#endif
+        y = 0._wp
+        pressure = 0._wp
+        do j = 0, m
+            ! Match the direct-source cutoff, including an active equality case.
+            ! Re-evaluate at every half step; advection can change the local void.
+            if (.not. ieee_is_finite(q_prim_vf(eqn_idx%alf)%sf(j, 0, &
+                & 0))) call s_mpi_abort('POEM source requires finite bubble volume fraction.')
+            active(j + 1) = .not. (q_prim_vf(eqn_idx%alf)%sf(j, 0, 0) < small_alf)
+            if (.not. active(j + 1)) cycle
+            pressure(j + 1) = q_prim_vf(eqn_idx%E)%sf(j, 0, 0)
+            do i = 1, poem_dimension
+                y(i, j + 1) = q_prim_vf(eqn_idx%bub%beg + i - 1)%sf(j, 0, 0)
+            end do
+        end do
+        call s_poem_advance_active(m + 1, active, pressure, dt/2._wp, y, following, ratio, root)
+        poem_max_source_ratio = max(poem_max_source_ratio, maxval(ratio))
+        poem_max_root_residual = max(poem_max_root_residual, maxval(root))
+        do j = 0, m
+            ! Do not rewrite inactive nY: a divide/multiply round trip need not
+            ! be bitwise identity, even when the primitive source is zero.
+            if (.not. active(j + 1)) cycle
+            number = q_cons_vf(eqn_idx%n)%sf(j, 0, 0)
+            if (number <= 0._wp) call s_mpi_abort('POEM source requires positive bubble number density.')
+            do i = 1, poem_dimension
+                q_cons_vf(eqn_idx%bub%beg + i - 1)%sf(j, 0, 0) = number*following(i, j + 1)
+            end do
+        end do
+
+    end subroutine s_advance_poem_source
+
+#ifdef MFC_OpenACC
+    subroutine s_advance_poem_source_gpu(q_cons_vf, q_prim_vf)
+
+        type(scalar_field), intent(inout) :: q_cons_vf(sys_size)
+        type(scalar_field), intent(in)    :: q_prim_vf(sys_size)
+        integer                           :: j, i, bad
+        real(wp)                          :: number, alf, max_ratio, max_root
+
+        bad = 0
+        $:GPU_PARALLEL_LOOP(private='[j, i, alf, number]', reduction='[[bad]]', reductionOp='[max]')
+        do j = 0, m
+            alf = q_prim_vf(eqn_idx%alf)%sf(j, 0, 0)
+            if (.not. ieee_is_finite(alf)) bad = 1
+            poem_gpu_active(j + 1) = 0_c_int
+            if (.not. (alf < small_alf)) poem_gpu_active(j + 1) = 1_c_int
+            number = q_cons_vf(eqn_idx%n)%sf(j, 0, 0)
+            if (poem_gpu_active(j + 1) == 1 .and. (.not. ieee_is_finite(number) .or. number <= 0._wp)) bad = 1
+            poem_gpu_p(j + 1) = q_prim_vf(eqn_idx%E)%sf(j, 0, 0)
+            $:GPU_LOOP(parallelism='[seq]')
+            do i = 1, poem_dimension
+                poem_gpu_y(i, j + 1) = q_prim_vf(eqn_idx%bub%beg + i - 1)%sf(j, 0, 0)
+            end do
+        end do
+        $:END_GPU_PARALLEL_LOOP()
+        if (bad /= 0) call s_mpi_abort('Invalid POEM void fraction or active bubble number density.')
+        call s_poem_advance_device(m + 1, poem_gpu_active, poem_gpu_p, dt/2._wp, poem_gpu_y, poem_gpu_next, poem_gpu_ratio, &
+                                   & poem_gpu_root)
+        max_ratio = 0._wp; max_root = 0._wp
+        $:GPU_PARALLEL_LOOP(private='[j, i, number]', reduction='[[max_ratio, max_root]]', reductionOp='[max]')
+        do j = 0, m
+            max_ratio = max(max_ratio, poem_gpu_ratio(j + 1))
+            max_root = max(max_root, poem_gpu_root(j + 1))
+            if (poem_gpu_active(j + 1) == 0) cycle
+            number = q_cons_vf(eqn_idx%n)%sf(j, 0, 0)
+            $:GPU_LOOP(parallelism='[seq]')
+            do i = 1, poem_dimension
+                q_cons_vf(eqn_idx%bub%beg + i - 1)%sf(j, 0, 0) = number*poem_gpu_next(i, j + 1)
+            end do
+        end do
+        $:END_GPU_PARALLEL_LOOP()
+        poem_max_source_ratio = max(poem_max_source_ratio, max_ratio)
+        poem_max_root_residual = max(poem_max_root_residual, max_root)
+
+    end subroutine s_advance_poem_source_gpu
+
+    subroutine s_decode_poem_cells_gpu(q_prim_vf)
+
+        type(scalar_field), intent(in) :: q_prim_vf(sys_size)
+        integer                        :: j, i
+
+        $:GPU_PARALLEL_LOOP(private='[j, i]', collapse=2)
+        do j = 0, m
+            do i = 1, poem_dimension
+                poem_gpu_y(i, j + 1) = q_prim_vf(eqn_idx%bub%beg + i - 1)%sf(j, 0, 0)
+            end do
+        end do
+        $:END_GPU_PARALLEL_LOOP()
+        call s_poem_decode_device(m + 1, poem_gpu_y, poem_gpu_moments)
+
+    end subroutine s_decode_poem_cells_gpu
+#endif
+
+    !> Compact diagnostics at full-step endpoints for the one-dimensional CPU study.
+    subroutine s_write_poem_diagnostics(q_cons_vf, q_prim_vf, step, time)
+
+        type(scalar_field), intent(in) :: q_cons_vf(sys_size), q_prim_vf(sys_size)
+        integer, intent(in)            :: step
+        real(wp), intent(in)           :: time
+        integer                        :: unit, j, i, q
+        real(wp)                       :: moments(4), radius, velocity, number
+        real(wp), allocatable          :: y(:,:), decoded(:,:)
+        character(len=1024)            :: path
+
+        if (poem_euler) then
+            if (n /= 0 .or. p /= 0) call s_mpi_abort('POEM diagnostics require the supported one-dimensional domain.')
+            allocate (y(poem_dimension, m + 1), decoded(4, m + 1))
+#ifdef MFC_OpenACC
+            call s_decode_poem_cells_gpu(q_prim_vf)
+            $:GPU_UPDATE(host='[poem_gpu_moments]')
+            decoded = poem_gpu_moments
+#else
+            do j = 0, m
+                do i = 1, poem_dimension
+                    y(i, j + 1) = q_prim_vf(eqn_idx%bub%beg + i - 1)%sf(j, 0, 0)
+                end do
+            end do
+            call s_poem_decode_cells(m + 1, y, decoded)
+#endif
+        end if
+#ifdef MFC_OpenACC
+        ! Explicit output-only host transfer; simulation kernels stay on device.
+        do i = 1, sys_size
+            $:GPU_UPDATE(host='[q_cons_vf(i)%sf, q_prim_vf(i)%sf]')
+        end do
+#endif
+        path = trim(case_dir) // '/D/poem_moments.dat'
+        if (step == t_step_start) then
+            open (newunit=unit, file=trim(path), status='replace', action='write')
+            write (unit, '(A)') '# step time cell x rho u p alpha n A K W Q max_source_energy_ratio max_root_residual'
+        else
+            open (newunit=unit, file=trim(path), status='old', position='append', action='write')
+        end if
+        do j = 0, m
+            if (poem_euler) then
+                moments = decoded(:,j + 1)
+            else
+                moments = 0._wp
+                do q = 1, nb
+                    radius = q_prim_vf(rs(q))%sf(j, 0, 0)
+                    velocity = q_prim_vf(vs(q))%sf(j, 0, 0)
+                    moments(1) = moments(1) + weight(q)*radius**3
+                    moments(2) = moments(2) + weight(q)*radius**3*velocity**2
+                    moments(3) = moments(3) + weight(q)*radius**3*f_cpbw_KM(R0(q), radius, velocity, 0._wp)
+                    moments(4) = moments(4) + weight(q)*radius**2*velocity
+                end do
+            end if
+            number = q_cons_vf(eqn_idx%n)%sf(j, 0, 0)
+            write (unit, '(I9,1X,ES25.16E3,1X,I9,12(1X,ES25.16E3))') step, time, j, x_cc(j), q_cons_vf(1)%sf(j, 0, 0), &
+                   & q_prim_vf(eqn_idx%mom%beg)%sf(j, 0, 0), q_prim_vf(eqn_idx%E)%sf(j, 0, 0), q_prim_vf(eqn_idx%alf)%sf(j, 0, &
+                   & 0), number, moments, poem_max_source_ratio, poem_max_root_residual
+        end do
+        close (unit)
+
+    end subroutine s_write_poem_diagnostics
 
     !> Compute the right-hand side for Euler-Euler bubble transport
     subroutine s_compute_bubbles_EE_rhs(idir, q_prim_vf, divu_in)
@@ -163,6 +357,11 @@ contains
         integer  :: adap_dt_stop_sum, adap_dt_stop  !< Fail-safe exit if max iteration count reached
         integer  :: dmBub_id                        !< Dummy variables for unified subgrid bubble subroutines
         real(wp) :: dmMass_v, dmMass_n, dmBeta_c, dmBeta_t, dmCson
+
+        if (poem_euler) then
+            call s_advance_poem_source(q_cons_vf, q_prim_vf)
+            return
+        end if
 
         $:GPU_PARALLEL_LOOP(private='[j, k, l, q]', collapse=3)
         do l = 0, p
@@ -264,6 +463,11 @@ contains
 
                             ! Adaptive time stepping
                             if (adap_dt) then
+                                ! Matched POEM benchmark only; flow density/void fraction remain untouched.
+                                if (poem_fixed_density) then
+                                    myRho = 1._wp
+                                    alf = 0._wp
+                                end if
                                 adap_dt_stop = f_advance_step(myRho, myP, myR, myV, R0(q), pb_local, pbdot, alf, n_tait, B_tait, &
                                                               & bub_adv_src(j, k, l), divu_in%sf(j, k, l), dmBub_id, dmMass_v, &
                                                               & dmMass_n, dmBeta_c, dmBeta_t, dmCson)
@@ -321,8 +525,24 @@ contains
         type(scalar_field), dimension(sys_size), intent(in) :: q_cons_vf, q_prim_vf
         real(wp)                                            :: R3bar, R3V2bar, PbwR3bar
         real(wp)                                            :: myRho, myP, alf, myR, myV, myPb
+        real(wp), allocatable                               :: poem_y(:,:), poem_moments(:,:)
         integer                                             :: j, k, l, q, ii
 
+#ifdef MFC_OpenACC
+        if (poem_euler) call s_decode_poem_cells_gpu(q_prim_vf)
+#endif
+#if !defined(MFC_OpenACC) && !defined(MFC_OpenMP)
+        if (poem_euler) then
+            if (n /= 0 .or. p /= 0) call s_mpi_abort('POEM cell decoding requires the supported one-dimensional domain.')
+            allocate (poem_y(poem_dimension, m + 1), poem_moments(4, m + 1))
+            do j = 0, m
+                do q = 1, poem_dimension
+                    poem_y(q, j + 1) = q_prim_vf(eqn_idx%bub%beg + q - 1)%sf(j, 0, 0)
+                end do
+            end do
+            call s_poem_decode_cells(m + 1, poem_y, poem_moments)
+        end if
+#endif
         $:GPU_PARALLEL_LOOP(private='[j, k, l, q, ii, R3bar, R3V2bar, PbwR3bar, myRho, myP, alf, myR, myV, myPb]', collapse=3)
         do l = 0, p
             do k = 0, n
@@ -336,7 +556,18 @@ contains
                         myRho = myRho + q_cons_vf(ii)%sf(j, k, l)
                     end do
 
-                    if (qbmm) then
+                    if (poem_euler) then
+#ifdef MFC_OpenACC
+                        R3bar = poem_gpu_moments(1, j + 1)
+                        R3V2bar = poem_gpu_moments(2, j + 1)
+                        PbwR3bar = poem_gpu_moments(3, j + 1)
+#endif
+#if !defined(MFC_OpenACC) && !defined(MFC_OpenMP)
+                        R3bar = poem_moments(1, j + 1)
+                        R3V2bar = poem_moments(2, j + 1)
+                        PbwR3bar = poem_moments(3, j + 1)
+#endif
+                    else if (qbmm) then
                         R3bar = mom_sp(1)%sf(j, k, l)
                         R3V2bar = mom_sp(3)%sf(j, k, l)
                         PbwR3bar = mom_sp(4)%sf(j, k, l)

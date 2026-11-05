@@ -286,7 +286,7 @@ contains
         end if
         $:GPU_UPDATE(device='[Res_vc, Re_size]')
 
-        if (bubbles_euler) then
+        if (bubbles_euler .and. .not. poem_euler) then
             @:ALLOCATE(bubrs_vc(1:nb))
             do i = 1, nb
                 bubrs_vc(i) = qbmm_idx%rs(i)
@@ -591,10 +591,12 @@ contains
 
                     if (bubbles_euler) then
                         ! Recover bubble primitive variables: divide conserved moments by bubble number density
-                        $:GPU_LOOP(parallelism='[seq]')
-                        do i = 1, nb
-                            nRtmp(i) = qK_cons_vf(bubrs_vc(i))%sf(j, k, l)
-                        end do
+                        if (.not. poem_euler) then
+                            $:GPU_LOOP(parallelism='[seq]')
+                            do i = 1, nb
+                                nRtmp(i) = qK_cons_vf(bubrs_vc(i))%sf(j, k, l)
+                            end do
+                        end if
 
                         vftmp = qK_cons_vf(eqn_idx%alf)%sf(j, k, l)
 
@@ -857,9 +859,11 @@ contains
 
                     if (bubbles_euler) then
                         ! From prim: Compute nbub = (3/4pi) * \alpha / \bar{R^3}
-                        do i = 1, nb
-                            Rtmp(i) = q_prim_vf(qbmm_idx%rs(i))%sf(j, k, l)
-                        end do
+                        if (.not. poem_euler) then
+                            do i = 1, nb
+                                Rtmp(i) = q_prim_vf(qbmm_idx%rs(i))%sf(j, k, l)
+                            end do
+                        end if
 
                         if (.not. qbmm) then
                             if (adv_n) then

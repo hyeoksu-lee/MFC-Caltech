@@ -145,6 +145,28 @@ class ConstraintTestCase(unittest.TestCase):
         self.assertEqual(self.errors_for(params), "")
 
 
+class TestBubbleDiluteWarning(unittest.TestCase):
+    def warnings_for(self, alpha):
+        params = {**BASE, "bubbles_euler": "T", "nb": 1, "patch_icpp(1)%alpha(1)": alpha}
+        validator = CaseValidator(params)
+        validator.check_bubbles_euler()
+        self.assertEqual(validator.errors, [])
+        return validator.warnings
+
+    def test_constant_above_threshold_still_warns(self):
+        self.assertTrue(any("not a dilute void fraction" in warning for warning in self.warnings_for(0.2)))
+
+    def test_constant_at_or_below_threshold_does_not_warn(self):
+        for alpha in (1e-5, 0.1):
+            with self.subTest(alpha=alpha):
+                self.assertEqual(self.warnings_for(alpha), [])
+
+    def test_analytic_void_fraction_is_not_evaluated(self):
+        for alpha in ("1e-5*(1+0.2*sin(x))", "unknown_symbol(x)", "1/0"):
+            with self.subTest(alpha=alpha):
+                self.assertEqual(self.warnings_for(alpha), [])
+
+
 class TestImmersedBoundaryFlags(ConstraintTestCase):
     MSG = "many_ib_patch_parallelism requires ib"
 

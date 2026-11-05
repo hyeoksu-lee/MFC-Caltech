@@ -10,6 +10,7 @@ module m_helper
 
     use m_derived_types
     use m_global_parameters
+    use m_poem_backend, only: s_poem_initialize
     use m_constants, only: BC_PERIODIC, seed_kind
     use m_helper_basic, only: f_is_finite_gpu
     use ieee_arithmetic  !< For checking NaN
@@ -87,6 +88,8 @@ contains
 
     !> Initialize bubble model arrays for Euler or Lagrangian bubbles with polytropic or non-polytropic gas.
     impure subroutine s_initialize_bubbles_model()
+
+        if (poem_euler) call s_poem_initialize()
 
         ! Allocate memory
         if (bubbles_euler) then
@@ -256,8 +259,14 @@ contains
         real(wp), dimension(nb)               :: phi
 
         sd = poly_sigma
-        R0mn = 0.8_wp*exp(-2.8_wp*sd)
-        R0mx = 0.2_wp*exp(9.5_wp*sd) + 1._wp
+        if (poem_distribution) then
+            ! POEM truncation in raw log radius; weights remain unnormalized.
+            R0mn = exp(-2.8_wp)
+            R0mx = exp(2.8_wp)
+        else
+            R0mn = 0.8_wp*exp(-2.8_wp*sd)
+            R0mx = 0.2_wp*exp(9.5_wp*sd) + 1._wp
+        end if
 
         ! phi = ln( R0 ) & return R0
         do ir = 1, nb
