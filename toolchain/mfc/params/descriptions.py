@@ -94,6 +94,7 @@ DESCRIPTIONS = {
     "poem_fixed_density": "Use reference density 1 and zero void correction only inside the split polytropic Keller-Miksis source; flow density remains dynamic",
     "poem_diagnostics": "Write full-step pressure, void fraction, bubble moments, and source diagnostics for the one-dimensional study (explicit host output)",
     "bubbles_lagrange": "Enable Lagrangian bubble tracking",
+    "particles_lagrange": "Enable Lagrangian particle tracking",
     "bubble_model": "Bubble dynamics model",
     "polytropic": "Enable polytropic gas behavior for bubbles",
     "polydisperse": "Enable polydisperse bubble distribution",
@@ -281,6 +282,7 @@ DESCRIPTIONS = {
     "lag_mg_wrt": "Write bubble gas mass",
     "lag_betaT_wrt": "Write bubble heat transfer coefficient",
     "lag_betaC_wrt": "Write bubble mass transfer coefficient",
+    "lag_voidfrac_wrt": "Write Lagrangian particle volume fraction in the host cell",
     # Interfacial flow parameters
     "interface_file": "Path to interface geometry data file",
     "normFac": "Offset added to the interface data (hcid 304/305)",
@@ -522,7 +524,7 @@ PATTERNS = [
     (r"simplex_params%perturb_vel_scale\((\d+)\)", "Velocity perturbation scale for direction {0}"),
     (r"simplex_params%perturb_vel_offset\((\d+),(\d+)\)", "Velocity perturbation offset ({1}) for direction {0}"),
     # lag_params patterns - specific fields first
-    (r"lag_params%solver_approach", "Lagrangian solver approach (1=one-way, 2=two-way coupling)"),
+    (r"lag_params%coupling", "Euler-Lagrange coupling (one_way or two_way)"),
     (r"lag_params%cluster_type", "Cluster model for pressure at infinity"),
     (r"lag_params%pressure_corrector", "Enable cell pressure correction for Lagrangian bubbles"),
     (r"lag_params%smooth_type", "Smoothing function type (1=Gaussian, 2=Delta 3x3)"),

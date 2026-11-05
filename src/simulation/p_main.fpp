@@ -59,6 +59,14 @@ program p_main
 
     call nvtxEndRange  ! INIT
 
+    ! Save the initial state so post_process sees the smeared particle volume fraction at t = 0. Fresh starts only: on a restart
+    ! this would rewrite the checkpoint being restarted from. CFL runs restart from n_start, fixed-dt runs from t_step_start.
+    if (particles_lagrange .and. merge(n_start, t_step_start, cfl_dt) == 0) then
+        call nvtxStartRange("SAVE-INIT-PARTICLES")
+        call s_save_data(t_step, start, finish, io_time_avg, nt)
+        call nvtxEndRange  ! SAVE-INIT-PARTICLES
+    end if
+
     if (poem_diagnostics) then
         call s_convert_conservative_to_primitive_variables(q_cons_ts(1)%vf, q_T_sf, q_prim_vf, idwbuff)
         call s_write_poem_diagnostics(q_cons_ts(1)%vf, q_prim_vf, t_step, mytime)
